@@ -21,15 +21,15 @@
           class="nav-item"
           :class="{ active: isActive(item.path) }"
         >
-          <component :is="item.icon" class="nav-icon" />
+          <el-icon><component :is="item.icon" /></el-icon>
           <span v-if="!isCollapsed" class="nav-text">{{ item.label }}</span>
         </router-link>
       </nav>
 
       <div class="sidebar-footer">
         <el-button class="collapse-btn" @click="isCollapsed = !isCollapsed">
-          <ArrowLeft v-if="!isCollapsed" />
-          <ArrowRight v-else />
+          <el-icon v-if="!isCollapsed"><DArrowLeft /></el-icon>
+          <el-icon v-else><DArrowRight /></el-icon>
         </el-button>
       </div>
     </aside>
@@ -46,7 +46,7 @@
             <div class="user-info">
               <div class="avatar">{{ userStore.user?.username?.[0]?.toUpperCase() || 'A' }}</div>
               <span class="username">{{ userStore.user?.username }}</span>
-              <ArrowDown />
+              <el-icon><ArrowDown /></el-icon>
             </div>
             <template #dropdown>
               <el-dropdown-menu>
@@ -71,13 +71,12 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, markRaw } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores'
-import Cookies from 'js-cookie'
 import {
-  Home, Users, Api, FolderOpened, List, Box, Guide,
-  ArrowLeft, ArrowRight, ArrowDown
+  HomeFilled, User, Connection, FolderOpened, List, Box, Guide,
+  DArrowLeft, DArrowRight, ArrowDown
 } from '@element-plus/icons-vue'
 
 const route = useRoute()
@@ -86,13 +85,13 @@ const userStore = useUserStore()
 const isCollapsed = ref(false)
 
 const menuItems = [
-  { path: '/admin', label: '控制台', icon: Home },
-  { path: '/admin/users', label: '用户管理', icon: Users },
-  { path: '/admin/api-management', label: 'API管理', icon: Api },
-  { path: '/admin/api-categories', label: 'API分类', icon: FolderOpened },
-  { path: '/admin/access-logs', label: '访问日志', icon: List },
-  { path: '/admin/model-management', label: '模型管理', icon: Box },
-  { path: '/admin/channel-management', label: '渠道管理', icon: Guide },
+  { path: '/admin', label: '控制台', icon: markRaw(HomeFilled) },
+  { path: '/admin/users', label: '用户管理', icon: markRaw(User) },
+  { path: '/admin/api-management', label: 'API管理', icon: markRaw(Connection) },
+  { path: '/admin/api-categories', label: 'API分类', icon: markRaw(FolderOpened) },
+  { path: '/admin/access-logs', label: '访问日志', icon: markRaw(List) },
+  { path: '/admin/model-management', label: '模型管理', icon: markRaw(Box) },
+  { path: '/admin/channel-management', label: '渠道管理', icon: markRaw(Guide) },
 ]
 
 const currentTitle = computed(() => {
@@ -113,6 +112,12 @@ const handleCommand = (command) => {
     router.push('/settings')
   }
 }
+
+onMounted(() => {
+  if (!userStore.user) {
+    userStore.getUserInfo()
+  }
+})
 </script>
 
 <style scoped>
@@ -151,6 +156,7 @@ const handleCommand = (command) => {
   width: 32px;
   height: 32px;
   color: #4ade80;
+  flex-shrink: 0;
 }
 
 .logo-icon svg {
@@ -193,7 +199,7 @@ const handleCommand = (command) => {
   color: #fff;
 }
 
-.nav-icon {
+.nav-item .el-icon {
   width: 20px;
   height: 20px;
   flex-shrink: 0;

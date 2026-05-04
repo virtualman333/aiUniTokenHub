@@ -4,7 +4,7 @@
     <div class="stats-grid">
       <div class="stat-card" v-for="stat in stats" :key="stat.title">
         <div class="stat-icon" :style="{ background: stat.bgColor }">
-          <component :is="stat.icon" />
+          <el-icon><component :is="stat.icon" /></el-icon>
         </div>
         <div class="stat-info">
           <div class="stat-value">{{ stat.value }}</div>
@@ -85,7 +85,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, onMounted, onUnmounted, markRaw } from 'vue'
 import { useRouter } from 'vue-router'
 import * as echarts from 'echarts'
 import api from '@/stores'
@@ -102,10 +102,10 @@ let trendChart = null
 let pieChart = null
 
 const stats = reactive([
-  { title: '总用户数', value: '0', icon: User, bgColor: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' },
-  { title: '总API数', value: '0', icon: Connection, bgColor: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' },
-  { title: '总请求数', value: '0', icon: TrendCharts, bgColor: 'linear-gradient(135deg, #4ade80 0%, #22c55e 100%)' },
-  { title: '本月消费', value: '¥0', icon: Money, bgColor: 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)' },
+  { title: '总用户数', value: '0', icon: markRaw(User), bgColor: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' },
+  { title: '总API数', value: '0', icon: markRaw(Connection), bgColor: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' },
+  { title: '总请求数', value: '0', icon: markRaw(TrendCharts), bgColor: 'linear-gradient(135deg, #4ade80 0%, #22c55e 100%)' },
+  { title: '本月消费', value: '¥0', icon: markRaw(Money), bgColor: 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)' },
 ])
 
 const recentLogs = ref([])

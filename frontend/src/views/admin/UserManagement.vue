@@ -1,94 +1,176 @@
 <template>
-  <div class="page-container">
+  <div class="user-management">
+    <!-- 页面标题 -->
     <div class="page-header">
-      <h2 class="title">用户管理</h2>
+      <div class="header-left">
+        <h2>用户管理</h2>
+        <span class="user-count">共 {{ pagination.total }} 位用户</span>
+      </div>
+      <el-button type="primary" @click="showAddDialog = true">
+        <Plus /> 添加用户
+      </el-button>
     </div>
-    
-    <el-card>
+
+    <!-- 搜索栏 -->
+    <el-card class="search-card">
       <el-form inline :model="queryParams">
-        <el-form-item label="用户名">
-          <el-input v-model="queryParams.search" placeholder="搜索用户名" clearable @change="loadUsers" />
+        <el-form-item label="关键词">
+          <el-input 
+            v-model="queryParams.search" 
+            placeholder="搜索用户名/邮箱/手机号" 
+            clearable
+            @keyup.enter="loadUsers"
+          >
+            <template #prefix><Search /></template>
+          </el-input>
         </el-form-item>
         <el-form-item label="角色">
-          <el-select v-model="queryParams.role" placeholder="全部" clearable @change="loadUsers">
+          <el-select v-model="queryParams.role" placeholder="全部" clearable>
             <el-option label="管理员" value="admin" />
             <el-option label="普通用户" value="user" />
           </el-select>
         </el-form-item>
+        <el-form-item label="状态">
+          <el-select v-model="queryParams.is_active" placeholder="全部" clearable>
+            <el-option label="正常" :value="true" />
+            <el-option label="禁用" :value="false" />
+          </el-select>
+        </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="loadUsers">搜索</el-button>
-          <el-button @click="resetQuery">重置</el-button>
+          <el-button type="primary" @click="loadUsers">
+            <Search /> 搜索
+          </el-button>
+          <el-button @click="resetQuery">
+            <RefreshLeft /> 重置
+          </el-button>
         </el-form-item>
       </el-form>
-      
-      <el-table :data="users" v-loading="loading">
-        <el-table-column prop="username" label="用户名" />
-        <el-table-column prop="email" label="邮箱" />
+    </el-card>
+
+    <!-- 用户表格 -->
+    <el-card class="table-card">
+      <el-table :data="users" v-loading="loading" stripe>
+        <el-table-column prop="username" label="用户信息" min-width="200">
+          <template #default="{ row }">
+            <div class="user-cell">
+              <div class="user-avatar">{{ row.username[0].toUpperCase() }}</div>
+              <div class="user-detail">
+                <div class="username">{{ row.username }}</div>
+                <div class="email">{{ row.email || '未设置' }}</div>
+              </div>
+            </div>
+          </template>
+        </el-table-column>
+        
         <el-table-column prop="role" label="角色" width="100" align="center">
           <template #default="{ row }">
-            <el-tag :type="row.role === 'admin' ? 'danger' : ''" size="small">
+            <el-tag :type="row.role === 'admin' ? 'danger' : ''" size="small" round>
               {{ row.role === 'admin' ? '管理员' : '用户' }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="balance" label="余额" width="100" align="right">
+        
+        <el-table-column prop="balance" label="余额" width="120" align="right">
           <template #default="{ row }">
-            ¥{{ row.balance || 0 }}
+            <span class="balance">¥{{ (row.balance || 0).toFixed(2) }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="is_active" label="状态" width="100" align="center">
+        
+        <el-table-column prop="is_active" label="状态" width="80" align="center">
           <template #default="{ row }">
-            <el-tag :type="row.is_active ? 'success' : 'info'" size="small">
+            <el-tag :type="row.is_active ? 'success' : 'info'" size="small" effect="light">
               {{ row.is_active ? '正常' : '禁用' }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="created_at" label="注册时间" width="180">
+        
+        <el-table-column prop="company" label="公司" width="150" show-overflow-tooltip />
+        
+        <el-table-column prop="created_at" label="注册时间" width="160">
           <template #default="{ row }">
             {{ formatDate(row.created_at) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="180" align="center">
+        
+        <el-table-column label="操作" width="200" align="center" fixed="right">
           <template #default="{ row }">
-            <el-button size="small" @click="editUser(row)">编辑</el-button>
-            <el-button size="small" type="danger" text @click="toggleStatus(row)">
+            <el-button size="small" type="primary" link @click="editUser(row)">
+              编辑
+            </el-button>
+            <el-button size="small" type="warning" link @click="adjustBalance(row)">
+              调余额
+            </el-button>
+            <el-button 
+              size="small" 
+              :type="row.is_active ? 'danger' : 'success'" 
+              link 
+              @click="toggleStatus(row)"
+            >
               {{ row.is_active ? '禁用' : '启用' }}
             </el-button>
           </template>
         </el-table-column>
       </el-table>
-      
-      <el-pagination
-        v-model:current-page="pagination.page"
-        v-model:page-size="pagination.pageSize"
-        :total="pagination.total"
-        :page-sizes="[10, 20, 50]"
-        layout="total, sizes, prev, pager, next"
-        @size-change="loadUsers"
-        @current-change="loadUsers"
-        style="margin-top: 16px; justify-content: flex-end;"
-      />
+
+      <div class="pagination-wrapper">
+        <el-pagination
+          v-model:current-page="pagination.page"
+          v-model:page-size="pagination.pageSize"
+          :total="pagination.total"
+          :page-sizes="[10, 20, 50, 100]"
+          layout="total, sizes, prev, pager, next, jumper"
+          @change="loadUsers"
+        />
+      </div>
     </el-card>
-    
+
     <!-- 编辑对话框 -->
-    <el-dialog v-model="showEditDialog" title="编辑用户" width="500px">
-      <el-form :model="editForm" label-width="80px">
+    <el-dialog v-model="showEditDialog" title="编辑用户" width="500px" destroy-on-close>
+      <el-form ref="editFormRef" :model="editForm" label-width="80px">
         <el-form-item label="用户名">
           <el-input v-model="editForm.username" disabled />
         </el-form-item>
+        <el-form-item label="邮箱">
+          <el-input v-model="editForm.email" />
+        </el-form-item>
+        <el-form-item label="手机号">
+          <el-input v-model="editForm.phone" />
+        </el-form-item>
+        <el-form-item label="公司">
+          <el-input v-model="editForm.company" />
+        </el-form-item>
         <el-form-item label="角色">
-          <el-select v-model="editForm.role">
+          <el-select v-model="editForm.role" style="width: 100%">
             <el-option label="管理员" value="admin" />
             <el-option label="普通用户" value="user" />
           </el-select>
-        </el-form-item>
-        <el-form-item label="余额">
-          <el-input-number v-model="editForm.balance" :precision="2" />
         </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="showEditDialog = false">取消</el-button>
         <el-button type="primary" @click="saveUser">保存</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 调整余额对话框 -->
+    <el-dialog v-model="showBalanceDialog" title="调整余额" width="400px">
+      <el-form label-width="80px">
+        <el-form-item label="用户名">
+          <span>{{ currentUser?.username }}</span>
+        </el-form-item>
+        <el-form-item label="当前余额">
+          <span class="balance">¥{{ (currentUser?.balance || 0).toFixed(2) }}</span>
+        </el-form-item>
+        <el-form-item label="调整金额">
+          <el-input-number v-model="balanceAmount" :precision="2" :step="10" />
+        </el-form-item>
+        <el-form-item label="说明">
+          <el-input v-model="balanceNote" placeholder="调整原因（可选）" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showBalanceDialog = false">取消</el-button>
+        <el-button type="primary" @click="saveBalance">确认调整</el-button>
       </template>
     </el-dialog>
   </div>
@@ -97,23 +179,39 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Search, RefreshLeft, Plus } from '@element-plus/icons-vue'
 import api from '@/stores'
 import dayjs from 'dayjs'
 
 const users = ref([])
 const loading = ref(false)
 const showEditDialog = ref(false)
-const editForm = reactive({})
+const showAddDialog = ref(false)
+const showBalanceDialog = ref(false)
+const currentUser = ref(null)
+const balanceAmount = ref(0)
+const balanceNote = ref('')
+const editFormRef = ref()
 
 const queryParams = reactive({
   search: '',
-  role: ''
+  role: '',
+  is_active: ''
 })
 
 const pagination = reactive({
   page: 1,
   pageSize: 20,
   total: 0
+})
+
+const editForm = reactive({
+  id: null,
+  username: '',
+  email: '',
+  phone: '',
+  company: '',
+  role: 'user'
 })
 
 onMounted(() => {
@@ -129,12 +227,13 @@ const loadUsers = async () => {
     }
     if (queryParams.search) params.search = queryParams.search
     if (queryParams.role) params.role = queryParams.role
+    if (queryParams.is_active !== '') params.is_active = queryParams.is_active
     
     const res = await api.get('/users/', { params })
     users.value = res.results || res
     pagination.total = res.count || users.value.length
   } catch (error) {
-    ElMessage.error('加载用户失败')
+    ElMessage.error('加载用户失败: ' + (error.message || ''))
   } finally {
     loading.value = false
   }
@@ -143,6 +242,7 @@ const loadUsers = async () => {
 const resetQuery = () => {
   queryParams.search = ''
   queryParams.role = ''
+  queryParams.is_active = ''
   pagination.page = 1
   loadUsers()
 }
@@ -155,20 +255,47 @@ const editUser = (user) => {
   Object.assign(editForm, {
     id: user.id,
     username: user.username,
-    role: user.role,
-    balance: user.balance
+    email: user.email,
+    phone: user.phone,
+    company: user.company,
+    role: user.role
   })
   showEditDialog.value = true
 }
 
 const saveUser = async () => {
   try {
-    await api.patch(`/users/${editForm.id}/`, editForm)
+    await api.patch(`/users/${editForm.id}/`, {
+      email: editForm.email,
+      phone: editForm.phone,
+      company: editForm.company,
+      role: editForm.role
+    })
     ElMessage.success('保存成功')
     showEditDialog.value = false
     loadUsers()
   } catch (error) {
     ElMessage.error('保存失败')
+  }
+}
+
+const adjustBalance = (user) => {
+  currentUser.value = user
+  balanceAmount.value = 0
+  balanceNote.value = ''
+  showBalanceDialog.value = true
+}
+
+const saveBalance = async () => {
+  try {
+    await api.post(`/users/${currentUser.value.id}/adjust_balance/`, {
+      amount: balanceAmount.value
+    })
+    ElMessage.success('余额调整成功')
+    showBalanceDialog.value = false
+    loadUsers()
+  } catch (error) {
+    ElMessage.error('调整失败')
   }
 }
 
@@ -178,9 +305,85 @@ const toggleStatus = async (user) => {
       `确定要${user.is_active ? '禁用' : '启用'}用户 ${user.username} 吗？`,
       '提示'
     )
-    await api.patch(`/users/${user.id}/`, { is_active: !user.is_active })
+    await api.post(`/users/${user.id}/toggle_status/`)
     ElMessage.success('操作成功')
     loadUsers()
   } catch {}
 }
 </script>
+
+<style scoped>
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.header-left {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.header-left h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.user-count {
+  font-size: 14px;
+  color: #6b7280;
+}
+
+.search-card {
+  margin-bottom: 20px;
+  border-radius: 12px;
+}
+
+.table-card {
+  border-radius: 12px;
+}
+
+.user-cell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.user-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.user-detail .username {
+  font-weight: 500;
+  color: #1f2937;
+}
+
+.user-detail .email {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.balance {
+  font-weight: 600;
+  color: #f59e0b;
+}
+
+.pagination-wrapper {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 20px;
+}
+</style>
