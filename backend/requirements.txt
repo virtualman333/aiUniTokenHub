@@ -1,0 +1,26 @@
+# Django Core
+Django>=4.2,<5.0
+djangorestframework>=3.14.0
+django-cors-headers>=4.3.0
+
+# Database
+mysqlclient>=2.2.0
+
+# Redis
+redis>=5.0.0
+django-redis>=5.4.0
+
+# Auth
+PyJWT>=2.8.0
+argon2-cffi>=23.1.0
+
+# API Request
+requests>=2.31.0
+httpx>=0.25.0
+
+# Utils
+python-dotenv>=1.0.0
+gunicorn>=21.2.0
+
+# Admin
+django-simpleui>=2024.1.0

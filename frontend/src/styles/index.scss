@@ -1,0 +1,89 @@
+// SCSS 变量
+$primary-color: #409EFF;
+$success-color: #67C23A;
+$warning-color: #E6A23C;
+$danger-color: #F56C6C;
+$info-color: #909399;
+
+$bg-color: #f5f7fa;
+$sidebar-width: 220px;
+$header-height: 60px;
+
+// 重置样式
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+  font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Arial, sans-serif;
+}
+
+// 滚动条样式
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+// 通用布局
+.page-container {
+  padding: 20px;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  
+  .title {
+    font-size: 20px;
+    font-weight: 600;
+  }
+}
+
+// 卡片样式
+.card {
+  background: #fff;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+}
+
+// 统计卡片
+.stat-card {
+  background: linear-gradient(135deg, $primary-color, #66b1ff);
+  color: #fff;
+  border-radius: 12px;
+  padding: 24px;
+  
+  .stat-value {
+    font-size: 32px;
+    font-weight: bold;
+    margin-bottom: 8px;
+  }
+  
+  .stat-label {
+    font-size: 14px;
+    opacity: 0.9;
+  }
+}
+
+// 表格操作栏
+.table-toolbar {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
