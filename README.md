@@ -125,3 +125,7 @@ REDIS_PASSWORD=unitokenhub
 ## 许可证
 
 MIT License
+📋 测试账号
+角色	用户名	密码	余额
+管理员	admin	admin123	¥10,000
+普通用户	testuser	test123	¥1,000

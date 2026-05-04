@@ -2,6 +2,15 @@ from rest_framework import serializers
 from .models import User, APIKey
 
 
+class AdminUserSerializer(serializers.ModelSerializer):
+    """管理员用户序列化器"""
+    class Meta:
+        model = User
+        fields = ['id', 'username', 'email', 'role', 'phone', 'company', 
+                  'balance', 'is_active', 'is_staff', 'is_superuser', 'created_at']
+        read_only_fields = ['id', 'is_staff', 'is_superuser', 'created_at']
+
+
 class UserRegisterSerializer(serializers.ModelSerializer):
     """用户注册"""
     password = serializers.CharField(write_only=True, min_length=6)

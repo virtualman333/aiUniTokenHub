@@ -21,6 +21,10 @@
           <el-icon><Connection /></el-icon>
           <span>API列表</span>
         </el-menu-item>
+        <el-menu-item index="/model-square">
+          <el-icon><Box /></el-icon>
+          <span>模型广场</span>
+        </el-menu-item>
         <el-menu-item index="/my-keys">
           <el-icon><Key /></el-icon>
           <span>我的密钥</span>
@@ -28,6 +32,10 @@
         <el-menu-item index="/usage-log">
           <el-icon><Document /></el-icon>
           <span>使用记录</span>
+        </el-menu-item>
+        <el-menu-item index="/billing">
+          <el-icon><Wallet /></el-icon>
+          <span>账单中心</span>
         </el-menu-item>
         <el-menu-item index="/settings">
           <el-icon><Setting /></el-icon>

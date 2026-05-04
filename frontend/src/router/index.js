@@ -35,6 +35,12 @@ const routes = [
         meta: { title: 'API列表' }
       },
       {
+        path: 'model-square',
+        name: 'ModelSquare',
+        component: () => import('@/views/user/ModelSquare/index.vue'),
+        meta: { title: '模型广场' }
+      },
+      {
         path: 'api-doc/:id',
         name: 'APIDoc',
         component: () => import('@/views/user/APIDoc.vue'),
@@ -57,6 +63,12 @@ const routes = [
         name: 'Settings',
         component: () => import('@/views/user/Settings.vue'),
         meta: { title: '账户设置' }
+      },
+      {
+        path: 'billing',
+        name: 'Billing',
+        component: () => import('@/views/user/Billing.vue'),
+        meta: { title: '账单中心' }
       },
     ]
   },
@@ -96,6 +108,18 @@ const routes = [
         name: 'AccessLogs',
         component: () => import('@/views/admin/AccessLogs.vue'),
         meta: { title: '访问日志' }
+      },
+      {
+        path: 'model-management',
+        name: 'ModelManagement',
+        component: () => import('@/views/admin/ModelManagement.vue'),
+        meta: { title: '模型管理' }
+      },
+      {
+        path: 'channel-management',
+        name: 'ChannelManagement',
+        component: () => import('@/views/admin/ChannelManagement.vue'),
+        meta: { title: '渠道管理' }
       },
     ]
   },

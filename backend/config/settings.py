@@ -32,6 +32,7 @@ INSTALLED_APPS = [
     'apps.users',
     'apps.api_proxy',
     'apps.dashboard',
+    'apps.ai_models',
 ]
 
 MIDDLEWARE = [
