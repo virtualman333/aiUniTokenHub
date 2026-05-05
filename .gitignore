@@ -20,6 +20,8 @@ media/
 # Environment
 .env
 .env.local
+.env.*.local
+*.env
 
 # IDE
 .vscode/
@@ -56,3 +58,19 @@ htmlcov/
 # Misc
 *.bak
 *.tmp
+
+# Secrets and credentials
+**/secrets.json
+**/credentials.json
+**/*secret*.json
+**/*token*.json
+**/.htpasswd
+
+# Database backups
+*.sql
+*.sql.gz
+*.dump
+
+# Logs
+logs/
+*.log

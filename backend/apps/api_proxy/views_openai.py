@@ -360,6 +360,15 @@ class ChatCompletionsView(APIView):
             except:
                 response_data = {'raw_response': response.text}
             
+            # 错误日志记录
+            if response.status_code >= 400:
+                logger.error(
+                    f"[ChatCompletions-Error] user_id={user.id}, account={account.name}, "
+                    f"status={response.status_code}, response={response_data}"
+                )
+            else:
+                logger.info(f"[ChatCompletions-Normal] Success, status={response.status_code}")
+            
             # 更新日志
             self._update_usage_log(usage_log, response, response_data, response_time, model_name)
             
@@ -373,6 +382,19 @@ class ChatCompletionsView(APIView):
                 response_time, get_client_ip(request),
                 model=model_obj, upstream_account=account
             )
+            
+            # 如果是错误响应，确保返回完整的错误信息
+            if response.status_code >= 400:
+                if isinstance(response_data, dict) and 'error' not in response_data:
+                    response_data = {
+                        'error': {
+                            'message': response_data.get('message', response_data.get('error', str(response_data))),
+                            'type': response_data.get('type', 'upstream_error'),
+                            'code': response_data.get('code', f'http_{response.status_code}'),
+                            'original_response': response_data
+                        }
+                    }
+                return Response(response_data, status=response.status_code)
             
             return Response(response_data, status=response.status_code)
             
@@ -425,17 +447,39 @@ class ChatCompletionsView(APIView):
                 """生成器函数，流式返回SSE数据"""
                 try:
                     with httpx.stream('POST', target_url, headers=headers, json=request.data, timeout=timeout) as response:
-                        for chunk in response.iter_bytes():
-                            if chunk:
-                                # 保持原始SSE格式
-                                yield chunk
-                    
-                    # 标记完成
-                    update_upstream_usage(account, success=True)
+                        # 检查响应状态
+                        if response.status_code >= 400:
+                            # 读取错误响应
+                            try:
+                                error_data = response.json()
+                            except:
+                                error_data = {'error': {'message': response.text}}
+                            
+                            logger.error(
+                                f"[ChatCompletions-Stream-Error] user_id={user.id}, account={account.name}, "
+                                f"status={response.status_code}, response={error_data}"
+                            )
+                            
+                            # 流式返回错误信息
+                            error_msg = error_data.get('error', {}).get('message', str(error_data))
+                            yield f'data: {{"error": {{"message": {json.dumps(error_msg)}, "type": "upstream_error", "code": "http_{response.status_code}"}}}}\n\n'.encode()
+                            update_upstream_usage(account, success=False)
+                        else:
+                            # 正常流式处理
+                            for chunk in response.iter_bytes():
+                                if chunk:
+                                    # 保持原始SSE格式
+                                    yield chunk
+                            # 标记完成
+                            update_upstream_usage(account, success=True)
+                except httpx.TimeoutException:
+                    update_upstream_usage(account, success=False)
+                    logger.error(f"[ChatCompletions-Stream-Timeout] user_id={user.id}, account={account.name}")
+                    yield f'data: {{"error": {{"message": "Request timeout.", "type": "timeout_error", "code": "request_timeout"}}\n\n'.encode()
                 except Exception as e:
                     update_upstream_usage(account, success=False)
-                    yield f'data: [DONE]\n\n'.encode()
-                    yield f'error: {str(e)}\n\n'.encode()
+                    logger.error(f"[ChatCompletions-Stream-Exception] user_id={user.id}, account={account.name}, error={str(e)}")
+                    yield f'data: {{"error": {{"message": {json.dumps(str(e))}, "type": "server_error", "code": "internal_error"}}\n\n'.encode()
             
             streaming_response = StreamingHttpResponse(
                 generate(),
