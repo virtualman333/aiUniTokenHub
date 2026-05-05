@@ -76,9 +76,8 @@ def select_channel_for_model(model_code: str) -> Optional[APIChannel]:
     if not available_channels:
         # 如果没有绑定渠道，尝试获取默认渠道
         default_channels = APIChannel.objects.filter(
-            status='active'
-        ).filter(
-            models=None  # 默认渠道（未绑定特定模型）
+            status='active',
+            is_default=True
         )
         for ch in default_channels:
             if ch.remaining_quota is None or ch.remaining_quota > 0:
@@ -260,8 +259,7 @@ class ChatCompletionsView(APIView):
         headers = self._build_headers(request)
         headers['Authorization'] = f'Bearer {channel.api_key}'
         
-        base_url = channel.base_url.rstrip('/')
-        url = f"{base_url}/v1/chat/completions"
+        url = channel.base_url.rstrip('/')
         
         # 记录使用日志
         usage_log = UsageLog.objects.create(
@@ -329,8 +327,7 @@ class ChatCompletionsView(APIView):
         headers = self._build_headers(request)
         headers['Authorization'] = f'Bearer {channel.api_key}'
         
-        base_url = channel.base_url.rstrip('/')
-        url = f"{base_url}/v1/chat/completions"
+        url = channel.base_url.rstrip('/')
         
         # 记录使用日志
         usage_log = UsageLog.objects.create(
