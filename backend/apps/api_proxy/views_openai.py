@@ -54,8 +54,10 @@ def select_channel_for_model(model_code: str) -> Optional[APIChannel]:
     根据模型代码选择最优渠道（加权负载均衡 + 故障转移）
     """
     try:
-        model = AIModel.objects.get(code=model_code, status='active')
-    except AIModel.DoesNotExist:
+        model = AIModel.objects.filter(code=model_code, status='active').first()
+        if not model:
+            return None
+    except Exception:
         return None
     
     # 获取模型关联的渠道
@@ -163,8 +165,10 @@ def calculate_and_deduct_cost(user, model_code, input_tokens, output_tokens, usa
     返回 (cost, success)
     """
     try:
-        model = AIModel.objects.get(code=model_code, status='active')
-    except AIModel.DoesNotExist:
+        model = AIModel.objects.filter(code=model_code, status='active').first()
+        if not model:
+            return 0, False
+    except Exception:
         return 0, False
     input_cost = (input_tokens / 1000) * float(model.input_price)
     output_cost = (output_tokens / 1000) * float(model.output_price)

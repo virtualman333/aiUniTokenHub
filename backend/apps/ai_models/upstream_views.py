@@ -66,6 +66,14 @@ class UpstreamAccountViewSet(viewsets.ModelViewSet):
             if not models_data:
                 return 0
             
+            # 获取或创建供应商
+            provider = self._get_or_create_provider(base_url, account)
+            
+            # 更新账号的供应商（如果未设置）
+            if not account.provider_id:
+                account.provider = provider
+                account.save(update_fields=['provider'])
+            
             added_count = 0
             for model_info in models_data:
                 model_id = model_info.get('id', '')
@@ -76,10 +84,7 @@ class UpstreamAccountViewSet(viewsets.ModelViewSet):
                 if AIModel.objects.filter(code=model_id).exists():
                     continue
                 
-                # 自动获取供应商
-                provider = self._get_or_create_provider(base_url, account)
-                
-                # 创建模型
+                # 创建模型，使用自动识别的供应商
                 AIModel.objects.create(
                     code=model_id,
                     name=model_id,
@@ -104,36 +109,50 @@ class UpstreamAccountViewSet(viewsets.ModelViewSet):
     
     def _get_or_create_provider(self, base_url, account):
         """根据base_url获取或创建供应商"""
-        # 从base_url提取供应商标识
-        provider_code = ''
-        if 'openai' in base_url.lower():
-            provider_code = 'openai'
-        elif 'anthropic' in base_url.lower():
-            provider_code = 'anthropic'
-        elif 'deepseek' in base_url.lower():
-            provider_code = 'deepseek'
-        elif 'zhipu' in base_url.lower() or '智谱' in base_url:
-            provider_code = 'zhipu'
-        elif 'baidu' in base_url.lower() or '百度' in base_url:
-            provider_code = 'baidu'
-        elif 'ali' in base_url.lower() or '阿里' in base_url:
-            provider_code = 'aliyun'
-        elif 'moonshot' in base_url.lower() or '月之暗面' in base_url:
-            provider_code = 'moonshot'
-        elif 'minimax' in base_url.lower():
-            provider_code = 'minimax'
-        elif 'gemini' in base_url.lower():
-            provider_code = 'gemini'
-        else:
-            provider_code = 'custom'
+        # 如果账号已有供应商，直接返回
+        if account.provider_id:
+            return account.provider
         
-        provider, _ = ModelProvider.objects.get_or_create(
+        # 从base_url提取供应商标识
+        provider_mapping = {
+            'openai': 'OpenAI',
+            'anthropic': 'Anthropic',
+            'deepseek': 'DeepSeek',
+            'zhipu': '智谱AI',
+            'baidu': '百度AI',
+            'aliyun': '阿里云',
+            'ali': '阿里云',
+            'moonshot': '月之暗面',
+            'minimax': 'MiniMax',
+            'gemini': 'Google Gemini',
+            'ollama': 'Ollama',
+            'localai': 'LocalAI',
+            'together': 'Together AI',
+            'groq': 'Groq',
+            'mistral': 'Mistral',
+            'cohere': 'Cohere',
+        }
+        
+        base_url_lower = base_url.lower()
+        provider_code = 'custom'
+        provider_name = 'Custom'
+        
+        for key, name in provider_mapping.items():
+            if key in base_url_lower:
+                provider_code = key if key not in ['ali'] else 'aliyun'
+                provider_name = name
+                break
+        
+        provider, created = ModelProvider.objects.get_or_create(
             code=provider_code,
             defaults={
-                'name': provider_code.upper(),
+                'name': provider_name,
                 'is_active': True,
             }
         )
+        
+        if created:
+            print(f"自动创建供应商: {provider_code} - {provider_name}")
         
         return provider
     
