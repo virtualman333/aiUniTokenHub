@@ -109,6 +109,12 @@ const routes = [
         component: () => import('@/views/admin/ChannelManagement.vue'),
         meta: { title: '渠道管理' }
       },
+      {
+        path: 'settings',
+        name: 'AdminSettings',
+        component: () => import('@/views/admin/Settings.vue'),
+        meta: { title: '个人设置' }
+      },
     ]
   },
   
