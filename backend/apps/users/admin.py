@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
-from .models import User, APIKey, UsageLog
+from .models import User, APIKey, UsageLog, Bill, CardPassword
 
 
 @admin.register(User)
@@ -29,3 +29,20 @@ class UsageLogAdmin(admin.ModelAdmin):
     list_filter = ('method', 'status_code')
     search_fields = ('user__username', 'endpoint')
     ordering = ('-created_at',)
+
+
+@admin.register(Bill)
+class BillAdmin(admin.ModelAdmin):
+    list_display = ('user', 'type', 'amount', 'balance', 'description', 'created_at')
+    list_filter = ('type',)
+    search_fields = ('user__username', 'description')
+    ordering = ('-created_at',)
+
+
+@admin.register(CardPassword)
+class CardPasswordAdmin(admin.ModelAdmin):
+    list_display = ('code', 'amount', 'status', 'batch_no', 'used_by', 'used_at', 'created_at')
+    list_filter = ('status',)
+    search_fields = ('code', 'batch_no', 'remark')
+    ordering = ('-created_at',)
+    readonly_fields = ('used_by', 'used_at')

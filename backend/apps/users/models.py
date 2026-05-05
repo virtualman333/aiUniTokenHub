@@ -88,3 +88,63 @@ class UsageLog(models.Model):
         verbose_name = '使用日志'
         verbose_name_plural = '使用日志'
         ordering = ('-created_at',)
+
+
+class Bill(models.Model):
+    """账单/交易记录"""
+
+    TYPE_CHOICES = [
+        ('recharge', '充值'),
+        ('consume', '消费'),
+        ('refund', '退款'),
+    ]
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='bills')
+    type = models.CharField('交易类型', max_length=20, choices=TYPE_CHOICES)
+    amount = models.DecimalField('交易金额', max_digits=10, decimal_places=2)
+    balance = models.DecimalField('交易后余额', max_digits=10, decimal_places=2)
+    description = models.CharField('交易说明', max_length=500, blank=True)
+    usage_log = models.ForeignKey(
+        'UsageLog', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='bills', verbose_name='关联使用日志'
+    )
+    created_at = models.DateTimeField('创建时间', auto_now_add=True, db_index=True)
+
+    class Meta:
+        db_table = 'bills'
+        verbose_name = '账单'
+        verbose_name_plural = '账单'
+        ordering = ('-created_at',)
+
+    def __str__(self):
+        return f"{self.get_type_display()} ¥{self.amount} ({self.user.username})"
+
+
+class CardPassword(models.Model):
+    """卡密"""
+
+    STATUS_CHOICES = [
+        ('unused', '未使用'),
+        ('used', '已使用'),
+    ]
+
+    code = models.CharField('卡密', max_length=32, unique=True, db_index=True)
+    amount = models.DecimalField('面值', max_digits=10, decimal_places=2)
+    status = models.CharField('状态', max_length=10, choices=STATUS_CHOICES, default='unused')
+    batch_no = models.CharField('批次号', max_length=50, blank=True, help_text='批量生成时的批次标识')
+    used_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='used_cards', verbose_name='使用者'
+    )
+    used_at = models.DateTimeField('使用时间', null=True, blank=True)
+    remark = models.CharField('备注', max_length=200, blank=True)
+    created_at = models.DateTimeField('创建时间', auto_now_add=True)
+
+    class Meta:
+        db_table = 'card_passwords'
+        verbose_name = '卡密'
+        verbose_name_plural = '卡密'
+        ordering = ('-created_at',)
+
+    def __str__(self):
+        return f"{self.code} ¥{self.amount} ({self.get_status_display()})"

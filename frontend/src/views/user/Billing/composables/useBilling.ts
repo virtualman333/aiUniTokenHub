@@ -42,14 +42,15 @@ export function useBilling() {
   async function loadBills() {
     loading.value = true
     try {
-      const res: any = await api.get('/users/bills/', {
+      const res: any = await api.get('/users/billing/bills/', {
         params: {
           page: pagination.page,
           page_size: pagination.pageSize
         }
       })
-      bills.value = res.results || res || []
-      pagination.total = res.total || bills.value.length
+      const data = res.data || res
+      bills.value = data.results || []
+      pagination.total = data.total || 0
     } catch (e) {
       console.error('加载账单失败:', e)
       bills.value = []
@@ -62,8 +63,15 @@ export function useBilling() {
    * 充值
    */
   async function recharge(amount: number) {
-    const res = await api.post('/users/recharge/', { amount })
-    // 打开支付链接或处理支付
+    const res = await api.post('/users/billing/recharge/', { amount })
+    return res
+  }
+
+  /**
+   * 卡密兑换
+   */
+  async function redeemCard(code: string) {
+    const res: any = await api.post('/users/billing/recharge/redeem/', { code })
     return res
   }
 
@@ -74,6 +82,7 @@ export function useBilling() {
     pagination,
     loadBalance,
     loadBills,
-    recharge
+    recharge,
+    redeemCard
   }
 }

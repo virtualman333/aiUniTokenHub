@@ -43,6 +43,10 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
+# Auto-generated TypeScript declarations
+frontend/src/auto-imports.d.ts
+frontend/src/components.d.ts
+
 # Testing
 coverage/
 htmlcov/
