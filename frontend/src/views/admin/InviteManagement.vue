@@ -123,7 +123,7 @@ function formatDate(date: string) {
 
 async function loadConfig() {
   try {
-    const res = await api.get('/dashboard/invite/config/')
+    const res = await api.get('/dashboard/admin/invite/config/')
     Object.assign(config, res)
   } catch (e) {
     console.error('获取配置失败:', e)
@@ -133,7 +133,7 @@ async function loadConfig() {
 async function saveConfig() {
   saving.value = true
   try {
-    await api.put('/dashboard/invite/config/', config)
+    await api.put('/dashboard/admin/invite/config/', config)
     ElMessage.success('配置已保存')
   } catch (e: any) {
     ElMessage.error(e.message || '保存失败')
@@ -145,7 +145,7 @@ async function saveConfig() {
 async function loadRewards() {
   loading.value = true
   try {
-    const res = await api.get('/dashboard/invite/rewards/', {
+    const res: any= await api.get('/dashboard/admin/invite/rewards/', {
       params: {
         page: pagination.page,
         page_size: pagination.pageSize
@@ -163,7 +163,7 @@ async function loadRewards() {
 async function handleApprove(id: number) {
   try {
     await ElMessageBox.confirm('确认通过此返利申请？', '审核确认', { type: 'warning' })
-    await api.post(`/dashboard/invite/rewards/${id}/approve/`)
+    await api.post(`/dashboard/admin/invite/rewards/${id}/approve/`)
     ElMessage.success('审核通过')
     loadRewards()
   } catch (e: any) {
@@ -176,7 +176,7 @@ async function handleApprove(id: number) {
 async function handleReject(id: number) {
   try {
     await ElMessageBox.confirm('确认拒绝此返利申请？', '审核确认', { type: 'warning' })
-    await api.post(`/dashboard/invite/rewards/${id}/reject/`)
+    await api.post(`/dashboard/admin/invite/rewards/${id}/reject/`)
     ElMessage.success('已拒绝')
     loadRewards()
   } catch (e: any) {

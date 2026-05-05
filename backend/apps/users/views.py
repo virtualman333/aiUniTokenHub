@@ -6,6 +6,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
 from django.contrib.auth import authenticate
+from django.db import models as db_models
 from django.utils import timezone
 from .models import User, APIKey, Bill, CardPassword, InviteConfig, InviteReward
 from .serializers import (
@@ -294,7 +295,7 @@ class InviteViewSet(viewsets.GenericViewSet):
         invite_count = User.objects.filter(invited_by=user).count()
         total_reward = InviteReward.objects.filter(
             inviter=user, status='approved'
-        ).aggregate(total=models.Sum('reward_amount'))['total'] or 0
+        ).aggregate(total=db_models.Sum('reward_amount'))['total'] or 0
         config = InviteConfig.get_config()
         return APIResponse.success({
             'invite_code': user.invite_code,

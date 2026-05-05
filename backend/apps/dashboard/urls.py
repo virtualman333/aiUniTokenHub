@@ -31,22 +31,22 @@ urlpatterns = [
     ),
     # 邀请返利管理
     path(
-        "invite/config/",
+        "admin/invite/config/",
         InviteAdminViewSet.as_view({"get": "config", "put": "config"}),
         name="admin-invite-config",
     ),
     path(
-        "invite/rewards/",
+        "admin/invite/rewards/",
         InviteAdminViewSet.as_view({"get": "rewards"}),
         name="admin-invite-rewards",
     ),
     path(
-        "invite/rewards/<int:pk>/approve/",
+        "admin/invite/rewards/<int:pk>/approve/",
         InviteAdminViewSet.as_view({"post": "approve_reward"}),
         name="admin-invite-approve",
     ),
     path(
-        "invite/rewards/<int:pk>/reject/",
+        "admin/invite/rewards/<int:pk>/reject/",
         InviteAdminViewSet.as_view({"post": "reject_reward"}),
         name="admin-invite-reject",
     ),
