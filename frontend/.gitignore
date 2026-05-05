@@ -1,0 +1,27 @@
+# 依赖
+node_modules/
+
+# 构建输出
+dist/
+dist-ssr/
+
+# 本地环境变量文件（包含敏感信息）
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+
+# 日志
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 操作系统
+.DS_Store
+Thumbs.db
+
+# 自动生成的文件
+auto-imports.d.ts
+components.d.ts

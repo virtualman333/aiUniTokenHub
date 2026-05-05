@@ -279,7 +279,7 @@ const loadUsers = async () => {
     if (queryParams.role) params.role = queryParams.role
     if (queryParams.is_active !== '') params.is_active = queryParams.is_active
     
-    const res = await api.get('/dashboard/users/', { params })
+    const res = await api.get('/dashboard/admin/users/', { params })
     users.value = res.results || res
     pagination.total = res.total || res.count || users.value.length
   } catch (error) {
@@ -315,7 +315,7 @@ const editUser = (user) => {
 
 const saveUser = async () => {
   try {
-    await api.patch(`/dashboard/users/${editForm.value.id}/`, {
+    await api.patch(`/dashboard/admin/users/${editForm.value.id}/`, {
       email: editForm.value.email,
       phone: editForm.value.phone,
       company: editForm.value.company,
@@ -338,16 +338,16 @@ const adjustBalance = (user) => {
 
 const saveBalance = async () => {
   try {
-    const res = await api.post(`/admin/users/user/${currentUser.value.id}/add-balance/`, {
+    const res = await api.patch(`/dashboard/admin/users/${currentUser.value.id}/balance/`, {
       amount: balanceAmount.value,
-      description: balanceNote.value
+      note: balanceNote.value
     })
-    if (res.success) {
-      ElMessage.success(res.message || '余额调整成功')
+    if (res.code === 200) {
+      ElMessage.success(res.msg || '余额调整成功')
       showBalanceDialog.value = false
       loadUsers()
     } else {
-      ElMessage.error(res.message || '调整失败')
+      ElMessage.error(res.msg || '调整失败')
     }
   } catch (error) {
     ElMessage.error('调整失败')
@@ -360,7 +360,7 @@ const toggleStatus = async (user) => {
       `确定要${user.is_active ? '禁用' : '启用'}用户 ${user.username} 吗？`,
       '提示'
     )
-    await api.post(`/dashboard/users/${user.id}/toggle-status/`)
+    await api.post(`/dashboard/admin/users/${user.id}/toggle-status/`)
     ElMessage.success('操作成功')
     loadUsers()
   } catch (error) {

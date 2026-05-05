@@ -320,6 +320,9 @@ class ChatCompletionsView(APIView):
     
     def _handle_normal(self, request, api_key, user, account, model_name, start_time):
         """处理普通（非流式）请求"""
+        # 获取 AIModel 对象
+        model_obj = AIModel.objects.filter(code=model_name).first()
+        
         # 构建转发请求
         headers = self._build_headers(request)
         headers['Authorization'] = f'Bearer {account.api_key}'
