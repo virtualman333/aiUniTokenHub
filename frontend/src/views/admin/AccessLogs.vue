@@ -1,7 +1,7 @@
 <template>
   <div class="page-container">
     <div class="page-header">
-      <h2 class="title">访问日志</h2>
+      <h2 class="title">接口使用记录</h2>
       <div class="header-actions">
         <el-button @click="loadLogs">
           <RefreshLeft /> 刷新
@@ -102,7 +102,7 @@
       </el-form>
       
       <el-table :data="logs" v-loading="loading" stripe>
-        <el-table-column prop="path" label="API路径" min-width="200">
+        <el-table-column prop="path" label="API路径" min-width="180">
           <template #default="{ row }">
             <div class="path-cell">
               <el-tag size="small" :type="getMethodType(row.method)" effect="plain">
@@ -110,6 +110,22 @@
               </el-tag>
               <code class="path-code">{{ row.path }}</code>
             </div>
+          </template>
+        </el-table-column>
+        <el-table-column prop="model_name" label="模型" width="150">
+          <template #default="{ row }">
+            <span v-if="row.model_name">{{ row.model_name }}</span>
+            <span v-else class="text-muted">-</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="upstream_account_name" label="上游账号" width="150">
+          <template #default="{ row }">
+            <div v-if="row.upstream_account_name">
+              <span>{{ row.upstream_account_name }}</span>
+              <br>
+              <span class="text-muted" style="font-size: 12px">{{ row.upstream_provider }}</span>
+            </div>
+            <span v-else class="text-muted">-</span>
           </template>
         </el-table-column>
         <el-table-column prop="response_status" label="状态码" width="100" align="center">
@@ -126,18 +142,18 @@
             </span>
           </template>
         </el-table-column>
-        <el-table-column prop="username" label="用户" width="120">
+        <el-table-column prop="username" label="用户" width="100">
           <template #default="{ row }">
             {{ row.username || '匿名' }}
           </template>
         </el-table-column>
-        <el-table-column prop="ip_address" label="IP地址" width="140" />
-        <el-table-column prop="created_at" label="时间" width="180">
+        <el-table-column prop="ip_address" label="IP地址" width="130" />
+        <el-table-column prop="created_at" label="时间" width="160">
           <template #default="{ row }">
             {{ formatDate(row.created_at) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="100" align="center" fixed="right">
+        <el-table-column label="操作" width="80" align="center" fixed="right">
           <template #default="{ row }">
             <el-button size="small" type="primary" link @click="viewDetail(row)">
               详情
@@ -159,7 +175,7 @@
       </div>
     </el-card>
     
-    <el-dialog v-model="showDetail" title="日志详情" width="800px" destroy-on-close>
+    <el-dialog v-model="showDetail" title="使用详情" width="800px" destroy-on-close>
       <el-descriptions :column="2" border>
         <el-descriptions-item label="API路径" :span="2">
           <code>{{ currentLog?.path }}</code>
@@ -351,7 +367,7 @@ const exportLogs = async () => {
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.download = `access_logs_${dayjs().format('YYYYMMDD_HHmmss')}.csv`
+    link.download = `usage_logs_${dayjs().format('YYYYMMDD_HHmmss')}.csv`
     link.click()
     URL.revokeObjectURL(url)
     
@@ -473,6 +489,7 @@ const copyToClipboard = async (text) => {
 .text-success { color: #67C23A; }
 .text-warning { color: #E6A23C; }
 .text-danger { color: #F56C6C; }
+.text-muted { color: #909399; font-size: 12px; }
 
 .pagination-wrapper {
   display: flex;

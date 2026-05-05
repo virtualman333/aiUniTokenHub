@@ -121,6 +121,23 @@ class TicketViewSet(viewsets.ModelViewSet):
         return APIResponse.success(serializer.data, '获取成功')
 
     def update(self, request, pk=None):
+        """完整更新工单（管理员）"""
+        if not request.user.is_staff:
+            return APIResponse.error('无权限', 403)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        if not serializer.is_valid():
+            errors = serializer.errors
+            first_error = list(errors.values())[0][0] if errors else '参数错误'
+            return APIResponse.error(str(first_error), 400)
+        validated_data = serializer.validated_data
+        if 'status' in validated_data and validated_data['status'] == 'resolved':
+            instance.resolved_at = timezone.now()
+        serializer.save()
+        return APIResponse.success(serializer.data, '更新成功')
+
+    def partial_update(self, request, pk=None):
+        """部分更新工单（管理员）"""
         if not request.user.is_staff:
             return APIResponse.error('无权限', 403)
         instance = self.get_object()

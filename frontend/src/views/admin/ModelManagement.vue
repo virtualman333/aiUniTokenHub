@@ -974,7 +974,9 @@ async function removeBinding(binding) {
 
 <style scoped>
 .model-management {
-  padding: 20px;
+  padding: 24px;
+  background: #f5f7fa;
+  min-height: 100vh;
 }
 
 .page-header {
@@ -982,21 +984,27 @@ async function removeBinding(binding) {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
+  background: white;
+  padding: 20px 24px;
+  border-radius: 12px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
 }
 
 .page-header h2 {
   margin: 0;
   font-size: 20px;
   font-weight: 600;
+  color: #303133;
 }
 
 .filter-bar {
   display: flex;
   gap: 12px;
   margin-bottom: 16px;
-  padding: 16px;
-  background: #f5f7fa;
-  border-radius: 8px;
+  padding: 16px 20px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
   flex-wrap: wrap;
   align-items: center;
 }
@@ -1012,20 +1020,24 @@ async function removeBinding(binding) {
   color: #409eff;
   font-size: 13px;
   margin-right: 8px;
+  font-weight: 500;
 }
 
 .model-cell {
   display: flex;
   flex-direction: column;
+  gap: 4px;
 }
 
 .model-cell .model-name {
-  font-weight: 500;
+  font-weight: 600;
+  color: #303133;
 }
 
 .model-cell .model-code {
   font-size: 12px;
   color: #909399;
+  font-family: 'Monaco', 'Menlo', monospace;
 }
 
 .price-cell {
@@ -1033,16 +1045,30 @@ async function removeBinding(binding) {
   flex-direction: column;
   font-size: 12px;
   color: #606266;
+  gap: 2px;
 }
 
 .cap-badge {
   display: inline-block;
-  padding: 2px 6px;
-  background: #ecf5ff;
-  color: #409eff;
-  border-radius: 4px;
+  padding: 2px 8px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-radius: 12px;
   font-size: 11px;
   margin-right: 4px;
+  font-weight: 500;
+}
+
+.cap-badge:nth-child(2) {
+  background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+}
+
+.cap-badge:nth-child(3) {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+}
+
+.cap-badge:nth-child(4) {
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
 }
 
 .pagination {
@@ -1058,7 +1084,8 @@ async function removeBinding(binding) {
 }
 
 .account-name {
-  font-weight: 500;
+  font-weight: 600;
+  color: #303133;
 }
 
 .account-pool-config {
@@ -1071,5 +1098,37 @@ async function removeBinding(binding) {
 
 .add-account-form {
   padding: 16px;
+}
+
+/* 统计卡片 */
+:deep(.el-card) {
+  border: none;
+  border-radius: 12px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+}
+
+:deep(.el-table) {
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+:deep(.el-table th) {
+  background: #fafafa !important;
+  color: #606266;
+  font-weight: 600;
+}
+
+:deep(.el-tag) {
+  border-radius: 6px;
+}
+
+/* 按钮样式优化 */
+:deep(.el-button--primary) {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+}
+
+:deep(.el-button--primary:hover) {
+  background: linear-gradient(135deg, #5a6fd6 0%, #6a4190 100%);
 }
 </style>

@@ -24,34 +24,42 @@
 
     <!-- 日志列表 -->
     <el-card v-loading="loading">
-      <el-table :data="logs">
-        <el-table-column prop="endpoint" label="API路径" min-width="200">
+      <el-table :data="logs" stripe>
+        <el-table-column prop="path" label="API路径" min-width="180">
           <template #default="{ row }">
-            <code class="endpoint-text">{{ row.endpoint }}</code>
+            <div class="path-cell">
+              <el-tag size="small" :type="getMethodType(row.method)" effect="plain">
+                {{ row.method }}
+              </el-tag>
+              <code class="endpoint-text">{{ row.path }}</code>
+            </div>
           </template>
         </el-table-column>
-        <el-table-column prop="method" label="方法" width="80" align="center">
+        <el-table-column prop="model_name" label="模型" width="140">
           <template #default="{ row }">
-            <el-tag size="small">{{ row.method }}</el-tag>
+            <span v-if="row.model_name">{{ row.model_name }}</span>
+            <span v-else class="text-muted">-</span>
           </template>
         </el-table-column>
-        <el-table-column prop="status_code" label="状态码" width="100" align="center">
+        <el-table-column prop="response_status" label="状态码" width="100" align="center">
           <template #default="{ row }">
             <el-tag
-              :type="row.status_code >= 200 && row.status_code < 300 ? 'success' : 'danger'"
+              :type="getStatusType(row.response_status)"
               size="small"
             >
-              {{ row.status_code }}
+              {{ row.response_status || '-' }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="response_time" label="响应时间" width="100" align="center">
+        <el-table-column prop="response_time" label="响应时间" width="110" align="center">
           <template #default="{ row }">
-            {{ row.response_time }}ms
+            <span :class="getTimeClass(row.response_time)">
+              {{ row.response_time ? row.response_time + 'ms' : '-' }}
+            </span>
           </template>
         </el-table-column>
-        <el-table-column prop="ip_address" label="IP地址" width="140" />
-        <el-table-column prop="created_at" label="时间" width="180">
+        <el-table-column prop="ip_address" label="IP地址" width="130" />
+        <el-table-column prop="created_at" label="时间" width="170">
           <template #default="{ row }">
             {{ formatDate(row.created_at) }}
           </template>
@@ -126,6 +134,32 @@ function viewDetail(row: any) {
   currentLog.value = row
   showDetail.value = true
 }
+
+function getStatusType(status: number) {
+  if (!status) return 'info'
+  if (status >= 200 && status < 300) return 'success'
+  if (status >= 400 && status < 500) return 'warning'
+  if (status >= 500) return 'danger'
+  return 'info'
+}
+
+function getMethodType(method: string) {
+  const types: Record<string, string> = {
+    GET: '',
+    POST: 'success',
+    PUT: 'warning',
+    DELETE: 'danger',
+    PATCH: 'info'
+  }
+  return types[method] || ''
+}
+
+function getTimeClass(time: number) {
+  if (!time) return ''
+  if (time > 5000) return 'text-danger'
+  if (time > 2000) return 'text-warning'
+  return 'text-success'
+}
 </script>
 
 <style scoped>
@@ -155,9 +189,23 @@ function viewDetail(row: any) {
   margin-bottom: 16px;
 }
 
+.path-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .endpoint-text {
   font-family: monospace;
   font-size: 13px;
   color: #409EFF;
 }
+
+.text-muted {
+  color: #909399;
+}
+
+.text-success { color: #67C23A; }
+.text-warning { color: #E6A23C; }
+.text-danger { color: #F56C6C; }
 </style>

@@ -40,7 +40,7 @@
     <el-card class="table-card">
       <template #header>
         <div class="card-header">
-          <span>最新访问日志</span>
+          <span>最新接口使用记录</span>
           <el-button type="primary" link @click="$router.push('/admin/access-logs')">
             查看更多
           </el-button>

@@ -61,12 +61,12 @@ class UserAPIKeyViewSet(viewsets.ModelViewSet):
         
         queryset = APIAccessLog.objects.filter(api_key__user=request.user)
         
-        # 按API端点统计
+        # 按API路径统计
         from django.db.models import Count, Avg
-        stats = queryset.values('endpoint__name').annotate(
+        stats = queryset.values('path').annotate(
             total_calls=Count('id'),
             avg_response_time=Avg('response_time')
-        ).order_by('-total_calls')
+        ).order_by('-total_calls')[:10]
         
         return Response({
             'total_calls': queryset.count(),
@@ -86,4 +86,11 @@ class APIAccessLogViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
-        return APIAccessLog.objects.filter(user=self.request.user)
+        queryset = APIAccessLog.objects.filter(user=self.request.user)
+        # 支持状态过滤
+        status = self.request.query_params.get('status')
+        if status == 'success':
+            queryset = queryset.filter(response_status__gte=200, response_status__lt=300)
+        elif status == 'error':
+            queryset = queryset.filter(response_status__gte=400)
+        return queryset.order_by('-created_at')

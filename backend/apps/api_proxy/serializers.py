@@ -3,17 +3,27 @@ from .models import APIAccessLog
 
 
 class APIAccessLogSerializer(serializers.ModelSerializer):
-    """访问日志序列化器"""
+    """接口使用记录序列化器"""
     username = serializers.CharField(source='user.username', read_only=True, default='匿名')
     user_role = serializers.CharField(source='user.role', read_only=True, default='')
     api_key_name = serializers.CharField(source='api_key.name', read_only=True, default='')
     api_key_key = serializers.CharField(source='api_key.key', read_only=True, default='')
+    
+    # 模型信息
+    model_name = serializers.CharField(source='model.name', read_only=True, default='')
+    model_code = serializers.CharField(source='model.code', read_only=True, default='')
+    
+    # 上游账号信息
+    upstream_account_name = serializers.CharField(source='upstream_account.name', read_only=True, default='')
+    upstream_provider = serializers.CharField(source='upstream_account.provider.name', read_only=True, default='')
     
     class Meta:
         model = APIAccessLog
         fields = [
             'id', 'username', 'user_role',
             'api_key', 'api_key_name', 'api_key_key',
+            'model', 'model_name', 'model_code',
+            'upstream_account', 'upstream_account_name', 'upstream_provider',
             'method', 'path', 'request_headers', 'request_params', 'request_body',
             'response_status', 'response_body', 'response_time',
             'ip_address', 'error_message', 'created_at'
@@ -21,7 +31,7 @@ class APIAccessLogSerializer(serializers.ModelSerializer):
 
 
 class AccessLogStatSerializer(serializers.Serializer):
-    """访问统计序列化器"""
+    """接口使用统计序列化器"""
     date = serializers.DateField()
     total_count = serializers.IntegerField()
     success_count = serializers.IntegerField()

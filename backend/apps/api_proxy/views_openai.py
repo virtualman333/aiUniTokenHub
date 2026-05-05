@@ -158,7 +158,7 @@ def update_upstream_usage(account: UpstreamAccount, success: bool = True):
 
 
 def log_api_access(api_key, user, method, path, request_body, response_data, 
-                   response_status, response_time, ip_address=''):
+                   response_status, response_time, ip_address='', model=None, upstream_account=None):
     """记录API访问日志"""
     try:
         APIAccessLog.objects.create(
@@ -166,6 +166,8 @@ def log_api_access(api_key, user, method, path, request_body, response_data,
             user=user,
             method=method,
             path=path,
+            model=model,
+            upstream_account=upstream_account,
             request_body=json.dumps(request_body)[:10000] if request_body else '',
             response_body=json.dumps(response_data)[:5000] if isinstance(response_data, dict) else str(response_data)[:5000],
             response_status=response_status,
@@ -368,7 +370,8 @@ class ChatCompletionsView(APIView):
             log_api_access(
                 api_key, user, 'POST', '/chat/completions',
                 request.data, response_data, response.status_code,
-                response_time, get_client_ip(request)
+                response_time, get_client_ip(request),
+                model=model_obj, upstream_account=account
             )
             
             return Response(response_data, status=response.status_code)

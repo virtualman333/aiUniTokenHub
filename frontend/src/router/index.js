@@ -95,7 +95,7 @@ const routes = [
         path: 'access-logs',
         name: 'AccessLogs',
         component: () => import('@/views/admin/AccessLogs.vue'),
-        meta: { title: '访问日志' }
+        meta: { title: '接口使用记录' }
       },
       {
         path: 'model-management',
