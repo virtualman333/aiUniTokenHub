@@ -13,6 +13,7 @@ urlpatterns = [
     path('api/proxy/', include('apps.api_proxy.urls')),
     path('api/dashboard/', include('apps.dashboard.urls')),
     path('api/models/', include('apps.ai_models.urls')),
+    path('api/tickets/', include('apps.tickets.urls')),
 ]
 
 if settings.DEBUG:
