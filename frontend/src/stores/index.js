@@ -106,26 +106,6 @@ export const useUserStore = defineStore('user', {
   }
 })
 
-export const useAPIStore = defineStore('api', {
-  state: () => ({
-    categories: [],
-    endpoints: [],
-  }),
-  
-  actions: {
-    async fetchCategories() {
-      this.categories = await api.get('/proxy/categories/')
-      return this.categories
-    },
-    
-    async fetchEndpoints(categoryId) {
-      const params = categoryId ? { category: categoryId } : {}
-      this.endpoints = await api.get('/proxy/endpoints/', { params })
-      return this.endpoints
-    },
-  }
-})
-
 export const useDashboardStore = defineStore('dashboard', {
   state: () => ({
     overview: {},

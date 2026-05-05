@@ -10,7 +10,7 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 django.setup()
 
 from apps.users.models import User
-from apps.api_proxy.models import APICategory, APIEndpoint
+from apps.ai_models.models import ModelProvider, AIModel
 
 def init_users():
     """Create test users"""
@@ -47,76 +47,40 @@ def init_users():
     user.save()
     print(f'[OK] Test user account: testuser / test123 (role={user.role})')
 
-def init_apis():
-    """Init sample APIs"""
+def init_providers():
+    """Init sample model providers"""
     
-    categories = [
-        {'name': 'LLM', 'icon': 'chat', 'order': 1},
-        {'name': 'Vision', 'icon': 'picture', 'order': 2},
-        {'name': 'Audio', 'icon': 'microphone', 'order': 3},
-        {'name': 'Search', 'icon': 'search', 'order': 4},
-    ]
-    
-    for cat_data in categories:
-        cat, created = APICategory.objects.get_or_create(
-            name=cat_data['name'],
-            defaults=cat_data
-        )
-        if created:
-            print(f'[OK] Category created: {cat.name}')
-    
-    endpoints = [
+    providers = [
         {
-            'category': APICategory.objects.get(name='LLM'),
-            'name': 'ChatGPT-4o',
-            'path': '/v1/chat/completions',
-            'method': 'POST',
-            'description': 'OpenAI latest multimodal LLM',
-            'target_url': 'https://api.openai.com/v1/chat/completions',
-            'is_public': False,
-            'price': 0.01
+            'name': 'OpenAI',
+            'code': 'openai',
+            'website': 'https://openai.com',
+            'description': 'OpenAI - Leading AI research organization',
+            'is_active': True,
         },
         {
-            'category': APICategory.objects.get(name='LLM'),
-            'name': 'Claude-3.5',
-            'path': '/v1/messages',
-            'method': 'POST',
-            'description': 'Anthropic best reasoning model',
-            'target_url': 'https://api.anthropic.com/v1/messages',
-            'is_public': False,
-            'price': 0.015
+            'name': 'Anthropic',
+            'code': 'anthropic',
+            'website': 'https://anthropic.com',
+            'description': 'Anthropic - AI safety and research',
+            'is_active': True,
         },
         {
-            'category': APICategory.objects.get(name='Vision'),
-            'name': 'GPT-4V Image',
-            'path': '/v1/chat/completions',
-            'method': 'POST',
-            'description': 'Multimodal API with image understanding',
-            'target_url': 'https://api.openai.com/v1/chat/completions',
-            'is_public': False,
-            'price': 0.0125
-        },
-        {
-            'category': APICategory.objects.get(name='Search'),
-            'name': 'SerpAPI Search',
-            'path': '/search',
-            'method': 'GET',
-            'description': 'Google search results API',
-            'target_url': 'https://serpapi.com/search',
-            'is_public': False,
-            'price': 0.005
+            'name': 'Google',
+            'code': 'google',
+            'website': 'https://ai.google',
+            'description': 'Google AI - Gemini models',
+            'is_active': True,
         },
     ]
     
-    for ep_data in endpoints:
-        ep, created = APIEndpoint.objects.get_or_create(
-            path=ep_data['path'],
-            method=ep_data['method'],
-            category=ep_data['category'],
-            defaults=ep_data
+    for p_data in providers:
+        p, created = ModelProvider.objects.get_or_create(
+            code=p_data['code'],
+            defaults=p_data
         )
         if created:
-            print(f'[OK] API created: {ep.name}')
+            print(f'[OK] Provider created: {p.name}')
 
 if __name__ == '__main__':
     print('=' * 50)
@@ -126,8 +90,8 @@ if __name__ == '__main__':
     print('\n[*] Initializing users...')
     init_users()
     
-    print('\n[*] Initializing sample APIs...')
-    init_apis()
+    print('\n[*] Initializing model providers...')
+    init_providers()
     
     print('\n' + '=' * 50)
     print('[OK] Initialization complete!')

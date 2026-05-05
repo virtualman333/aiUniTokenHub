@@ -1,34 +1,5 @@
 from rest_framework import serializers
-from .models import APICategory, APIEndpoint, APIAccessLog
-
-
-class APICategorySerializer(serializers.ModelSerializer):
-    endpoint_count = serializers.SerializerMethodField()
-    
-    class Meta:
-        model = APICategory
-        fields = ['id', 'name', 'description', 'icon', 'order', 'is_active', 'endpoint_count']
-    
-    def get_endpoint_count(self, obj):
-        return obj.endpoints.filter(is_active=True).count()
-
-
-class APIEndpointSerializer(serializers.ModelSerializer):
-    category_name = serializers.CharField(source='category.name', read_only=True)
-    price = serializers.SerializerMethodField()
-    
-    class Meta:
-        model = APIEndpoint
-        fields = [
-            'id', 'category', 'category_name', 'name', 'path', 'method',
-            'description', 'doc_url', 'target_url', 'headers', 'parameters',
-            'is_public', 'is_active', 'rate_limit', 'price', 'timeout',
-            'created_at', 'updated_at'
-        ]
-    
-    def get_price(self, obj):
-        """确保price返回浮点数而非Decimal"""
-        return float(obj.price) if obj.price else 0.0
+from .models import APIAccessLog
 
 
 class APIAccessLogSerializer(serializers.ModelSerializer):

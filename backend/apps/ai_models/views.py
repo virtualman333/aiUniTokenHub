@@ -8,6 +8,7 @@ from .serializers import (
     AIModelListSerializer, AIModelDetailSerializer, AIModelCreateSerializer,
     ModelProviderSerializer, ModelCategorySerializer
 )
+from apps.utils.response import APIResponse
 
 
 class ModelProviderViewSet(viewsets.ModelViewSet):
@@ -19,6 +20,66 @@ class ModelProviderViewSet(viewsets.ModelViewSet):
         if self.action in ['list', 'retrieve']:
             return [AllowAny()]
         return [IsAdminUser()]
+    
+    def get_queryset(self):
+        queryset = ModelProvider.objects.all()
+        
+        # 搜索
+        search = self.request.query_params.get('search')
+        if search:
+            queryset = queryset.filter(
+                Q(name__icontains=search) | 
+                Q(code__icontains=search) |
+                Q(description__icontains=search)
+            )
+        
+        # 状态过滤
+        is_active = self.request.query_params.get('is_active')
+        if is_active is not None:
+            queryset = queryset.filter(is_active=is_active.lower() == 'true')
+        
+        return queryset.order_by('order', 'id')
+    
+    def list(self, request):
+        queryset = self.get_queryset()
+        
+        # 分页
+        page = int(request.query_params.get('page', 1))
+        page_size = int(request.query_params.get('page_size', 20))
+        start = (page - 1) * page_size
+        end = start + page_size
+        
+        total = queryset.count()
+        items = queryset[start:end]
+        
+        serializer = self.get_serializer(items, many=True)
+        return APIResponse.paginated(serializer.data, total, page, page_size, '获取成功')
+    
+    def retrieve(self, request, pk=None):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return APIResponse.success(serializer.data, '获取成功')
+    
+    def create(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        return APIResponse.created(serializer.data, '创建成功')
+    
+    def update(self, request, pk=None):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        return APIResponse.success(serializer.data, '更新成功')
+    
+    def partial_update(self, request, pk=None):
+        return self.update(request, pk)
+    
+    def destroy(self, request, pk=None):
+        instance = self.get_object()
+        instance.delete()
+        return APIResponse.success(None, '删除成功')
     
     @action(detail=False, methods=['get'])
     def active(self, request):

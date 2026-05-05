@@ -92,18 +92,6 @@ const routes = [
         meta: { title: '用户管理' }
       },
       {
-        path: 'api-management',
-        name: 'APIManagement',
-        component: () => import('@/views/admin/APIManagement.vue'),
-        meta: { title: 'API管理' }
-      },
-      {
-        path: 'api-categories',
-        name: 'APICategories',
-        component: () => import('@/views/admin/APICategories.vue'),
-        meta: { title: 'API分类' }
-      },
-      {
         path: 'access-logs',
         name: 'AccessLogs',
         component: () => import('@/views/admin/AccessLogs.vue'),
@@ -114,6 +102,12 @@ const routes = [
         name: 'ModelManagement',
         component: () => import('@/views/admin/ModelManagement.vue'),
         meta: { title: '模型管理' }
+      },
+      {
+        path: 'provider-management',
+        name: 'ProviderManagement',
+        component: () => import('@/views/admin/ProviderManagement.vue'),
+        meta: { title: '供应商管理' }
       },
       {
         path: 'channel-management',

@@ -4,7 +4,7 @@ djangorestframework>=3.14.0
 django-cors-headers>=4.3.0
 
 # Database
-psycopg2-binary>=2.9.9
+mysqlclient>=2.2.0
 
 # Redis
 redis>=5.0.0

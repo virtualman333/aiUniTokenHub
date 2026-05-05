@@ -20,7 +20,10 @@ class AuthViewSet(viewsets.GenericViewSet):
     def register(self, request):
         """用户注册"""
         serializer = UserRegisterSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        if not serializer.is_valid():
+            errors = serializer.errors
+            first_error = list(errors.values())[0][0] if errors else '参数错误'
+            return APIResponse.error(str(first_error), 400)
         user = serializer.save()
         token = generate_token(user)
         return APIResponse.created({

@@ -67,10 +67,28 @@ TEMPLATES = [
 WSGI_APPLICATION = 'config.wsgi.application'
 
 # Database
+# MySQL Configuration
+DB_NAME = os.getenv('DB_NAME', 'unitokenhub')
+DB_USER = os.getenv('DB_USER', 'unitokenhub')
+DB_PASSWORD = os.getenv('DB_PASSWORD', 'unitokenhub')
+DB_HOST = os.getenv('DB_HOST', '127.0.0.1')
+DB_PORT = os.getenv('DB_PORT', '3306')
+
+# 允许 MySQL 5.7（绕过版本检查）
+import django.db.backends.mysql.base
+django.db.backends.mysql.base.Database.check_database_version_supported = lambda self: None
+
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.mysql',
+        'NAME': DB_NAME,
+        'USER': DB_USER,
+        'PASSWORD': DB_PASSWORD,
+        'HOST': DB_HOST,
+        'PORT': DB_PORT,
+        'OPTIONS': {
+            'charset': 'utf8mb4',
+        },
     }
 }
 
@@ -141,5 +159,5 @@ JWT_EXPIRATION_HOURS = 24
 # SimpleUI Settings
 SIMPLEUI_CONFIG = {
     'system_keep': True,
-    'menu_display': ['用户管理', 'API代理', '仪表盘'],
+    'menu_display': ['用户管理', 'AI模型', '仪表盘'],
 }

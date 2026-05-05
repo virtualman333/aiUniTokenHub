@@ -7,8 +7,9 @@ from django.utils import timezone
 from datetime import timedelta
 from apps.users.models import User, APIKey, UsageLog
 from apps.users.serializers import AdminUserSerializer
-from apps.api_proxy.models import APIEndpoint, APICategory, APIAccessLog
+from apps.api_proxy.models import APIAccessLog
 from apps.api_proxy.serializers import APIAccessLogSerializer
+from apps.ai_models.models import AIModel, ModelProvider
 from apps.utils.response import APIResponse
 
 
@@ -29,7 +30,8 @@ class AdminDashboardViewSet(viewsets.GenericViewSet):
         
         data = {
             'total_users': User.objects.count(),
-            'total_apis': APIEndpoint.objects.count(),
+            'total_providers': ModelProvider.objects.count(),
+            'total_models': AIModel.objects.count(),
             'total_requests': UsageLog.objects.count(),
             'monthly_cost': float(UsageLog.objects.filter(created_at__gte=month_start).aggregate(
                 total=Sum('cost')
@@ -67,9 +69,8 @@ class AdminDashboardViewSet(viewsets.GenericViewSet):
         result = []
         total = sum(item['count'] for item in top_apis) or 1
         for item in top_apis:
-            endpoint = APIEndpoint.objects.filter(path=item['endpoint']).first()
             result.append({
-                'name': endpoint.name if endpoint else item['endpoint'],
+                'name': item['endpoint'],
                 'value': item['count'],
                 'percent': round(item['count'] / total * 100, 1)
             })
