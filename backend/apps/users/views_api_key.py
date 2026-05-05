@@ -10,6 +10,8 @@ import secrets
 
 from apps.users.models import APIKey
 from apps.users.serializers import APIKeySerializer
+from apps.api_proxy.models import APIAccessLog
+from apps.api_proxy.serializers import APIAccessLogSerializer
 
 
 class UserAPIKeyViewSet(viewsets.ModelViewSet):
@@ -57,8 +59,6 @@ class UserAPIKeyViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def usage(self, request):
         """获取API Key使用统计"""
-        from apps.api_proxy.models import APIAccessLog
-        
         queryset = APIAccessLog.objects.filter(api_key__user=request.user)
         
         # 按API路径统计
@@ -80,7 +80,7 @@ class UserAPIKeyViewSet(viewsets.ModelViewSet):
 
 class APIAccessLogViewSet(viewsets.ReadOnlyModelViewSet):
     """
-    API访问日志（用户侧）
+    API接口使用记录（用户侧）
     """
     serializer_class = APIAccessLogSerializer
     permission_classes = [IsAuthenticated]

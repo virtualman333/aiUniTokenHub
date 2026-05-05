@@ -14,30 +14,38 @@
 
         <!-- 筛选栏 -->
         <div class="filter-bar">
-          <el-select v-model="filterStatus" placeholder="状态" clearable @change="fetchModels">
-            <el-option label="已上架" value="active" />
-            <el-option label="已下架" value="inactive" />
-            <el-option label="测试中" value="beta" />
-          </el-select>
-          <el-select v-model="filterProvider" placeholder="供应商" clearable @change="fetchModels">
-            <el-option 
-              v-for="p in providers" 
-              :key="p.id" 
-              :label="p.name" 
-              :value="p.id" 
+          <div class="filter-row">
+            <div class="filter-group">
+              <el-select v-model="filterStatus" placeholder="状态" clearable @change="fetchModels" style="width: 110px">
+                <el-option label="全部状态" value="" />
+                <el-option label="已上架" value="active" />
+                <el-option label="已下架" value="inactive" />
+                <el-option label="测试中" value="beta" />
+              </el-select>
+              <el-select v-model="filterProvider" placeholder="供应商" clearable @change="fetchModels" style="width: 130px">
+                <el-option label="全部供应商" value="" />
+                <el-option 
+                  v-for="p in providers" 
+                  :key="p.id" 
+                  :label="p.name" 
+                  :value="p.id" 
+                />
+              </el-select>
+              <el-select v-model="filterHasAccounts" placeholder="账号" clearable @change="fetchModels" style="width: 110px">
+                <el-option label="全部" value="" />
+                <el-option label="已配置" value="true" />
+                <el-option label="未配置" value="false" />
+              </el-select>
+            </div>
+            <el-input 
+              v-model="searchQuery" 
+              placeholder="搜索模型名称" 
+              clearable
+              @input="debounceSearch"
+              style="width: 180px"
+              :prefix-icon="Search"
             />
-          </el-select>
-          <el-select v-model="filterHasAccounts" placeholder="账号配置" clearable @change="fetchModels">
-            <el-option label="已配置账号" value="true" />
-            <el-option label="未配置账号" value="false" />
-          </el-select>
-          <el-input 
-            v-model="searchQuery" 
-            placeholder="搜索模型名称" 
-            clearable
-            @input="debounceSearch"
-            style="width: 200px"
-          />
+          </div>
           <!-- 批量操作 -->
           <div class="batch-actions" v-if="selectedModels.length > 0">
             <span class="selected-count">已选择 {{ selectedModels.length }} 项</span>
@@ -469,6 +477,7 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Search } from '@element-plus/icons-vue'
 import api from '@/stores'
 
 const activeTab = ref('models')
@@ -999,6 +1008,8 @@ async function removeBinding(binding) {
 
 .filter-bar {
   display: flex;
+  justify-content: space-between;
+  align-items: center;
   gap: 12px;
   margin-bottom: 16px;
   padding: 16px 20px;
@@ -1006,6 +1017,18 @@ async function removeBinding(binding) {
   border-radius: 12px;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
   flex-wrap: wrap;
+}
+
+.filter-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.filter-group {
+  display: flex;
+  gap: 8px;
   align-items: center;
 }
 
@@ -1013,7 +1036,7 @@ async function removeBinding(binding) {
   display: flex;
   gap: 8px;
   align-items: center;
-  margin-left: auto;
+  flex-shrink: 0;
 }
 
 .selected-count {
