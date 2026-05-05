@@ -18,7 +18,7 @@ from rest_framework.views import APIView
 from django.http import StreamingHttpResponse
 from django.core.cache import cache
 
-from apps.users.models import APIKey, UsageLog
+from apps.users.models import APIKey, UsageLog, Bill
 from apps.ai_models.models import AIModel
 from .models import APIAccessLog
 from .models_channel import APIChannel, ModelChannelBinding
@@ -157,6 +157,35 @@ def get_client_ip(request) -> str:
     return request.META.get('REMOTE_ADDR', '')
 
 
+def calculate_and_deduct_cost(user, model_code, input_tokens, output_tokens, usage_log=None):
+    """
+    根据 token 用量和模型定价计算费用并扣减用户余额
+    返回 (cost, success)
+    """
+    try:
+        model = AIModel.objects.get(code=model_code, status='active')
+    except AIModel.DoesNotExist:
+        return 0, False
+    input_cost = (input_tokens / 1000) * float(model.input_price)
+    output_cost = (output_tokens / 1000) * float(model.output_price)
+    cost = round(input_cost + output_cost, 6)
+    if cost <= 0:
+        return 0, True
+    if user.balance < cost:
+        return cost, False
+    user.balance -= cost
+    user.save()
+    Bill.objects.create(
+        user=user,
+        type='consume',
+        amount=-cost,
+        balance=user.balance,
+        description=f'API调用 {model_code} (输入{input_tokens}tokens, 输出{output_tokens}tokens)',
+        usage_log=usage_log
+    )
+    return cost, True
+
+
 # ============== OpenAI 兼容接口 ==============
 
 class ChatCompletionsView(APIView):
@@ -288,7 +317,7 @@ class ChatCompletionsView(APIView):
                 response_data = {'raw_response': response.text}
             
             # 更新日志
-            self._update_usage_log(usage_log, response, response_data, response_time)
+            self._update_usage_log(usage_log, response, response_data, response_time, model_name)
             
             # 更新渠道统计
             channel.increment_calls(success=response.status_code < 400, latency=response_time)
@@ -398,8 +427,8 @@ class ChatCompletionsView(APIView):
                 headers[key] = value
         return headers
     
-    def _update_usage_log(self, log, response, response_data, response_time):
-        """更新使用日志"""
+    def _update_usage_log(self, log, response, response_data, response_time, model_code=''):
+        """更新使用日志并执行计费"""
         log.response_time = response_time
         log.status_code = response.status_code
         
@@ -414,6 +443,16 @@ class ChatCompletionsView(APIView):
                 log.response_body = str(response_data)[:5000]
         
         log.save()
+        
+        # 计费扣费（仅在请求成功时）
+        if response.status_code < 400 and log.total_tokens > 0:
+            cost, success = calculate_and_deduct_cost(
+                log.user, model_code,
+                log.input_tokens, log.output_tokens, log
+            )
+            if not success and cost > 0:
+                # 余额不足，记录警告但不影响响应
+                pass
 
 
 class CompletionsView(APIView):

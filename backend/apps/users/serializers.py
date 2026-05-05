@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User, APIKey
+from .models import User, APIKey, Bill, CardPassword
 
 
 class AdminUserSerializer(serializers.ModelSerializer):
@@ -93,3 +93,30 @@ class ChangePasswordSerializer(serializers.Serializer):
         if not user.check_password(value):
             raise serializers.ValidationError('原密码错误')
         return value
+
+
+class BillSerializer(serializers.ModelSerializer):
+    """账单记录"""
+    type_display = serializers.CharField(source='get_type_display', read_only=True)
+
+    class Meta:
+        model = Bill
+        fields = ['id', 'type', 'type_display', 'amount', 'balance', 'description', 'created_at']
+        read_only_fields = ['id', 'type', 'amount', 'balance', 'description', 'created_at']
+
+
+class CardPasswordSerializer(serializers.ModelSerializer):
+    """卡密序列化器"""
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    used_by_username = serializers.CharField(source='used_by.username', read_only=True, default=None)
+
+    class Meta:
+        model = CardPassword
+        fields = ['id', 'code', 'amount', 'status', 'status_display', 'batch_no',
+                  'used_by', 'used_by_username', 'used_at', 'remark', 'created_at']
+        read_only_fields = ['id', 'code', 'status', 'used_by', 'used_at', 'created_at']
+
+
+class CardRedeemSerializer(serializers.Serializer):
+    """卡密兑换序列化器"""
+    code = serializers.CharField(max_length=32, help_text='卡密码')

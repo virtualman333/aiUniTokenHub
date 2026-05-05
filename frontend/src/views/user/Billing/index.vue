@@ -68,17 +68,34 @@
     </el-card>
 
     <!-- 充值对话框 -->
-    <el-dialog v-model="showRecharge" title="账户充值" width="400px">
-      <el-form label-width="80px">
-        <el-form-item label="充值金额">
-          <el-input-number v-model="rechargeAmount" :min="1" :max="10000" :precision="2" />
-          <span style="margin-left: 8px;">元</span>
-        </el-form-item>
-      </el-form>
+    <el-dialog v-model="showRecharge" title="账户充值" width="500px">
+      <el-tabs v-model="payMethod" @tab-change="handlePayMethodChange">
+        <el-tab-pane label="卡密充值" name="card">
+          <el-form label-width="80px" style="margin-top: 16px;">
+            <el-form-item label="卡密码">
+              <el-input v-model="cardCode" placeholder="请输入卡密码" clearable />
+            </el-form-item>
+          </el-form>
+        </el-tab-pane>
+        <el-tab-pane label="微信支付" name="wechat" disabled>
+          <div class="coming-soon">即将开放</div>
+        </el-tab-pane>
+        <el-tab-pane label="支付宝" name="alipay" disabled>
+          <div class="coming-soon">即将开放</div>
+        </el-tab-pane>
+        <el-tab-pane label="USDT" name="usdt" disabled>
+          <div class="coming-soon">即将开放</div>
+        </el-tab-pane>
+      </el-tabs>
       <template #footer>
         <el-button @click="showRecharge = false">取消</el-button>
-        <el-button type="primary" :loading="recharging" @click="handleRecharge">
-          确认充值
+        <el-button
+          v-if="payMethod === 'card'"
+          type="primary"
+          :loading="recharging"
+          @click="handleRedeemCard"
+        >
+          确认兑换
         </el-button>
       </template>
     </el-dialog>
@@ -98,12 +115,15 @@ const {
   pagination,
   loadBalance,
   loadBills,
-  recharge
+  recharge,
+  redeemCard
 } = useBilling()
 
 const showRecharge = ref(false)
 const rechargeAmount = ref(100)
 const recharging = ref(false)
+const payMethod = ref('card')
+const cardCode = ref('')
 
 onMounted(() => {
   loadBalance()
@@ -153,6 +173,30 @@ async function handleRecharge() {
   } finally {
     recharging.value = false
   }
+}
+
+async function handleRedeemCard() {
+  if (!cardCode.value.trim()) {
+    ElMessage.warning('请输入卡密码')
+    return
+  }
+  recharging.value = true
+  try {
+    const res = await redeemCard(cardCode.value.trim())
+    ElMessage.success(`卡密兑换成功，充值 ¥${res.card_amount}`)
+    showRecharge.value = false
+    cardCode.value = ''
+    loadBalance()
+    loadBills()
+  } catch (e: any) {
+    ElMessage.error(e.message || '卡密兑换失败')
+  } finally {
+    recharging.value = false
+  }
+}
+
+function handlePayMethodChange() {
+  cardCode.value = ''
 }
 </script>
 
@@ -219,5 +263,12 @@ async function handleRecharge() {
 
 .amount-add {
   color: #67C23A;
+}
+
+.coming-soon {
+  text-align: center;
+  padding: 40px 0;
+  color: #909399;
+  font-size: 14px;
 }
 </style>
