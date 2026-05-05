@@ -4,7 +4,7 @@ from .views import AIModelViewSet, ModelProviderViewSet, ModelCategoryViewSet
 from .upstream_views import UpstreamAccountViewSet, ModelUpstreamAccountViewSet
 
 router = DefaultRouter()
-router.register(r'', AIModelViewSet, basename='aimodels')
+router.register(r'models', AIModelViewSet, basename='models')
 router.register(r'providers', ModelProviderViewSet, basename='providers')
 router.register(r'categories', ModelCategoryViewSet, basename='modelcategories')
 router.register(r'upstream-accounts', UpstreamAccountViewSet, basename='upstream-accounts')

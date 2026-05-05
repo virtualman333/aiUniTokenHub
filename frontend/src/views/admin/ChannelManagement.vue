@@ -1,11 +1,17 @@
 <template>
   <div class="page-container">
     <div class="page-header">
-      <h2 class="title">渠道管理</h2>
-      <el-button type="primary" @click="showDialog('add')">
-        <el-icon><Plus /></el-icon>
-        添加渠道
-      </el-button>
+      <h2 class="title">上游账号管理</h2>
+      <div class="header-actions">
+        <el-button @click="syncAllModels" :loading="syncing">
+          <el-icon><Refresh /></el-icon>
+          同步所有模型
+        </el-button>
+        <el-button type="primary" @click="showDialog('add')">
+          <el-icon><Plus /></el-icon>
+          添加账号
+        </el-button>
+      </div>
     </div>
 
     <!-- 统计卡片 -->
@@ -68,8 +74,8 @@
       </el-table-column>
       <el-table-column label="状态" width="100">
         <template #default="{ row }">
-          <el-tag :type="getStatusType(row.status)">
-            {{ getStatusLabel(row.status) }}
+          <el-tag :type="row.is_available ? 'success' : 'danger'">
+            {{ row.is_available ? '可用' : '不可用' }}
           </el-tag>
         </template>
       </el-table-column>
@@ -92,8 +98,11 @@
           {{ row.avg_latency || 0 }}ms
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="200" fixed="right">
+      <el-table-column label="操作" width="280" fixed="right">
         <template #default="{ row }">
+          <el-button size="small" type="success" text @click="syncModels(row)">
+            同步模型
+          </el-button>
           <el-button size="small" type="primary" text @click="testChannel(row)">
             测试
           </el-button>
@@ -110,7 +119,7 @@
     <!-- 添加/编辑对话框 -->
     <el-dialog 
       v-model="dialogVisible" 
-      :title="isEdit ? '编辑渠道' : '添加渠道'" 
+      :title="isEdit ? '编辑账号' : '添加账号'" 
       width="600px"
     >
       <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
@@ -138,37 +147,36 @@
             placeholder="sk-..." 
           />
         </el-form-item>
-        <el-row :gutter="20">
-          <el-col :span="12">
-            <el-form-item label="权重" prop="weight">
-              <el-input-number v-model="form.weight" :min="1" :max="10" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="优先级" prop="priority">
-              <el-input-number v-model="form.priority" :min="1" :max="1000" />
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-row :gutter="20">
-          <el-col :span="12">
-            <el-form-item label="最大QPS" prop="max_qps">
-              <el-input-number v-model="form.max_qps" :min="1" :max="10000" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="状态" prop="status">
-              <el-select v-model="form.status" style="width: 100%">
-                <el-option value="active" label="正常" />
-                <el-option value="disabled" label="已禁用" />
-                <el-option value="maintenance" label="维护中" />
-              </el-select>
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-form-item label="默认渠道">
-          <el-switch v-model="form.is_default" />
+        <el-form-item label="代理地址" prop="proxy_url">
+          <el-input 
+            v-model="form.proxy_url" 
+            placeholder="留空则直连（如: http://proxy:8080）" 
+          />
         </el-form-item>
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="最大RPM" prop="max_rpm">
+              <el-input-number v-model="form.max_rpm" :min="1" :max="100000" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="最大TPM" prop="max_tpm">
+              <el-input-number v-model="form.max_tpm" :min="1" :max="10000000" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="排序" prop="order">
+              <el-input-number v-model="form.order" :min="0" :max="1000" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="启用">
+              <el-switch v-model="form.is_active" />
+            </el-form-item>
+          </el-col>
+        </el-row>
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
@@ -181,8 +189,9 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Plus, Connection, Refresh } from '@element-plus/icons-vue'
 import api from '@/stores'
 
 const channels = ref([])
@@ -191,6 +200,7 @@ const loading = ref(false)
 const dialogVisible = ref(false)
 const isEdit = ref(false)
 const submitting = ref(false)
+const syncing = ref(false)
 const formRef = ref()
 
 const defaultForm = () => ({
@@ -199,12 +209,11 @@ const defaultForm = () => ({
   provider: null,
   base_url: '',
   api_key: '',
-  weight: 1,
-  priority: 100,
-  max_qps: 100,
+  proxy_url: '',
+  max_rpm: 60,
   max_tpm: 100000,
-  status: 'active',
-  is_default: false
+  is_active: true,
+  order: 0
 })
 
 const form = ref({ ...defaultForm() })
@@ -224,18 +233,18 @@ const stats = ref({
 const loadChannels = async () => {
   loading.value = true
   try {
-    const res = await api.get('/models/channels/')
+    const res = await api.get('/models/upstream-accounts/')
     channels.value = res.results || res || []
     
     // 计算统计
     stats.value.total_channels = channels.value.length
-    stats.value.active_channels = channels.value.filter(c => c.status === 'active').length
+    stats.value.active_channels = channels.value.filter(c => c.is_active).length
     stats.value.total_calls = channels.value.reduce((sum, c) => sum + (c.total_calls || 0), 0)
     if (channels.value.length > 0) {
       stats.value.avg_success_rate = channels.value.reduce((sum, c) => sum + (c.success_rate || 100), 0) / channels.value.length
     }
   } catch (error) {
-    console.error('加载渠道失败:', error)
+    console.error('加载账号失败:', error)
     channels.value = []
   } finally {
     loading.value = false
@@ -260,15 +269,14 @@ const showDialog = (type, row = null) => {
     form.value = {
       id: row.id,
       name: row.name,
-      provider: row.provider?.id || row.provider,
+      provider: row.provider?.id || row.provider_id,
       base_url: row.base_url,
       api_key: row.api_key || '',
-      weight: row.weight,
-      priority: row.priority,
-      max_qps: row.max_qps,
-      max_tpm: row.max_tpm,
-      status: row.status,
-      is_default: row.is_default
+      proxy_url: row.proxy_url || '',
+      max_rpm: row.max_rpm || 60,
+      max_tpm: row.max_tpm || 100000,
+      is_active: row.is_active !== false,
+      order: row.order || 0
     }
   }
   dialogVisible.value = true
@@ -281,11 +289,11 @@ const submitForm = async () => {
   submitting.value = true
   try {
     if (isEdit.value) {
-      await api.put(`/models/channels/${form.value.id}/`, form.value)
+      await api.put(`/models/upstream-accounts/${form.value.id}/`, form.value)
       ElMessage.success('更新成功')
     } else {
-      await api.post('/models/channels/', form.value)
-      ElMessage.success('添加成功')
+      const res = await api.post('/models/upstream-accounts/', form.value)
+      ElMessage.success(res.msg || '添加成功')
     }
     dialogVisible.value = false
     loadChannels()
@@ -297,23 +305,70 @@ const submitForm = async () => {
 }
 
 const testChannel = async (row) => {
-  ElMessage.info('正在测试渠道...')
+  ElMessage.info('正在测试连接...')
   try {
-    const res = await api.post(`/models/channels/${row.id}/test/`)
-    if (res.success) {
-      ElMessage.success(`测试成功！响应时间: ${res.latency}ms`)
+    const res = await api.post(`/models/upstream-accounts/${row.id}/test_connection/`)
+    if (res.success !== false) {
+      ElMessage.success('连接成功')
     } else {
-      ElMessage.error(`测试失败: ${res.error}`)
+      ElMessage.error(res.msg || '连接失败')
     }
   } catch (error) {
     ElMessage.error('测试请求失败')
   }
 }
 
+const syncModels = async (row) => {
+  try {
+    await ElMessageBox.confirm(
+      `将从 "${row.name}" 同步模型列表到数据库。已存在的模型将跳过。`,
+      '同步模型',
+      { type: 'info' }
+    )
+    const res = await api.post(`/models/upstream-accounts/${row.id}/sync_models/`)
+    ElMessage.success(res.msg || `成功同步 ${res.data?.added || 0} 个模型`)
+    loadChannels()
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error('同步失败')
+    }
+  }
+}
+
+const syncAllModels = async () => {
+  syncing.value = true
+  let totalAdded = 0
+  let successCount = 0
+  let failCount = 0
+  
+  try {
+    for (const channel of channels.value) {
+      try {
+        const res = await api.post(`/models/upstream-accounts/${channel.id}/sync_models/`)
+        if (res.success !== false) {
+          totalAdded += res.data?.added || 0
+          successCount++
+        } else {
+          failCount++
+        }
+      } catch (e) {
+        failCount++
+      }
+    }
+    ElMessage.success(`同步完成：成功 ${successCount} 个账号，新增 ${totalAdded} 个模型${failCount > 0 ? `（${failCount} 个失败）` : ''}`)
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error('同步失败')
+    }
+  } finally {
+    syncing.value = false
+  }
+}
+
 const deleteChannel = async (row) => {
   try {
-    await ElMessageBox.confirm('确定要删除这个渠道吗？', '警告', { type: 'warning' })
-    await api.delete(`/models/channels/${row.id}/`)
+    await ElMessageBox.confirm('确定要删除这个账号吗？', '警告', { type: 'warning' })
+    await api.delete(`/models/upstream-accounts/${row.id}/`)
     ElMessage.success('删除成功')
     loadChannels()
   } catch (error) {
@@ -321,16 +376,6 @@ const deleteChannel = async (row) => {
       ElMessage.error('删除失败')
     }
   }
-}
-
-const getStatusType = (status) => {
-  const types = { active: 'success', disabled: 'info', maintenance: 'warning', error: 'danger' }
-  return types[status] || 'info'
-}
-
-const getStatusLabel = (status) => {
-  const labels = { active: '正常', disabled: '已禁用', maintenance: '维护中', error: '异常' }
-  return labels[status] || status
 }
 
 const getSuccessRateClass = (rate) => {
@@ -353,6 +398,18 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.header-actions {
+  display: flex;
+  gap: 10px;
+}
+
 .stats-row {
   margin-bottom: 20px;
 }
