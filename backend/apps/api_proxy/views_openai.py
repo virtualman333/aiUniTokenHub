@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import time
+import logging
 from typing import Optional
 
 import httpx
@@ -20,11 +21,22 @@ from django.core.cache import cache
 
 from apps.users.models import APIKey, UsageLog, Bill
 from apps.ai_models.models import AIModel
+from apps.ai_models.upstream_models import UpstreamAccount, ModelUpstreamAccount
 from .models import APIAccessLog
-from .models_channel import APIChannel, ModelChannelBinding
+
+
+logger = logging.getLogger('api_proxy')
 
 
 # ============== 工具函数 ==============
+
+def build_endpoint_url(base_url: str, endpoint: str = 'chat/completions') -> str:
+    """
+    构建完整的 API 端点 URL
+    base_url 应该包含完整的路径前缀（如 /v1），直接拼接 endpoint
+    """
+    base = base_url.rstrip('/')
+    return f"{base}/{endpoint}"
 
 def get_api_key_from_request(request) -> tuple:
     """从请求中提取API Key，返回 (api_key, user) 或 (None, None)"""
@@ -49,73 +61,73 @@ def get_api_key_from_request(request) -> tuple:
         return None, None
 
 
-def select_channel_for_model(model_code: str) -> Optional[APIChannel]:
+def select_upstream_account(model_code: str) -> Optional[UpstreamAccount]:
     """
-    根据模型代码选择最优渠道（加权负载均衡 + 故障转移）
+    根据模型代码选择最优上游账号（加权负载均衡 + 故障转移）
     """
+    logger.info(f"[select_account] Looking for model: {model_code}")
+    
     try:
+        # 查找模型
         model = AIModel.objects.filter(code=model_code, status='active').first()
         if not model:
+            # 尝试通过 api_model_id 查找
+            model = AIModel.objects.filter(api_model_id=model_code, status='active').first()
+        
+        if not model:
+            logger.warning(f"[select_account] Model not found: {model_code}")
             return None
-    except Exception:
+            
+        logger.info(f"[select_account] Found model: {model.name} (id={model.id})")
+    except Exception as e:
+        logger.error(f"[select_account] Error finding model: {e}")
         return None
     
-    # 获取模型关联的渠道
-    bindings = ModelChannelBinding.objects.filter(
+    # 获取模型关联的上游账号
+    bindings = ModelUpstreamAccount.objects.filter(
         model=model,
-        is_active=True
-    ).select_related('channel').order_by('priority')
+        is_enabled=True
+    ).select_related('account').order_by('-weight')
     
-    # 收集可用渠道及其权重
-    available_channels = []
+    logger.info(f"[select_account] Found {bindings.count()} upstream account bindings for model")
+    
+    # 收集可用账号及其权重
+    available_accounts = []
     for binding in bindings:
-        channel = binding.channel
-        if channel.status == 'active':
-            # 检查渠道是否有可用额度
-            if channel.remaining_quota is None or channel.remaining_quota > 0:
-                available_channels.append((channel, binding.priority))
+        account = binding.account
+        logger.info(f"[select_account] Checking account: {account.name}, is_active={account.is_active}, is_available={account.is_available}")
+        if account.is_active and account.is_available:
+            available_accounts.append((account, binding.weight))
+            logger.info(f"[select_account] Account {account.name} is available (weight={binding.weight})")
     
-    if not available_channels:
-        # 如果没有绑定渠道，尝试获取默认渠道
-        default_channels = APIChannel.objects.filter(
-            status='active',
-            is_default=True
-        )
-        for ch in default_channels:
-            if ch.remaining_quota is None or ch.remaining_quota > 0:
-                available_channels.append((ch, 100))
-    
-    if not available_channels:
-        # 尝试任意可用渠道
-        all_channels = APIChannel.objects.filter(status='active')
-        for ch in all_channels:
-            if ch.remaining_quota is None or ch.remaining_quota > 0:
-                available_channels.append((ch, 50))
-    
-    if not available_channels:
+    if not available_accounts:
+        logger.warning(f"[select_account] No available bindings for model")
         return None
     
-    # 加权随机选择（权重 = priority * base_weight）
-    # priority 越高，被选中的概率越大
-    total_weight = sum(weight for _, weight in available_channels)
+    # 加权随机选择（权重越高被选中的概率越大）
+    total_weight = sum(weight for _, weight in available_accounts)
     if total_weight == 0:
-        return available_channels[0][0] if available_channels else None
+        selected = available_accounts[0][0]
+    else:
+        import random
+        rand_val = random.randint(1, total_weight)
+        cumulative = 0
+        for account, weight in available_accounts:
+            cumulative += weight
+            if cumulative >= rand_val:
+                selected = account
+                break
+        else:
+            selected = available_accounts[0][0]
     
-    import random
-    rand_val = random.randint(1, total_weight)
-    cumulative = 0
-    for channel, weight in available_channels:
-        cumulative += weight
-        if rand_val <= cumulative:
-            return channel
-    
-    return available_channels[0][0]
+    logger.info(f"[select_account] Selected account: {selected.name}, base_url: {selected.base_url}, api_key: {'***' + selected.api_key[-8:] if selected.api_key else 'None'}")
+    return selected
 
 
-def check_rate_limit(api_key: APIKey, channel: APIChannel) -> Optional[Response]:
+def check_rate_limit(api_key: APIKey, account: UpstreamAccount) -> Optional[Response]:
     """检查速率限制"""
-    limit = min(api_key.rate_limit, channel.max_qps)
-    cache_key = f"rate_limit:{api_key.key}:{channel.id}"
+    limit = min(api_key.rate_limit, account.max_rpm)
+    cache_key = f"rate_limit:{api_key.key}:{account.id}"
     
     current = cache.get(cache_key, 0)
     if current >= limit:
@@ -130,6 +142,19 @@ def check_rate_limit(api_key: APIKey, channel: APIChannel) -> Optional[Response]
     
     cache.set(cache_key, current + 1, 60)
     return None
+
+
+def update_upstream_usage(account: UpstreamAccount, success: bool = True):
+    """更新上游账号使用统计"""
+    try:
+        account.usage_count += 1
+        if not success:
+            account.error_count += 1
+        from django.utils import timezone
+        account.last_used = timezone.now()
+        account.save(update_fields=['usage_count', 'error_count', 'last_used'])
+    except Exception as e:
+        logger.error(f"[update_upstream_usage] Error updating usage: {e}")
 
 
 def log_api_access(api_key, user, method, path, request_body, response_data, 
@@ -261,20 +286,25 @@ class ChatCompletionsView(APIView):
                 }
             }, status=status.HTTP_429_TOO_MANY_REQUESTS)
         
-        # 选择渠道
-        channel = select_channel_for_model(model_name)
-        if not channel:
+        # 选择上游账号
+        account = select_upstream_account(model_name)
+        if not account:
             return Response({
                 'error': {
-                    'message': f'Model {model_name} is not available.',
+                    'message': f'Model {model_name} is not available or no upstream account configured.',
                     'type': 'invalid_request_error',
                     'param': 'model',
                     'code': 'model_not_found'
                 }
             }, status=status.HTTP_404_NOT_FOUND)
         
+        # 日志记录路由信息
+        logger.info(f"[ChatCompletions] model={model_name}, user={user.id}, account={account.name}")
+        logger.info(f"[ChatCompletions] Account base_url: {account.base_url}")
+        logger.info(f"[ChatCompletions] Account api_key: {'***' + account.api_key[-8:] if account.api_key else 'None'}")
+        
         # 检查速率限制
-        rate_limit_error = check_rate_limit(api_key, channel)
+        rate_limit_error = check_rate_limit(api_key, account)
         if rate_limit_error:
             return rate_limit_error
         
@@ -282,31 +312,39 @@ class ChatCompletionsView(APIView):
         is_streaming = request.data.get('stream', False)
         
         if is_streaming:
-            return self._handle_streaming(request, api_key, user, channel, model_name, start_time)
+            return self._handle_streaming(request, api_key, user, account, model_name, start_time)
         else:
-            return self._handle_normal(request, api_key, user, channel, model_name, start_time)
+            return self._handle_normal(request, api_key, user, account, model_name, start_time)
     
-    def _handle_normal(self, request, api_key, user, channel, model_name, start_time):
+    def _handle_normal(self, request, api_key, user, account, model_name, start_time):
         """处理普通（非流式）请求"""
         # 构建转发请求
         headers = self._build_headers(request)
-        headers['Authorization'] = f'Bearer {channel.api_key}'
+        headers['Authorization'] = f'Bearer {account.api_key}'
         
-        url = channel.base_url.rstrip('/')
+        # 构建目标 URL
+        target_url = build_endpoint_url(account.base_url, 'chat/completions')
+        
+        # 日志记录转发信息
+        logger.info(f"[ChatCompletions-Normal] model={model_name}, user_id={user.id}, account={account.name}")
+        logger.info(f"[ChatCompletions-Normal] Account base_url: {account.base_url}")
+        logger.info(f"[ChatCompletions-Normal] Forwarding to: {target_url}")
+        logger.debug(f"[ChatCompletions-Normal] Request headers: {headers}")
         
         # 记录使用日志
         usage_log = UsageLog.objects.create(
             user=user,
             api_key=api_key,
             method='POST',
-            endpoint='/v1/chat/completions',
+            endpoint='/chat/completions',
         )
         
         try:
-            timeout = channel.timeout or 120
+            timeout = 120  # 默认超时120秒
+            logger.info(f"[ChatCompletions-Normal] Sending request, timeout={timeout}s")
             with httpx.Client(timeout=timeout) as client:
                 response = client.post(
-                    url,
+                    target_url,
                     headers=headers,
                     json=request.data,
                     timeout=timeout,
@@ -323,12 +361,12 @@ class ChatCompletionsView(APIView):
             # 更新日志
             self._update_usage_log(usage_log, response, response_data, response_time, model_name)
             
-            # 更新渠道统计
-            channel.increment_calls(success=response.status_code < 400, latency=response_time)
+            # 更新上游账号使用统计
+            update_upstream_usage(account, success=response.status_code < 400)
             
             # 记录访问日志
             log_api_access(
-                api_key, user, 'POST', '/v1/chat/completions',
+                api_key, user, 'POST', '/chat/completions',
                 request.data, response_data, response.status_code,
                 response_time, get_client_ip(request)
             )
@@ -336,7 +374,7 @@ class ChatCompletionsView(APIView):
             return Response(response_data, status=response.status_code)
             
         except httpx.TimeoutException:
-            channel.increment_calls(success=False, latency=int((time.time() - start_time) * 1000))
+            update_upstream_usage(account, success=False)
             return Response({
                 'error': {
                     'message': 'Request timeout. Please try again.',
@@ -346,7 +384,7 @@ class ChatCompletionsView(APIView):
             }, status=status.HTTP_504_GATEWAY_TIMEOUT)
             
         except Exception as e:
-            channel.increment_calls(success=False, latency=int((time.time() - start_time) * 1000))
+            update_upstream_usage(account, success=False)
             return Response({
                 'error': {
                     'message': f'Internal server error: {str(e)}',
@@ -355,38 +393,44 @@ class ChatCompletionsView(APIView):
                 }
             }, status=status.HTTP_502_BAD_GATEWAY)
     
-    def _handle_streaming(self, request, api_key, user, channel, model_name, start_time):
+    def _handle_streaming(self, request, api_key, user, account, model_name, start_time):
         """处理流式请求"""
         headers = self._build_headers(request)
-        headers['Authorization'] = f'Bearer {channel.api_key}'
+        headers['Authorization'] = f'Bearer {account.api_key}'
         
-        url = channel.base_url.rstrip('/')
+        # 构建目标 URL
+        target_url = build_endpoint_url(account.base_url, 'chat/completions')
+        
+        # 日志记录转发信息
+        logger.info(f"[ChatCompletions-Stream] model={model_name}, user_id={user.id}, account={account.name}")
+        logger.info(f"[ChatCompletions-Stream] Account base_url: {account.base_url}")
+        logger.debug(f"[ChatCompletions-Stream] Request headers: {headers}")
         
         # 记录使用日志
         usage_log = UsageLog.objects.create(
             user=user,
             api_key=api_key,
             method='POST',
-            endpoint='/v1/chat/completions',
+            endpoint='/chat/completions',
         )
         
         try:
-            timeout = channel.timeout or 300
+            timeout = 300  # 默认超时300秒（流式请求更长）
+            logger.info(f"[ChatCompletions-Stream] Starting streaming request, timeout={timeout}s")
             
             def generate():
                 """生成器函数，流式返回SSE数据"""
                 try:
-                    with httpx.stream('POST', url, headers=headers, json=request.data, timeout=timeout) as response:
+                    with httpx.stream('POST', target_url, headers=headers, json=request.data, timeout=timeout) as response:
                         for chunk in response.iter_bytes():
                             if chunk:
                                 # 保持原始SSE格式
                                 yield chunk
                     
                     # 标记完成
-                    response_time = int((time.time() - start_time) * 1000)
-                    channel.increment_calls(success=True, latency=response_time)
+                    update_upstream_usage(account, success=True)
                 except Exception as e:
-                    channel.increment_calls(success=False, latency=int((time.time() - start_time) * 1000))
+                    update_upstream_usage(account, success=False)
                     yield f'data: [DONE]\n\n'.encode()
                     yield f'error: {str(e)}\n\n'.encode()
             
@@ -400,7 +444,7 @@ class ChatCompletionsView(APIView):
             return streaming_response
             
         except httpx.TimeoutException:
-            channel.increment_calls(success=False, latency=int((time.time() - start_time) * 1000))
+            update_upstream_usage(account, success=False)
             return Response({
                 'error': {
                     'message': 'Request timeout.',
@@ -410,7 +454,7 @@ class ChatCompletionsView(APIView):
             }, status=status.HTTP_504_GATEWAY_TIMEOUT)
             
         except Exception as e:
-            channel.increment_calls(success=False, latency=int((time.time() - start_time) * 1000))
+            update_upstream_usage(account, success=False)
             return Response({
                 'error': {
                     'message': f'Internal server error: {str(e)}',
@@ -485,9 +529,9 @@ class CompletionsView(APIView):
                 }
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        # 选择渠道
-        channel = select_channel_for_model(model_name)
-        if not channel:
+        # 选择上游账号
+        account = select_upstream_account(model_name)
+        if not account:
             return Response({
                 'error': {
                     'message': f'Model {model_name} is not available.',
@@ -496,21 +540,24 @@ class CompletionsView(APIView):
                 }
             }, status=status.HTTP_404_NOT_FOUND)
         
+        logger.info(f"[Completions] model={model_name}, account={account.name}, base_url={account.base_url}")
+        
         # 转发请求
         headers = {
-            'Authorization': f'Bearer {channel.api_key}',
+            'Authorization': f'Bearer {account.api_key}',
             'Content-Type': 'application/json',
         }
         
-        base_url = channel.base_url.rstrip('/')
-        url = f"{base_url}/v1/completions"
+        url = build_endpoint_url(account.base_url, 'completions')
         
         try:
             with httpx.Client(timeout=120) as client:
                 response = client.post(url, headers=headers, json=request.data)
             
+            update_upstream_usage(account, success=response.status_code < 400)
             return Response(response.json(), status=response.status_code)
         except Exception as e:
+            update_upstream_usage(account, success=False)
             return Response({
                 'error': {
                     'message': str(e),
@@ -541,33 +588,33 @@ class EmbeddingsView(APIView):
         
         model_name = request.data.get('model', 'text-embedding-ada-002')
         
-        # 选择渠道
-        channel = select_channel_for_model(model_name)
-        if not channel:
-            # 尝试通用embeddings渠道
-            channel = APIChannel.objects.filter(status='active', is_default=True).first()
-            if not channel:
-                return Response({
-                    'error': {
-                        'message': 'No embedding service available.',
-                        'code': 'model_not_found'
-                    }
-                }, status=status.HTTP_404_NOT_FOUND)
+        # 选择上游账号
+        account = select_upstream_account(model_name)
+        if not account:
+            return Response({
+                'error': {
+                    'message': f'Model {model_name} is not available or no upstream account configured.',
+                    'code': 'model_not_found'
+                }
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        logger.info(f"[Embeddings] model={model_name}, account={account.name}, base_url={account.base_url}")
         
         headers = {
-            'Authorization': f'Bearer {channel.api_key}',
+            'Authorization': f'Bearer {account.api_key}',
             'Content-Type': 'application/json',
         }
         
-        base_url = channel.base_url.rstrip('/')
-        url = f"{base_url}/v1/embeddings"
+        url = build_endpoint_url(account.base_url, 'embeddings')
         
         try:
             with httpx.Client(timeout=60) as client:
                 response = client.post(url, headers=headers, json=request.data)
             
+            update_upstream_usage(account, success=response.status_code < 400)
             return Response(response.json(), status=response.status_code)
         except Exception as e:
+            update_upstream_usage(account, success=False)
             return Response({
                 'error': {
                     'message': str(e),
