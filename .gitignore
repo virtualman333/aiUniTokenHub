@@ -24,6 +24,8 @@ media/
 # IDE
 .vscode/
 .idea/
+.codebuddy/
+.trae/
 *.swp
 *.swo
 *~

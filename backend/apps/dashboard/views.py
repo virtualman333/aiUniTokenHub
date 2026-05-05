@@ -7,8 +7,8 @@ from django.db import models
 from django.db.models import Count, Sum, Avg
 from django.utils import timezone
 from datetime import timedelta
-from apps.users.models import User, APIKey, UsageLog
-from apps.users.serializers import AdminUserSerializer
+from apps.users.models import User, APIKey, UsageLog, InviteConfig, InviteReward, Bill
+from apps.users.serializers import AdminUserSerializer, InviteConfigSerializer, InviteRewardSerializer
 from apps.api_proxy.models import APIAccessLog
 from apps.api_proxy.serializers import APIAccessLogSerializer
 from apps.ai_models.models import AIModel, ModelProvider
@@ -169,3 +169,71 @@ class AdminDashboardViewSet(viewsets.GenericViewSet):
             }, '操作成功')
         except User.DoesNotExist:
             return APIResponse.error('用户不存在', 404)
+
+
+class InviteAdminViewSet(viewsets.GenericViewSet):
+    """邀请返利管理"""
+    permission_classes = [IsAuthenticated, IsAdminUser]
+    
+    @action(detail=False, methods=['get', 'put'], url_path='config')
+    def config(self, request):
+        """获取/更新返利配置"""
+        config = InviteConfig.get_config()
+        if request.method == 'GET':
+            return APIResponse.success(InviteConfigSerializer(config).data, '获取成功')
+        serializer = InviteConfigSerializer(config, data=request.data, partial=True)
+        if not serializer.is_valid():
+            return APIResponse.error(str(serializer.errors), 400)
+        serializer.save()
+        return APIResponse.success(serializer.data, '更新成功')
+    
+    @action(detail=False, methods=['get'], url_path='rewards')
+    def rewards(self, request):
+        """获取返利记录列表"""
+        queryset = InviteReward.objects.all()
+        status_filter = request.query_params.get('status')
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+        page = int(request.query_params.get('page', 1))
+        page_size = int(request.query_params.get('page_size', 20))
+        total = queryset.count()
+        start = (page - 1) * page_size
+        end = start + page_size
+        rewards = queryset[start:end]
+        serializer = InviteRewardSerializer(rewards, many=True)
+        return APIResponse.paginated(serializer.data, total, page, page_size)
+    
+    @action(detail=True, methods=['post'], url_path='approve')
+    def approve_reward(self, request, pk=None):
+        """审核通过返利"""
+        try:
+            reward = InviteReward.objects.get(pk=pk, status='pending')
+        except InviteReward.DoesNotExist:
+            return APIResponse.error('返利记录不存在或已处理', 404)
+        with models.transaction.atomic():
+            reward.status = 'approved'
+            reward.reviewed_at = timezone.now()
+            reward.save()
+            inviter = reward.inviter
+            inviter.balance += reward.reward_amount
+            inviter.save()
+            Bill.objects.create(
+                user=inviter,
+                type='recharge',
+                amount=reward.reward_amount,
+                balance=inviter.balance,
+                description=f'邀请返利审核通过（来自{reward.invitee.username}充值）'
+            )
+        return APIResponse.success(InviteRewardSerializer(reward).data, '审核通过')
+    
+    @action(detail=True, methods=['post'], url_path='reject')
+    def reject_reward(self, request, pk=None):
+        """审核拒绝返利"""
+        try:
+            reward = InviteReward.objects.get(pk=pk, status='pending')
+        except InviteReward.DoesNotExist:
+            return APIResponse.error('返利记录不存在或已处理', 404)
+        reward.status = 'rejected'
+        reward.reviewed_at = timezone.now()
+        reward.save()
+        return APIResponse.success(InviteRewardSerializer(reward).data, '已拒绝')

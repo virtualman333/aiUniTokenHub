@@ -55,6 +55,15 @@
           />
         </el-form-item>
         
+        <el-form-item prop="invite_code">
+          <el-input
+            v-model="form.invite_code"
+            placeholder="邀请码（选填）"
+            size="large"
+            :prefix-icon="Link"
+          />
+        </el-form-item>
+        
         <el-form-item>
           <el-button
             type="primary"
@@ -77,12 +86,13 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, reactive, onMounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores'
 
 const router = useRouter()
+const route = useRoute()
 const userStore = useUserStore()
 
 const formRef = ref()
@@ -92,7 +102,15 @@ const form = reactive({
   username: '',
   email: '',
   password: '',
-  password_confirm: ''
+  password_confirm: '',
+  invite_code: ''
+})
+
+onMounted(() => {
+  const inviteCode = route.query.invite
+  if (inviteCode) {
+    form.invite_code = inviteCode
+  }
 })
 
 const validatePasswordConfirm = (rule, value, callback) => {

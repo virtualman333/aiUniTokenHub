@@ -14,6 +14,20 @@ export function useDashboard() {
   })
   const topAPIs = ref([])
   const requestStats = ref([])
+  const inviteInfo = ref({
+    invite_code: '',
+    invite_count: 0,
+    total_reward: 0,
+    config: {
+      rebate_type: 'first',
+      rebate_type_display: '首次返利',
+      rebate_ratio: 0.1,
+      upgrade_threshold: 10,
+      reward_threshold: 100,
+      rebate_description: ''
+    }
+  })
+  const inviteRewards = ref([])
 
   /**
    * 获取概览数据
@@ -52,6 +66,30 @@ export function useDashboard() {
   }
 
   /**
+   * 获取邀请信息
+   */
+  async function fetchInviteInfo() {
+    try {
+      const res = await api.get('/users/invite/info/')
+      inviteInfo.value = res
+    } catch (e) {
+      console.error('获取邀请信息失败:', e)
+    }
+  }
+
+  /**
+   * 获取邀请收益记录
+   */
+  async function fetchInviteRewards() {
+    try {
+      const res = await api.get('/users/invite/rewards/')
+      inviteRewards.value = res || []
+    } catch (e) {
+      console.error('获取邀请收益失败:', e)
+    }
+  }
+
+  /**
    * 加载所有数据
    */
   async function loadData() {
@@ -60,7 +98,9 @@ export function useDashboard() {
       await Promise.all([
         fetchOverview(),
         fetchTopAPIs(),
-        fetchRequestStats()
+        fetchRequestStats(),
+        fetchInviteInfo(),
+        fetchInviteRewards()
       ])
     } finally {
       loading.value = false
@@ -72,9 +112,13 @@ export function useDashboard() {
     overview,
     topAPIs,
     requestStats,
+    inviteInfo,
+    inviteRewards,
     fetchOverview,
     fetchTopAPIs,
     fetchRequestStats,
+    fetchInviteInfo,
+    fetchInviteRewards,
     loadData
   }
 }

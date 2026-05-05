@@ -208,6 +208,9 @@ const goToAdmin = () => {
 /* 用户信息 */
 .topbar-right {
   margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .user-info {

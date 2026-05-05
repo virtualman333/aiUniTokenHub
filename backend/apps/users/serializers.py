@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User, APIKey, Bill, CardPassword
+from .models import User, APIKey, Bill, CardPassword, InviteConfig, InviteReward
 
 
 class AdminUserSerializer(serializers.ModelSerializer):
@@ -24,10 +24,11 @@ class UserRegisterSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(required=False, allow_blank=True)
     phone = serializers.CharField(required=False, allow_blank=True, max_length=20)
     company = serializers.CharField(required=False, allow_blank=True, max_length=200)
+    invite_code = serializers.CharField(required=False, allow_blank=True, max_length=16, write_only=True)
     
     class Meta:
         model = User
-        fields = ['username', 'email', 'password', 'password_confirm', 'phone', 'company']
+        fields = ['username', 'email', 'password', 'password_confirm', 'phone', 'company', 'invite_code']
         extra_kwargs = {
             'username': {'required': True},
         }
@@ -35,11 +36,20 @@ class UserRegisterSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         if attrs.get('password') != attrs.get('password_confirm'):
             raise serializers.ValidationError({'password_confirm': '两次密码不一致'})
+        invite_code = attrs.pop('invite_code', '')
+        if invite_code:
+            try:
+                inviter = User.objects.get(invite_code=invite_code)
+                attrs['invited_by'] = inviter
+            except User.DoesNotExist:
+                raise serializers.ValidationError({'invite_code': '邀请码无效'})
         return attrs
     
     def create(self, validated_data):
         validated_data.pop('password_confirm', None)
         password = validated_data.pop('password')
+        from .utils import generate_invite_code
+        validated_data['invite_code'] = generate_invite_code()
         user = User(**validated_data)
         user.set_password(password)
         user.save()
@@ -123,3 +133,40 @@ class CardPasswordSerializer(serializers.ModelSerializer):
 class CardRedeemSerializer(serializers.Serializer):
     """卡密兑换序列化器"""
     code = serializers.CharField(max_length=32, help_text='卡密码')
+
+
+class InviteConfigSerializer(serializers.ModelSerializer):
+    """邀请返利配置序列化器"""
+    rebate_type_display = serializers.CharField(source='get_rebate_type_display', read_only=True)
+    
+    class Meta:
+        model = InviteConfig
+        fields = ['id', 'rebate_type', 'rebate_type_display', 'rebate_ratio', 'upgrade_threshold',
+                  'reward_threshold', 'rebate_description', 'updated_at']
+        read_only_fields = ['id', 'updated_at']
+
+
+class InviteRewardSerializer(serializers.ModelSerializer):
+    """邀请返利记录序列化器"""
+    inviter_username = serializers.CharField(source='inviter.username', read_only=True)
+    invitee_username = serializers.CharField(source='invitee.username', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    recharge_amount = serializers.FloatField()
+    reward_amount = serializers.FloatField()
+    
+    class Meta:
+        model = InviteReward
+        fields = ['id', 'inviter', 'inviter_username', 'invitee', 'invitee_username',
+                  'recharge_amount', 'reward_amount', 'status', 'status_display',
+                  'reviewed_at', 'created_at']
+        read_only_fields = ['id', 'inviter', 'invitee', 'recharge_amount', 'reward_amount',
+                            'status', 'reviewed_at', 'created_at']
+
+
+class InviteInfoSerializer(serializers.Serializer):
+    """邀请信息汇总序列化器"""
+    invite_code = serializers.CharField()
+    invite_link = serializers.CharField()
+    invite_count = serializers.IntegerField()
+    total_reward = serializers.FloatField()
+    config = InviteConfigSerializer()

@@ -15,6 +15,8 @@ class User(AbstractUser):
     phone = models.CharField('手机号', max_length=20, blank=True, null=True)
     company = models.CharField('公司名称', max_length=200, blank=True, null=True)
     balance = models.DecimalField('余额', max_digits=10, decimal_places=2, default=0)
+    invite_code = models.CharField('邀请码', max_length=16, unique=True, blank=True, null=True, db_index=True)
+    invited_by = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='invitees', verbose_name='邀请人')
     created_at = models.DateTimeField('创建时间', auto_now_add=True)
     updated_at = models.DateTimeField('更新时间', auto_now=True)
     
@@ -148,3 +150,62 @@ class CardPassword(models.Model):
 
     def __str__(self):
         return f"{self.code} ¥{self.amount} ({self.get_status_display()})"
+
+
+class InviteConfig(models.Model):
+    """邀请返利配置（单例）"""
+    
+    REBATE_TYPE_CHOICES = [
+        ('first', '首次返利'),
+        ('every', '每次返利'),
+        ('upgrade', '满X人升级为每次返利'),
+    ]
+    
+    rebate_type = models.CharField('返利方式', max_length=20, choices=REBATE_TYPE_CHOICES, default='first')
+    rebate_ratio = models.DecimalField('返利比例', max_digits=5, decimal_places=4, default=0.10, help_text='如0.10表示10%')
+    upgrade_threshold = models.IntegerField('升级所需邀请人数', default=10, help_text='仅upgrade类型有效')
+    reward_threshold = models.DecimalField('返利审核阈值', max_digits=10, decimal_places=2, default=100, help_text='单笔返利金额达到此值需审核')
+    rebate_description = models.TextField('返利说明', blank=True, default='邀请好友注册并充值，您可获得返利奖励。')
+    created_at = models.DateTimeField('创建时间', auto_now_add=True)
+    updated_at = models.DateTimeField('更新时间', auto_now=True)
+    
+    class Meta:
+        db_table = 'invite_config'
+        verbose_name = '邀请返利配置'
+        verbose_name_plural = '邀请返利配置'
+    
+    def __str__(self):
+        return f"返利配置({self.get_rebate_type_display()})"
+    
+    @classmethod
+    def get_config(cls):
+        """获取或创建默认配置"""
+        config, _ = cls.objects.get_or_create(pk=1)
+        return config
+
+
+class InviteReward(models.Model):
+    """邀请返利记录"""
+    
+    STATUS_CHOICES = [
+        ('pending', '待审核'),
+        ('approved', '已通过'),
+        ('rejected', '已拒绝'),
+    ]
+    
+    inviter = models.ForeignKey(User, on_delete=models.CASCADE, related_name='invite_rewards', verbose_name='邀请人')
+    invitee = models.ForeignKey(User, on_delete=models.CASCADE, related_name='invite_reward_records', verbose_name='被邀请人')
+    recharge_amount = models.DecimalField('充值金额', max_digits=10, decimal_places=2)
+    reward_amount = models.DecimalField('返利金额', max_digits=10, decimal_places=2)
+    status = models.CharField('状态', max_length=20, choices=STATUS_CHOICES, default='pending')
+    reviewed_at = models.DateTimeField('审核时间', null=True, blank=True)
+    created_at = models.DateTimeField('创建时间', auto_now_add=True)
+    
+    class Meta:
+        db_table = 'invite_rewards'
+        verbose_name = '邀请返利记录'
+        verbose_name_plural = '邀请返利记录'
+        ordering = ('-created_at',)
+    
+    def __str__(self):
+        return f"{self.inviter.username} <- {self.invitee.username} ¥{self.reward_amount}"

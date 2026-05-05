@@ -64,7 +64,6 @@
         style="margin-top: 16px; justify-content: flex-end;"
       />
 
-      <el-empty v-if="!loading && bills.length === 0" description="暂无记录" />
     </el-card>
 
     <!-- 充值对话框 -->

@@ -7,11 +7,12 @@ from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
 from django.contrib.auth import authenticate
 from django.utils import timezone
-from .models import User, APIKey, Bill, CardPassword
+from .models import User, APIKey, Bill, CardPassword, InviteConfig, InviteReward
 from .serializers import (
     UserRegisterSerializer, UserLoginSerializer, UserSerializer,
     APIKeySerializer, ChangePasswordSerializer, BillSerializer,
-    CardPasswordSerializer, CardRedeemSerializer
+    CardPasswordSerializer, CardRedeemSerializer,
+    InviteConfigSerializer, InviteRewardSerializer
 )
 from .authentication import generate_token
 from apps.utils.response import APIResponse
@@ -160,6 +161,8 @@ class BillingViewSet(viewsets.GenericViewSet):
             balance=user.balance,
             description=f'账户充值 ¥{amount:.2f}'
         )
+        from .utils import process_invite_reward
+        process_invite_reward(user, amount)
         return APIResponse.success({
             'bill': BillSerializer(bill).data,
             'balance': float(user.balance)
@@ -194,6 +197,8 @@ class BillingViewSet(viewsets.GenericViewSet):
             balance=user.balance,
             description=f'卡密充值 {code}'
         )
+        from .utils import process_invite_reward
+        process_invite_reward(user, card.amount)
         return APIResponse.success({
             'bill': BillSerializer(bill).data,
             'balance': float(user.balance),
@@ -272,3 +277,35 @@ class CardPasswordViewSet(viewsets.GenericViewSet):
             return APIResponse.error('请选择要删除的卡密', 400)
         deleted, _ = CardPassword.objects.filter(id__in=ids, status='unused').delete()
         return APIResponse.success({'deleted': deleted}, f'成功删除 {deleted} 张卡密')
+
+
+class InviteViewSet(viewsets.GenericViewSet):
+    """邀请信息"""
+    permission_classes = [IsAuthenticated]
+    
+    @action(detail=False, methods=['get'], url_path='info')
+    def invite_info(self, request):
+        """获取邀请汇总信息"""
+        user = request.user
+        if not user.invite_code:
+            from .utils import generate_invite_code
+            user.invite_code = generate_invite_code()
+            user.save()
+        invite_count = User.objects.filter(invited_by=user).count()
+        total_reward = InviteReward.objects.filter(
+            inviter=user, status='approved'
+        ).aggregate(total=models.Sum('reward_amount'))['total'] or 0
+        config = InviteConfig.get_config()
+        return APIResponse.success({
+            'invite_code': user.invite_code,
+            'invite_count': invite_count,
+            'total_reward': float(total_reward),
+            'config': InviteConfigSerializer(config).data
+        }, '获取成功')
+    
+    @action(detail=False, methods=['get'], url_path='rewards')
+    def invite_rewards(self, request):
+        """获取收益记录（近10条）"""
+        rewards = InviteReward.objects.filter(inviter=request.user)[:10]
+        serializer = InviteRewardSerializer(rewards, many=True)
+        return APIResponse.success(serializer.data, '获取成功')

@@ -133,6 +133,12 @@ const routes = [
         component: () => import('@/views/admin/CardManagement.vue'),
         meta: { title: '卡密管理' }
       },
+      {
+        path: 'invite-management',
+        name: 'InviteManagement',
+        component: () => import('@/views/admin/InviteManagement.vue'),
+        meta: { title: '邀请返利' }
+      },
     ]
   },
   
