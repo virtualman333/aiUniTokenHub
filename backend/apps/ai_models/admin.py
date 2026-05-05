@@ -1,8 +1,29 @@
 from django.contrib import admin
+from django.shortcuts import render
+from django.urls import path
 from .models import AIModel, ModelProvider, ModelCategory
 
 
-@admin.register(ModelProvider)
+def admin_portal_view(request):
+    """管理员入口页面 - 可进入用户端"""
+    return render(request, 'admin/portal.html')
+
+
+class MyAdminSite(admin.AdminSite):
+    """自定义管理后台"""
+    
+    def get_urls(self):
+        urls = super().get_urls()
+        custom_urls = [
+            path('portal/', self.admin_view(admin_portal_view), name='admin_portal'),
+        ]
+        return custom_urls + urls
+
+
+# 使用自定义 AdminSite
+admin_site = MyAdminSite(name='admin')
+
+
 class ModelProviderAdmin(admin.ModelAdmin):
     list_display = ['name', 'code', 'is_active', 'order', 'created_at']
     list_filter = ['is_active']
@@ -10,7 +31,6 @@ class ModelProviderAdmin(admin.ModelAdmin):
     ordering = ['order', 'id']
 
 
-@admin.register(ModelCategory)
 class ModelCategoryAdmin(admin.ModelAdmin):
     list_display = ['name', 'code', 'is_active', 'order']
     list_filter = ['is_active']
@@ -18,7 +38,6 @@ class ModelCategoryAdmin(admin.ModelAdmin):
     ordering = ['order', 'id']
 
 
-@admin.register(AIModel)
 class AIModelAdmin(admin.ModelAdmin):
     list_display = [
         'name', 'provider', 'category', 'input_price', 'output_price',
@@ -51,3 +70,9 @@ class AIModelAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
+
+
+# 注册模型到自定义站点
+admin_site.register(ModelProvider, ModelProviderAdmin)
+admin_site.register(ModelCategory, ModelCategoryAdmin)
+admin_site.register(AIModel, AIModelAdmin)

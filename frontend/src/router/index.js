@@ -25,7 +25,7 @@ const routes = [
       {
         path: '',
         name: 'Dashboard',
-        component: () => import('@/views/user/Dashboard.vue'),
+        component: () => import('@/views/user/Dashboard/index.vue'),
         meta: { title: '控制台' }
       },
       {
@@ -35,27 +35,33 @@ const routes = [
         meta: { title: '接口文档' }
       },
       {
+        path: 'model-square',
+        name: 'ModelSquare',
+        component: () => import('@/views/user/ModelSquare/index.vue'),
+        meta: { title: '模型广场' }
+      },
+      {
         path: 'my-keys',
         name: 'MyKeys',
-        component: () => import('@/views/user/MyKeys.vue'),
+        component: () => import('@/views/user/MyKeys/index.vue'),
         meta: { title: '我的密钥' }
       },
       {
         path: 'usage-log',
         name: 'UsageLog',
-        component: () => import('@/views/user/UsageLog.vue'),
+        component: () => import('@/views/user/UsageLog/index.vue'),
         meta: { title: '使用记录' }
       },
       {
         path: 'settings',
         name: 'Settings',
-        component: () => import('@/views/user/Settings.vue'),
+        component: () => import('@/views/user/Settings/index.vue'),
         meta: { title: '账户设置' }
       },
       {
         path: 'billing',
         name: 'Billing',
-        component: () => import('@/views/user/Billing.vue'),
+        component: () => import('@/views/user/Billing/index.vue'),
         meta: { title: '账单中心' }
       },
     ]
