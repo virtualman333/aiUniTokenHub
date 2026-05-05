@@ -72,7 +72,7 @@
         
         <el-table-column prop="balance" label="余额" width="120" align="right">
           <template #default="{ row }">
-            <span class="balance">¥{{ (row.balance || 0).toFixed(2) }}</span>
+            <span class="balance">¥{{ Number(row.balance || 0).toFixed(2) }}</span>
           </template>
         </el-table-column>
         
@@ -159,7 +159,7 @@
           <span>{{ currentUser?.username }}</span>
         </el-form-item>
         <el-form-item label="当前余额">
-          <span class="balance">¥{{ (currentUser?.balance || 0).toFixed(2) }}</span>
+          <span class="balance">¥{{ Number(currentUser?.balance || 0).toFixed(2) }}</span>
         </el-form-item>
         <el-form-item label="调整金额">
           <el-input-number v-model="balanceAmount" :precision="2" :step="10" />

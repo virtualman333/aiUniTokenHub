@@ -127,6 +127,12 @@ const routes = [
         component: () => import('@/views/admin/TicketManagement.vue'),
         meta: { title: '工单管理' }
       },
+      {
+        path: 'card-management',
+        name: 'CardManagement',
+        component: () => import('@/views/admin/CardManagement.vue'),
+        meta: { title: '卡密管理' }
+      },
     ]
   },
   

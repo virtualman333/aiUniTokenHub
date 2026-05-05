@@ -130,7 +130,7 @@ const loadDashboardData = async () => {
     stats[0].value = overview.total_users || 0
     stats[1].value = overview.total_apis || 0
     stats[2].value = overview.total_requests || 0
-    stats[3].value = `¥${(overview.monthly_cost || 0).toFixed(2)}`
+    stats[3].value = `¥${Number(overview.monthly_cost || 0).toFixed(2)}`
     
     recentLogs.value = (logs.results || logs || []).map(log => ({
       ...log,

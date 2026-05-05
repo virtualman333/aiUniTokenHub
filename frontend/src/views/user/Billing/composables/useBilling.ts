@@ -29,7 +29,7 @@ export function useBilling() {
    */
   async function loadBalance() {
     try {
-      const res = await api.get('/users/auth/me/')
+      const res: any = await api.get('/users/auth/me/')
       balance.value = res.balance || 0
     } catch (e) {
       console.error('加载余额失败:', e)
@@ -71,7 +71,7 @@ export function useBilling() {
    * 卡密兑换
    */
   async function redeemCard(code: string) {
-    const res: any = await api.post('/users/billing/recharge/redeem/', { code })
+    const res: any = await api.post('/users/billing/redeem/', { code })
     return res
   }
 

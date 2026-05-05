@@ -98,6 +98,8 @@ class ChangePasswordSerializer(serializers.Serializer):
 class BillSerializer(serializers.ModelSerializer):
     """账单记录"""
     type_display = serializers.CharField(source='get_type_display', read_only=True)
+    amount = serializers.FloatField()
+    balance = serializers.FloatField()
 
     class Meta:
         model = Bill
@@ -109,6 +111,7 @@ class CardPasswordSerializer(serializers.ModelSerializer):
     """卡密序列化器"""
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     used_by_username = serializers.CharField(source='used_by.username', read_only=True, default=None)
+    amount = serializers.FloatField()
 
     class Meta:
         model = CardPassword

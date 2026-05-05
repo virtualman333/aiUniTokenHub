@@ -43,7 +43,7 @@
       <el-col :span="6">
         <el-card shadow="hover">
           <div class="stat-item">
-            <div class="stat-value">{{ stats.avg_success_rate.toFixed(1) }}%</div>
+            <div class="stat-value">{{ Number(stats.avg_success_rate || 0).toFixed(1) }}%</div>
             <div class="stat-label">平均成功率</div>
           </div>
         </el-card>
@@ -89,7 +89,7 @@
       <el-table-column prop="success_rate" label="成功率" width="100" align="center">
         <template #default="{ row }">
           <span :class="getSuccessRateClass(row.success_rate)">
-            {{ row.success_rate?.toFixed(1) }}%
+            {{ Number(row.success_rate || 0).toFixed(1) }}%
           </span>
         </template>
       </el-table-column>
