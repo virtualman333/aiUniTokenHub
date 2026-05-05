@@ -62,7 +62,7 @@ export function useModels() {
    */
   async function fetchFilters() {
     try {
-      const res: any = await api.get('/models/models/filters/')
+      const res: any = await api.get('/models/filters/')
       filters.value = res
     } catch (e) {
       console.error('获取筛选条件失败:', e)
@@ -75,8 +75,8 @@ export function useModels() {
   async function fetchModels(params: Record<string, string> = {}) {
     loading.value = true
     try {
-      const res: any = await api.get('/models/models/', { params })
-      models.value = res
+      const res: any = await api.get('/models/', { params })
+      models.value = res.results || res || []
     } catch (e) {
       console.error('获取模型列表失败:', e)
     } finally {

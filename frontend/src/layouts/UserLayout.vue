@@ -79,7 +79,7 @@ import { computed, onMounted, markRaw } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores'
 import {
-  HomeFilled, Connection, Box, List, Setting, Wallet, Key, 
+  HomeFilled, Document, Box, List, Setting, Wallet, Key, 
   ArrowDown, SwitchButton
 } from '@element-plus/icons-vue'
 
@@ -89,7 +89,7 @@ const userStore = useUserStore()
 
 const navItems = [
   { path: '/', label: '控制台', icon: markRaw(HomeFilled) },
-  { path: '/api-list', label: 'API列表', icon: markRaw(Connection) },
+  { path: '/api-doc', label: '接口文档', icon: markRaw(Document) },
   { path: '/model-square', label: '模型广场', icon: markRaw(Box) },
   { path: '/usage-log', label: '使用记录', icon: markRaw(List) },
 ]

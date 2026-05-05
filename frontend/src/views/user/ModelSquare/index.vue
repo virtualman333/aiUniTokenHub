@@ -125,7 +125,7 @@ function showModelDetail(model: Record<string, any>) {
 
 function useModel() {
   detailVisible.value = false
-  router.push({ name: 'APIList' })
+  router.push({ name: 'APIDoc' })
 }
 </script>
 

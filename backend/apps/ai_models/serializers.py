@@ -30,12 +30,13 @@ class AIModelListSerializer(serializers.ModelSerializer):
     """模型列表序列化器"""
     provider_name = serializers.CharField(source='provider.name', read_only=True)
     provider_code = serializers.CharField(source='provider.code', read_only=True)
+    provider_logo = serializers.CharField(source='provider.logo', read_only=True)
     category_name = serializers.CharField(source='category.name', read_only=True)
     
     class Meta:
         model = AIModel
         fields = [
-            'id', 'name', 'code', 'version', 'provider_name', 'provider_code',
+            'id', 'name', 'code', 'version', 'provider_name', 'provider_code', 'provider_logo',
             'category_name', 'input_price', 'output_price', 'description',
             'supports_streaming', 'supports_vision', 'supports_tools', 'supports_json',
             'context_window', 'max_tokens', 'capabilities', 'tags',

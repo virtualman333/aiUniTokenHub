@@ -29,22 +29,10 @@ const routes = [
         meta: { title: '控制台' }
       },
       {
-        path: 'api-list',
-        name: 'APIList',
-        component: () => import('@/views/user/APIList.vue'),
-        meta: { title: 'API列表' }
-      },
-      {
-        path: 'model-square',
-        name: 'ModelSquare',
-        component: () => import('@/views/user/ModelSquare/index.vue'),
-        meta: { title: '模型广场' }
-      },
-      {
-        path: 'api-doc/:id',
+        path: 'api-doc',
         name: 'APIDoc',
         component: () => import('@/views/user/APIDoc.vue'),
-        meta: { title: 'API文档' }
+        meta: { title: '接口文档' }
       },
       {
         path: 'my-keys',
