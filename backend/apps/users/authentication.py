@@ -22,6 +22,10 @@ class JWTAuthentication(BaseAuthentication):
         except ValueError:
             return None
         
+        # 如果是 API Key（sk- 开头），不进行 JWT 验证，返回 None 让后续处理
+        if token.startswith('sk-') or token.startswith('utk_'):
+            return None
+        
         try:
             payload = jwt.decode(
                 token,
@@ -31,7 +35,9 @@ class JWTAuthentication(BaseAuthentication):
         except jwt.ExpiredSignatureError:
             raise AuthenticationFailed('Token已过期')
         except jwt.InvalidTokenError:
-            raise AuthenticationFailed('无效的Token')
+            # 对于无效的 JWT token，返回 None 而不是抛异常
+            # 这样 AllowAny 视图可以继续处理
+            return None
         
         try:
             user = User.objects.get(id=payload['user_id'])
