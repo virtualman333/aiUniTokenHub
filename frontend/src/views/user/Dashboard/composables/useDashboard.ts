@@ -34,7 +34,7 @@ export function useDashboard() {
    */
   async function fetchOverview() {
     try {
-      const res = await api.get('/dashboard/overview/')
+      const res = await api.get('/dashboard/user/overview/')
       overview.value = res
     } catch (e) {
       console.error('获取概览失败:', e)
@@ -46,7 +46,7 @@ export function useDashboard() {
    */
   async function fetchTopAPIs(limit = 5) {
     try {
-      const res = await api.get('/dashboard/top-apis/', { params: { limit } })
+      const res = await api.get('/dashboard/user/top-apis/', { params: { limit } })
       topAPIs.value = res.results || res || []
     } catch (e) {
       console.error('获取热门API失败:', e)
@@ -58,7 +58,7 @@ export function useDashboard() {
    */
   async function fetchRequestStats(days = 7) {
     try {
-      const res = await api.get('/dashboard/request-stats/', { params: { days } })
+      const res = await api.get('/dashboard/user/request-stats/', { params: { days } })
       requestStats.value = res.results || res || []
     } catch (e) {
       console.error('获取请求统计失败:', e)

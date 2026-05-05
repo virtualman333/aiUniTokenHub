@@ -1,11 +1,20 @@
 from django.db import models
 from apps.users.models import User, APIKey
+from apps.ai_models.models import AIModel
+from apps.ai_models.upstream_models import UpstreamAccount
 
 
 class APIAccessLog(models.Model):
     """API访问记录"""
     api_key = models.ForeignKey(APIKey, on_delete=models.SET_NULL, null=True, related_name='access_logs')
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='access_logs')
+    
+    # 新增：模型和上游账号信息
+    model = models.ForeignKey(AIModel, on_delete=models.SET_NULL, null=True, blank=True,
+                            related_name='access_logs', verbose_name='模型')
+    upstream_account = models.ForeignKey(UpstreamAccount, on_delete=models.SET_NULL, null=True, blank=True,
+                                         related_name='access_logs', verbose_name='上游账号')
+    
     method = models.CharField('方法', max_length=10)
     path = models.CharField('路径', max_length=500)
     request_headers = models.JSONField('请求头', default=dict)

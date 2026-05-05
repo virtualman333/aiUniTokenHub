@@ -65,6 +65,6 @@ def generate_token(user):
 
 
 def generate_api_key():
-    """生成API Key"""
+    """生成标准 OpenAI 格式的 API Key"""
     import secrets
-    return f"utk_{secrets.token_urlsafe(32)}"
+    return f"sk-{secrets.token_urlsafe(32)}"

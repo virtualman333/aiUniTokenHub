@@ -54,7 +54,7 @@ class ProxyAccessViewSet(viewsets.GenericViewSet):
     
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated, IsAdminUser])
     def access_logs(self, request):
-        """访问日志列表"""
+        """接口使用记录列表"""
         queryset = APIAccessLog.objects.select_related('user', 'api_key').all()
         
         # 按路径筛选
@@ -126,7 +126,7 @@ class ProxyAccessViewSet(viewsets.GenericViewSet):
     
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated, IsAdminUser])
     def access_stats(self, request):
-        """访问统计"""
+        """接口使用统计"""
         days = int(request.query_params.get('days', 7))
         days = min(days, 30)  # 最多30天
         
@@ -190,7 +190,7 @@ class ProxyAccessViewSet(viewsets.GenericViewSet):
     
     @action(detail=True, methods=['get'], permission_classes=[IsAuthenticated, IsAdminUser])
     def access_log_detail(self, request, pk=None):
-        """访问日志详情"""
+        """接口使用记录详情"""
         try:
             log = APIAccessLog.objects.select_related('user', 'api_key').get(pk=pk)
         except APIAccessLog.DoesNotExist:

@@ -6,11 +6,13 @@ import api from '@/stores'
 
 export interface UsageLog {
   id: number
-  endpoint: string
+  path: string
   method: string
-  status_code: number
+  response_status: number
   response_time: number
   ip_address: string
+  model_name?: string
+  model_code?: string
   request_body?: string
   response_body?: string
   error_message?: string
@@ -48,7 +50,7 @@ export function useUsageLog() {
 
       const res: any = await api.get('/users/usage-logs/', { params })
       logs.value = res.results || res || []
-      pagination.total = res.total || logs.value.length
+      pagination.total = res.count || res.total || logs.value.length
     } catch (e) {
       console.error('加载日志失败:', e)
       logs.value = []

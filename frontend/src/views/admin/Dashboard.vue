@@ -40,7 +40,7 @@
     <el-card class="table-card">
       <template #header>
         <div class="card-header">
-          <span>最新访问日志</span>
+          <span>最新接口使用记录</span>
           <el-button type="primary" link @click="$router.push('/admin/access-logs')">
             查看更多
           </el-button>
@@ -85,7 +85,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onUnmounted, markRaw } from 'vue'
+import { ref, reactive, onMounted, onUnmounted, onActivated, watch, markRaw } from 'vue'
 import { useRouter } from 'vue-router'
 import * as echarts from 'echarts'
 import api from '@/stores'
@@ -101,6 +101,11 @@ const pieChartRef = ref()
 let trendChart = null
 let pieChart = null
 
+// 监听图表天数变化
+watch(chartDays, () => {
+  loadChartData()
+})
+
 const stats = reactive([
   { title: '总用户数', value: '0', icon: markRaw(User), bgColor: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' },
   { title: '总API数', value: '0', icon: markRaw(Connection), bgColor: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' },
@@ -109,9 +114,12 @@ const stats = reactive([
 ])
 
 const recentLogs = ref([])
+const trendData = ref([])
+const distributionData = ref([])
 
 onMounted(async () => {
   await loadDashboardData()
+  await loadChartData()
   initCharts()
 })
 
@@ -123,8 +131,8 @@ onUnmounted(() => {
 const loadDashboardData = async () => {
   try {
     const [overview, logs] = await Promise.all([
-      api.get('/dashboard/overview/'),
-      api.get('/proxy/forward/access_logs/', { params: { page_size: 5 } })
+      api.get('/dashboard/admin/overview/'),
+      api.get('/proxy/access_logs/', { params: { page_size: 5 } })
     ])
 
     stats[0].value = overview.total_users || 0
@@ -139,6 +147,50 @@ const loadDashboardData = async () => {
     }))
   } catch (error) {
     console.error('加载数据失败:', error)
+  }
+}
+
+const loadChartData = async () => {
+  try {
+    const days = parseInt(chartDays.value)
+    const [trendRes, distRes] = await Promise.all([
+      api.get('/dashboard/admin/trend/', { params: { days } }),
+      api.get('/dashboard/admin/distribution/')
+    ])
+    
+    trendData.value = trendRes || []
+    distributionData.value = distRes || []
+    
+    updateCharts()
+  } catch (error) {
+    console.error('加载图表数据失败:', error)
+  }
+}
+
+const updateCharts = () => {
+  // 更新趋势图
+  if (trendChart) {
+    trendChart.setOption({
+      xAxis: {
+        data: trendData.value.map(d => d.date || d.date_str)
+      },
+      series: [{
+        data: trendData.value.map(d => d.count || d.requests || 0)
+      }]
+    })
+  }
+  
+  // 更新饼图
+  if (pieChart) {
+    const colors = ['#4ade80', '#f59e0b', '#667eea', '#f5576c', '#06b6d4', '#84cc16', '#a855f7', '#ec4899']
+    pieChart.setOption({
+      series: [{
+        data: distributionData.value.map((d, i) => ({
+          ...d,
+          itemStyle: { color: colors[i % colors.length] }
+        }))
+      }]
+    })
   }
 }
 

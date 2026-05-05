@@ -10,6 +10,8 @@ import secrets
 
 from apps.users.models import APIKey
 from apps.users.serializers import APIKeySerializer
+from apps.api_proxy.models import APIAccessLog
+from apps.api_proxy.serializers import APIAccessLogSerializer
 
 
 class UserAPIKeyViewSet(viewsets.ModelViewSet):
@@ -57,16 +59,14 @@ class UserAPIKeyViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def usage(self, request):
         """获取API Key使用统计"""
-        from apps.api_proxy.models import APIAccessLog
-        
         queryset = APIAccessLog.objects.filter(api_key__user=request.user)
         
-        # 按API端点统计
+        # 按API路径统计
         from django.db.models import Count, Avg
-        stats = queryset.values('endpoint__name').annotate(
+        stats = queryset.values('path').annotate(
             total_calls=Count('id'),
             avg_response_time=Avg('response_time')
-        ).order_by('-total_calls')
+        ).order_by('-total_calls')[:10]
         
         return Response({
             'total_calls': queryset.count(),
@@ -80,10 +80,17 @@ class UserAPIKeyViewSet(viewsets.ModelViewSet):
 
 class APIAccessLogViewSet(viewsets.ReadOnlyModelViewSet):
     """
-    API访问日志（用户侧）
+    API接口使用记录（用户侧）
     """
     serializer_class = APIAccessLogSerializer
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
-        return APIAccessLog.objects.filter(user=self.request.user)
+        queryset = APIAccessLog.objects.filter(user=self.request.user)
+        # 支持状态过滤
+        status = self.request.query_params.get('status')
+        if status == 'success':
+            queryset = queryset.filter(response_status__gte=200, response_status__lt=300)
+        elif status == 'error':
+            queryset = queryset.filter(response_status__gte=400)
+        return queryset.order_by('-created_at')

@@ -14,30 +14,38 @@
 
         <!-- 筛选栏 -->
         <div class="filter-bar">
-          <el-select v-model="filterStatus" placeholder="状态" clearable @change="fetchModels">
-            <el-option label="已上架" value="active" />
-            <el-option label="已下架" value="inactive" />
-            <el-option label="测试中" value="beta" />
-          </el-select>
-          <el-select v-model="filterProvider" placeholder="供应商" clearable @change="fetchModels">
-            <el-option 
-              v-for="p in providers" 
-              :key="p.id" 
-              :label="p.name" 
-              :value="p.id" 
+          <div class="filter-row">
+            <div class="filter-group">
+              <el-select v-model="filterStatus" placeholder="状态" clearable @change="fetchModels" style="width: 110px">
+                <el-option label="全部状态" value="" />
+                <el-option label="已上架" value="active" />
+                <el-option label="已下架" value="inactive" />
+                <el-option label="测试中" value="beta" />
+              </el-select>
+              <el-select v-model="filterProvider" placeholder="供应商" clearable @change="fetchModels" style="width: 130px">
+                <el-option label="全部供应商" value="" />
+                <el-option 
+                  v-for="p in providers" 
+                  :key="p.id" 
+                  :label="p.name" 
+                  :value="p.id" 
+                />
+              </el-select>
+              <el-select v-model="filterHasAccounts" placeholder="账号" clearable @change="fetchModels" style="width: 110px">
+                <el-option label="全部" value="" />
+                <el-option label="已配置" value="true" />
+                <el-option label="未配置" value="false" />
+              </el-select>
+            </div>
+            <el-input 
+              v-model="searchQuery" 
+              placeholder="搜索模型名称" 
+              clearable
+              @input="debounceSearch"
+              style="width: 180px"
+              :prefix-icon="Search"
             />
-          </el-select>
-          <el-select v-model="filterHasAccounts" placeholder="账号配置" clearable @change="fetchModels">
-            <el-option label="已配置账号" value="true" />
-            <el-option label="未配置账号" value="false" />
-          </el-select>
-          <el-input 
-            v-model="searchQuery" 
-            placeholder="搜索模型名称" 
-            clearable
-            @input="debounceSearch"
-            style="width: 200px"
-          />
+          </div>
           <!-- 批量操作 -->
           <div class="batch-actions" v-if="selectedModels.length > 0">
             <span class="selected-count">已选择 {{ selectedModels.length }} 项</span>
@@ -469,6 +477,7 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Search } from '@element-plus/icons-vue'
 import api from '@/stores'
 
 const activeTab = ref('models')
@@ -974,7 +983,9 @@ async function removeBinding(binding) {
 
 <style scoped>
 .model-management {
-  padding: 20px;
+  padding: 24px;
+  background: #f5f7fa;
+  min-height: 100vh;
 }
 
 .page-header {
@@ -982,22 +993,42 @@ async function removeBinding(binding) {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
+  background: white;
+  padding: 20px 24px;
+  border-radius: 12px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
 }
 
 .page-header h2 {
   margin: 0;
   font-size: 20px;
   font-weight: 600;
+  color: #303133;
 }
 
 .filter-bar {
   display: flex;
+  justify-content: space-between;
+  align-items: center;
   gap: 12px;
   margin-bottom: 16px;
-  padding: 16px;
-  background: #f5f7fa;
-  border-radius: 8px;
+  padding: 16px 20px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
   flex-wrap: wrap;
+}
+
+.filter-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.filter-group {
+  display: flex;
+  gap: 8px;
   align-items: center;
 }
 
@@ -1005,27 +1036,31 @@ async function removeBinding(binding) {
   display: flex;
   gap: 8px;
   align-items: center;
-  margin-left: auto;
+  flex-shrink: 0;
 }
 
 .selected-count {
   color: #409eff;
   font-size: 13px;
   margin-right: 8px;
+  font-weight: 500;
 }
 
 .model-cell {
   display: flex;
   flex-direction: column;
+  gap: 4px;
 }
 
 .model-cell .model-name {
-  font-weight: 500;
+  font-weight: 600;
+  color: #303133;
 }
 
 .model-cell .model-code {
   font-size: 12px;
   color: #909399;
+  font-family: 'Monaco', 'Menlo', monospace;
 }
 
 .price-cell {
@@ -1033,16 +1068,30 @@ async function removeBinding(binding) {
   flex-direction: column;
   font-size: 12px;
   color: #606266;
+  gap: 2px;
 }
 
 .cap-badge {
   display: inline-block;
-  padding: 2px 6px;
-  background: #ecf5ff;
-  color: #409eff;
-  border-radius: 4px;
+  padding: 2px 8px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-radius: 12px;
   font-size: 11px;
   margin-right: 4px;
+  font-weight: 500;
+}
+
+.cap-badge:nth-child(2) {
+  background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+}
+
+.cap-badge:nth-child(3) {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+}
+
+.cap-badge:nth-child(4) {
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
 }
 
 .pagination {
@@ -1058,7 +1107,8 @@ async function removeBinding(binding) {
 }
 
 .account-name {
-  font-weight: 500;
+  font-weight: 600;
+  color: #303133;
 }
 
 .account-pool-config {
@@ -1071,5 +1121,37 @@ async function removeBinding(binding) {
 
 .add-account-form {
   padding: 16px;
+}
+
+/* 统计卡片 */
+:deep(.el-card) {
+  border: none;
+  border-radius: 12px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+}
+
+:deep(.el-table) {
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+:deep(.el-table th) {
+  background: #fafafa !important;
+  color: #606266;
+  font-weight: 600;
+}
+
+:deep(.el-tag) {
+  border-radius: 6px;
+}
+
+/* 按钮样式优化 */
+:deep(.el-button--primary) {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+}
+
+:deep(.el-button--primary:hover) {
+  background: linear-gradient(135deg, #5a6fd6 0%, #6a4190 100%);
 }
 </style>
