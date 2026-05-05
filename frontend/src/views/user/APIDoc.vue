@@ -438,12 +438,7 @@ import { useUserStore } from '@/stores'
 
 const apiBaseUrl = ref(window.location.origin + '/api/proxy')
 
-const availableModels = ref([
-  { code: 'gpt-4', name: 'GPT-4' },
-  { code: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo' },
-  { code: 'claude-3-opus', name: 'Claude 3 Opus' },
-  { code: 'claude-3-sonnet', name: 'Claude 3 Sonnet' },
-])
+const availableModels = ref([])
 
 // 用户密钥列表
 const userKeys = ref([])
@@ -531,10 +526,12 @@ async function loadUserKeys() {
     const res = await userStore.fetchApiKeys()
     // 提取密钥列表
     userKeys.value = res.results || res || []
-    // 如果有密钥且当前未输入，自动填入第一个
+    // 如果有密钥且当前未输入，自动填入第一个并获取模型列表
     if (userKeys.value.length > 0 && !chatTestForm.apiKey) {
-      chatTestForm.apiKey = userKeys.value[0].key
-      modelsTestForm.apiKey = userKeys.value[0].key
+      const firstKey = userKeys.value[0].key
+      chatTestForm.apiKey = firstKey
+      modelsTestForm.apiKey = firstKey
+      await refreshModels(firstKey)
     }
   } catch (e) {
     console.warn('获取用户密钥失败')
@@ -543,23 +540,31 @@ async function loadUserKeys() {
   }
 }
 
-function selectKey(key) {
+async function selectKey(key) {
   chatTestForm.apiKey = key
   modelsTestForm.apiKey = key
   ElMessage.success('已选择密钥')
+  // 选择密钥后自动获取模型列表
+  await refreshModels(key)
 }
 
-async function refreshModels() {
+async function refreshModels(apiKey = null) {
   try {
-    const res = await api.get('/models/', { params: { status: 'online' } })
-    if (res && res.length > 0) {
-      availableModels.value = res.map(m => ({
-        code: m.code,
-        name: m.name
+    const response = await axios.get(`${apiBaseUrl.value}/v1/models`, {
+      headers: apiKey ? { 'Authorization': `Bearer ${apiKey}` } : {}
+    })
+    const res = response.data
+    if (res && res.data && res.data.length > 0) {
+      availableModels.value = res.data.map(m => ({
+        code: m.id,
+        name: m.id
       }))
+    } else {
+      availableModels.value = []
     }
   } catch (e) {
-    console.warn('获取模型列表失败，使用默认列表')
+    console.warn('获取模型列表失败')
+    availableModels.value = []
   }
 }
 
