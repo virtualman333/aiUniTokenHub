@@ -100,21 +100,6 @@ npm run build
 
 ### 数据库配置 (.env)
 
-```env
-DB_HOST=47.119.132.60
-DB_PORT=5432
-DB_NAME=unitokenhub
-DB_USER=unitokenhub
-DB_PASSWORD=unitokenhub
-```
-
-### Redis配置
-
-```env
-REDIS_HOST=47.119.132.60
-REDIS_PORT=6379
-REDIS_PASSWORD=unitokenhub
-```
 
 ## API文档
 
