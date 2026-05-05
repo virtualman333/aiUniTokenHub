@@ -33,6 +33,7 @@ INSTALLED_APPS = [
     'apps.api_proxy',
     'apps.dashboard',
     'apps.ai_models',
+    'apps.tickets',
 ]
 
 MIDDLEWARE = [

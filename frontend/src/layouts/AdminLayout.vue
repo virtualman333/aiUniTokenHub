@@ -76,7 +76,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores'
 import {
   HomeFilled, User, Connection, List, Box, Guide,
-  DArrowLeft, DArrowRight, ArrowDown
+  DArrowLeft, DArrowRight, ArrowDown, Tickets
 } from '@element-plus/icons-vue'
 
 const route = useRoute()
@@ -91,6 +91,7 @@ const menuItems = [
   { path: '/admin/model-management', label: '模型管理', icon: markRaw(Box) },
   { path: '/admin/provider-management', label: '供应商管理', icon: markRaw(Connection) },
   { path: '/admin/channel-management', label: '渠道管理', icon: markRaw(Guide) },
+  { path: '/admin/ticket-management', label: '工单管理', icon: markRaw(Tickets) },
 ]
 
 const currentTitle = computed(() => {

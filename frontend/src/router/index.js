@@ -64,6 +64,12 @@ const routes = [
         component: () => import('@/views/user/Billing/index.vue'),
         meta: { title: '账单中心' }
       },
+      {
+        path: 'tickets',
+        name: 'Tickets',
+        component: () => import('@/views/user/Tickets/index.vue'),
+        meta: { title: '工单中心' }
+      },
     ]
   },
   
@@ -114,6 +120,12 @@ const routes = [
         name: 'AdminSettings',
         component: () => import('@/views/admin/Settings.vue'),
         meta: { title: '个人设置' }
+      },
+      {
+        path: 'ticket-management',
+        name: 'TicketManagement',
+        component: () => import('@/views/admin/TicketManagement.vue'),
+        meta: { title: '工单管理' }
       },
     ]
   },
