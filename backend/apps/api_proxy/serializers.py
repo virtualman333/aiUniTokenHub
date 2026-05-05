@@ -15,6 +15,7 @@ class APICategorySerializer(serializers.ModelSerializer):
 
 class APIEndpointSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category.name', read_only=True)
+    price = serializers.SerializerMethodField()
     
     class Meta:
         model = APIEndpoint
@@ -24,6 +25,10 @@ class APIEndpointSerializer(serializers.ModelSerializer):
             'is_public', 'is_active', 'rate_limit', 'price', 'timeout',
             'created_at', 'updated_at'
         ]
+    
+    def get_price(self, obj):
+        """确保price返回浮点数而非Decimal"""
+        return float(obj.price) if obj.price else 0.0
 
 
 class APIAccessLogSerializer(serializers.ModelSerializer):

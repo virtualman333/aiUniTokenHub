@@ -6,7 +6,7 @@
         <h2>用户管理</h2>
         <span class="user-count">共 {{ pagination.total }} 位用户</span>
       </div>
-      <el-button type="primary" @click="showAddDialog = true">
+      <el-button type="primary" @click="openAddDialog">
         <Plus /> 添加用户
       </el-button>
     </div>
@@ -173,6 +173,37 @@
         <el-button type="primary" @click="saveBalance">确认调整</el-button>
       </template>
     </el-dialog>
+
+    <!-- 添加用户对话框 -->
+    <el-dialog v-model="showAddDialog" title="添加用户" width="500px" destroy-on-close>
+      <el-form ref="addFormRef" :model="addForm" :rules="addFormRules" label-width="80px">
+        <el-form-item label="用户名" prop="username">
+          <el-input v-model="addForm.username" placeholder="请输入用户名" />
+        </el-form-item>
+        <el-form-item label="密码" prop="password">
+          <el-input v-model="addForm.password" type="password" placeholder="请输入密码（至少6位）" show-password />
+        </el-form-item>
+        <el-form-item label="邮箱">
+          <el-input v-model="addForm.email" placeholder="请输入邮箱" />
+        </el-form-item>
+        <el-form-item label="手机号">
+          <el-input v-model="addForm.phone" placeholder="请输入手机号" />
+        </el-form-item>
+        <el-form-item label="公司">
+          <el-input v-model="addForm.company" placeholder="请输入公司名称" />
+        </el-form-item>
+        <el-form-item label="角色">
+          <el-select v-model="addForm.role" style="width: 100%">
+            <el-option label="普通用户" value="user" />
+            <el-option label="管理员" value="admin" />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showAddDialog = false">取消</el-button>
+        <el-button type="primary" @click="handleAddUser">确认添加</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -192,6 +223,7 @@ const currentUser = ref(null)
 const balanceAmount = ref(0)
 const balanceNote = ref('')
 const editFormRef = ref()
+const addFormRef = ref()
 
 const queryParams = reactive({
   search: '',
@@ -205,7 +237,7 @@ const pagination = reactive({
   total: 0
 })
 
-const editForm = reactive({
+const defaultEditForm = () => ({
   id: null,
   username: '',
   email: '',
@@ -213,6 +245,24 @@ const editForm = reactive({
   company: '',
   role: 'user'
 })
+
+const editForm = ref({ ...defaultEditForm() })
+
+const defaultAddForm = () => ({
+  username: '',
+  email: '',
+  phone: '',
+  company: '',
+  password: '',
+  role: 'user'
+})
+
+const addForm = ref({ ...defaultAddForm() })
+
+const addFormRules = {
+  username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
+  password: [{ required: true, message: '请输入密码', trigger: 'blur' }, { min: 6, message: '密码至少6位', trigger: 'blur' }]
+}
 
 onMounted(() => {
   loadUsers()
@@ -252,24 +302,24 @@ const formatDate = (date) => {
 }
 
 const editUser = (user) => {
-  Object.assign(editForm, {
+  editForm.value = {
     id: user.id,
     username: user.username,
     email: user.email,
     phone: user.phone,
     company: user.company,
     role: user.role
-  })
+  }
   showEditDialog.value = true
 }
 
 const saveUser = async () => {
   try {
-    await api.patch(`/dashboard/users/${editForm.id}/`, {
-      email: editForm.email,
-      phone: editForm.phone,
-      company: editForm.company,
-      role: editForm.role
+    await api.patch(`/dashboard/users/${editForm.value.id}/`, {
+      email: editForm.value.email,
+      phone: editForm.value.phone,
+      company: editForm.value.company,
+      role: editForm.value.role
     })
     ElMessage.success('保存成功')
     showEditDialog.value = false
@@ -308,7 +358,39 @@ const toggleStatus = async (user) => {
     await api.post(`/dashboard/users/${user.id}/toggle-status/`)
     ElMessage.success('操作成功')
     loadUsers()
-  } catch {}
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error(error.message || '操作失败')
+    }
+  }
+}
+
+const resetAddForm = () => {
+  addForm.value = { ...defaultAddForm() }
+}
+
+const openAddDialog = () => {
+  resetAddForm()
+  showAddDialog.value = true
+}
+
+const handleAddUser = async () => {
+  try {
+    await addFormRef.value.validate()
+    await api.post('/users/auth/register/', {
+      username: addForm.value.username,
+      password: addForm.value.password,
+      email: addForm.value.email,
+      phone: addForm.value.phone,
+      company: addForm.value.company,
+      role: addForm.value.role
+    })
+    ElMessage.success('添加用户成功')
+    showAddDialog.value = false
+    loadUsers()
+  } catch (error) {
+    ElMessage.error(error.message || '添加用户失败')
+  }
 }
 </script>
 

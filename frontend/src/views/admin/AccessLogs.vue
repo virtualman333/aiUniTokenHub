@@ -2,15 +2,84 @@
   <div class="page-container">
     <div class="page-header">
       <h2 class="title">访问日志</h2>
+      <div class="header-actions">
+        <el-button @click="loadLogs">
+          <RefreshLeft /> 刷新
+        </el-button>
+        <el-button type="primary" @click="exportLogs">
+          <Download /> 导出
+        </el-button>
+      </div>
     </div>
+
+    <el-row :gutter="20" class="stats-row">
+      <el-col :span="6">
+        <el-card shadow="hover">
+          <div class="stat-item">
+            <div class="stat-value">{{ stats.total }}</div>
+            <div class="stat-label">总请求数</div>
+          </div>
+        </el-card>
+      </el-col>
+      <el-col :span="6">
+        <el-card shadow="hover">
+          <div class="stat-item">
+            <div class="stat-value text-success">{{ stats.success }}</div>
+            <div class="stat-label">成功请求</div>
+          </div>
+        </el-card>
+      </el-col>
+      <el-col :span="6">
+        <el-card shadow="hover">
+          <div class="stat-item">
+            <div class="stat-value text-danger">{{ stats.failed }}</div>
+            <div class="stat-label">失败请求</div>
+          </div>
+        </el-card>
+      </el-col>
+      <el-col :span="6">
+        <el-card shadow="hover">
+          <div class="stat-item">
+            <div class="stat-value">{{ stats.avgTime }}ms</div>
+            <div class="stat-label">平均响应时间</div>
+          </div>
+        </el-card>
+      </el-col>
+    </el-row>
     
     <el-card>
-      <el-form inline :model="queryParams">
+      <el-form inline :model="queryParams" class="filter-form">
         <el-form-item label="API路径">
-          <el-input v-model="queryParams.endpoint" placeholder="搜索路径" clearable @change="loadLogs" />
+          <el-input 
+            v-model="queryParams.path" 
+            placeholder="搜索路径" 
+            clearable 
+            style="width: 200px"
+          />
+        </el-form-item>
+        <el-form-item label="请求方法">
+          <el-select v-model="queryParams.method" placeholder="全部" clearable style="width: 100px">
+            <el-option label="GET" value="GET" />
+            <el-option label="POST" value="POST" />
+            <el-option label="PUT" value="PUT" />
+            <el-option label="DELETE" value="DELETE" />
+            <el-option label="PATCH" value="PATCH" />
+          </el-select>
         </el-form-item>
         <el-form-item label="状态码">
-          <el-input v-model="queryParams.status" placeholder="如: 200" clearable @change="loadLogs" />
+          <el-select v-model="queryParams.status" placeholder="全部" clearable style="width: 120px">
+            <el-option label="2xx 成功" value="2xx" />
+            <el-option label="4xx 客户端错误" value="4xx" />
+            <el-option label="5xx 服务端错误" value="5xx" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="用户">
+          <el-input 
+            v-model="queryParams.username" 
+            placeholder="用户名" 
+            clearable 
+            style="width: 120px"
+          />
         </el-form-item>
         <el-form-item label="时间范围">
           <el-date-picker
@@ -19,43 +88,47 @@
             range-separator="至"
             start-placeholder="开始日期"
             end-placeholder="结束日期"
-            @change="loadLogs"
+            style="width: 260px"
           />
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="loadLogs">查询</el-button>
-          <el-button @click="resetQuery">重置</el-button>
+          <el-button type="primary" @click="handleSearch">
+            <Search /> 查询
+          </el-button>
+          <el-button @click="resetQuery">
+            <RefreshLeft /> 重置
+          </el-button>
         </el-form-item>
       </el-form>
       
-      <el-table :data="logs" v-loading="loading">
-        <el-table-column prop="endpoint" label="API路径" min-width="200">
+      <el-table :data="logs" v-loading="loading" stripe>
+        <el-table-column prop="path" label="API路径" min-width="200">
           <template #default="{ row }">
-            <code>{{ row.endpoint }}</code>
+            <div class="path-cell">
+              <el-tag size="small" :type="getMethodType(row.method)" effect="plain">
+                {{ row.method }}
+              </el-tag>
+              <code class="path-code">{{ row.path }}</code>
+            </div>
           </template>
         </el-table-column>
-        <el-table-column prop="method" label="方法" width="80" align="center">
+        <el-table-column prop="response_status" label="状态码" width="100" align="center">
           <template #default="{ row }">
-            <el-tag size="small">{{ row.method }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="status_code" label="状态码" width="100" align="center">
-          <template #default="{ row }">
-            <el-tag :type="getStatusType(row.status_code)" size="small">
-              {{ row.status_code }}
+            <el-tag :type="getStatusType(row.response_status)" size="small">
+              {{ row.response_status || '-' }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="response_time" label="响应时间" width="100" align="center">
+        <el-table-column prop="response_time" label="响应时间" width="120" align="center">
           <template #default="{ row }">
-            <span :class="{ 'text-danger': row.response_time > 1000 }">
-              {{ row.response_time }}ms
+            <span :class="getTimeClass(row.response_time)">
+              {{ row.response_time ? row.response_time + 'ms' : '-' }}
             </span>
           </template>
         </el-table-column>
-        <el-table-column prop="user" label="用户" width="120">
+        <el-table-column prop="username" label="用户" width="120">
           <template #default="{ row }">
-            {{ row.user?.username || '公开' }}
+            {{ row.username || '匿名' }}
           </template>
         </el-table-column>
         <el-table-column prop="ip_address" label="IP地址" width="140" />
@@ -64,55 +137,98 @@
             {{ formatDate(row.created_at) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="80" align="center">
+        <el-table-column label="操作" width="100" align="center" fixed="right">
           <template #default="{ row }">
-            <el-button size="small" text @click="viewDetail(row)">详情</el-button>
+            <el-button size="small" type="primary" link @click="viewDetail(row)">
+              详情
+            </el-button>
           </template>
         </el-table-column>
       </el-table>
       
-      <el-pagination
-        v-model:current-page="pagination.page"
-        v-model:page-size="pagination.pageSize"
-        :total="pagination.total"
-        :page-sizes="[20, 50, 100]"
-        layout="total, sizes, prev, pager, next"
-        @size-change="loadLogs"
-        @current-change="loadLogs"
-        style="margin-top: 16px; justify-content: flex-end;"
-      />
+      <div class="pagination-wrapper">
+        <el-pagination
+          v-model:current-page="pagination.page"
+          v-model:page-size="pagination.pageSize"
+          :total="pagination.total"
+          :page-sizes="[20, 50, 100, 200]"
+          layout="total, sizes, prev, pager, next, jumper"
+          @size-change="loadLogs"
+          @current-change="loadLogs"
+        />
+      </div>
     </el-card>
     
-    <el-dialog v-model="showDetail" title="日志详情" width="700px">
+    <el-dialog v-model="showDetail" title="日志详情" width="800px" destroy-on-close>
       <el-descriptions :column="2" border>
-        <el-descriptions-item label="API路径" :span="2">{{ currentLog?.endpoint }}</el-descriptions-item>
-        <el-descriptions-item label="请求方法">{{ currentLog?.method }}</el-descriptions-item>
-        <el-descriptions-item label="状态码">{{ currentLog?.status_code }}</el-descriptions-item>
-        <el-descriptions-item label="响应时间">{{ currentLog?.response_time }}ms</el-descriptions-item>
-        <el-descriptions-item label="用户">{{ currentLog?.user?.username || '公开' }}</el-descriptions-item>
-        <el-descriptions-item label="IP地址">{{ currentLog?.ip_address }}</el-descriptions-item>
-        <el-descriptions-item label="时间" :span="2">{{ formatDate(currentLog?.created_at) }}</el-descriptions-item>
+        <el-descriptions-item label="API路径" :span="2">
+          <code>{{ currentLog?.path }}</code>
+        </el-descriptions-item>
+        <el-descriptions-item label="请求方法">
+          <el-tag size="small" :type="getMethodType(currentLog?.method)">
+            {{ currentLog?.method }}
+          </el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="状态码">
+          <el-tag :type="getStatusType(currentLog?.response_status)" size="small">
+            {{ currentLog?.response_status || '-' }}
+          </el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="响应时间">
+          {{ currentLog?.response_time ? currentLog?.response_time + 'ms' : '-' }}
+        </el-descriptions-item>
+        <el-descriptions-item label="用户">
+          {{ currentLog?.username || '匿名' }}
+        </el-descriptions-item>
+        <el-descriptions-item label="IP地址">
+          {{ currentLog?.ip_address || '-' }}
+        </el-descriptions-item>
+        <el-descriptions-item label="访问时间">
+          {{ formatDate(currentLog?.created_at) }}
+        </el-descriptions-item>
       </el-descriptions>
       
-      <div v-if="currentLog?.request_body" style="margin-top: 20px;">
-        <h4>请求体</h4>
-        <pre class="code-block">{{ currentLog.request_body }}</pre>
+      <div v-if="currentLog?.request_body" class="detail-section">
+        <div class="section-header">
+          <h4>请求体</h4>
+          <el-button size="small" text @click="copyToClipboard(currentLog?.request_body)">
+            <CopyDocument /> 复制
+          </el-button>
+        </div>
+        <pre class="code-block">{{ formatJson(currentLog?.request_body) }}</pre>
       </div>
-      <div v-if="currentLog?.response_body" style="margin-top: 20px;">
-        <h4>响应体</h4>
-        <pre class="code-block">{{ currentLog.response_body }}</pre>
+      
+      <div v-if="currentLog?.response_body" class="detail-section">
+        <div class="section-header">
+          <h4>响应体</h4>
+          <el-button size="small" text @click="copyToClipboard(currentLog?.response_body)">
+            <CopyDocument /> 复制
+          </el-button>
+        </div>
+        <pre class="code-block">{{ formatJson(currentLog?.response_body) }}</pre>
       </div>
-      <div v-if="currentLog?.error_message" style="margin-top: 20px;">
-        <h4>错误信息</h4>
-        <pre class="code-block error">{{ currentLog.error_message }}</pre>
+      
+      <div v-if="currentLog?.error_message" class="detail-section">
+        <div class="section-header">
+          <h4>错误信息</h4>
+        </div>
+        <pre class="code-block error">{{ currentLog?.error_message }}</pre>
+      </div>
+
+      <div v-if="currentLog?.request_params && Object.keys(currentLog?.request_params || {}).length" class="detail-section">
+        <div class="section-header">
+          <h4>请求参数</h4>
+        </div>
+        <pre class="code-block">{{ JSON.stringify(currentLog?.request_params, null, 2) }}</pre>
       </div>
     </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
+import { Search, RefreshLeft, Download, CopyDocument } from '@element-plus/icons-vue'
 import api from '@/stores'
 import dayjs from 'dayjs'
 
@@ -121,10 +237,13 @@ const loading = ref(false)
 const showDetail = ref(false)
 const currentLog = ref(null)
 const dateRange = ref([])
+let refreshTimer = null
 
 const queryParams = reactive({
-  endpoint: '',
-  status: ''
+  path: '',
+  method: '',
+  status: '',
+  username: ''
 })
 
 const pagination = reactive({
@@ -133,8 +252,25 @@ const pagination = reactive({
   total: 0
 })
 
+const stats = computed(() => {
+  const total = logs.value.length
+  const success = logs.value.filter(l => l.response_status >= 200 && l.response_status < 300).length
+  const failed = logs.value.filter(l => l.response_status >= 400).length
+  const avgTime = total > 0 
+    ? Math.round(logs.value.reduce((sum, l) => sum + (l.response_time || 0), 0) / total)
+    : 0
+  
+  return { total: pagination.total, success, failed, avgTime }
+})
+
 onMounted(() => {
   loadLogs()
+})
+
+onUnmounted(() => {
+  if (refreshTimer) {
+    clearInterval(refreshTimer)
+  }
 })
 
 const loadLogs = async () => {
@@ -144,69 +280,238 @@ const loadLogs = async () => {
       page: pagination.page,
       page_size: pagination.pageSize
     }
-    if (queryParams.endpoint) params.endpoint = queryParams.endpoint
-    if (queryParams.status) params.status = queryParams.status
+    if (queryParams.path) params.path = queryParams.path
+    if (queryParams.method) params.method = queryParams.method
+    if (queryParams.username) params.username = queryParams.username
+    if (queryParams.status) {
+      if (queryParams.status === '2xx') params.status_gte = 200, params.status_lt = 300
+      else if (queryParams.status === '4xx') params.status_gte = 400, params.status_lt = 500
+      else if (queryParams.status === '5xx') params.status_gte = 500, params.status_lt = 600
+    }
     if (dateRange.value?.length === 2) {
-      params.start_date = dateRange.value[0].toISOString()
-      params.end_date = dateRange.value[1].toISOString()
+      params.start_date = dayjs(dateRange.value[0]).startOf('day').toISOString()
+      params.end_date = dayjs(dateRange.value[1]).endOf('day').toISOString()
     }
     
     const res = await api.get('/proxy/access_logs/', { params })
     logs.value = res.results || res
     pagination.total = res.count || logs.value.length
   } catch (error) {
-    ElMessage.error('加载日志失败')
+    ElMessage.error('加载日志失败: ' + (error.message || ''))
   } finally {
     loading.value = false
   }
 }
 
+const handleSearch = () => {
+  pagination.page = 1
+  loadLogs()
+}
+
 const resetQuery = () => {
-  queryParams.endpoint = ''
+  queryParams.path = ''
+  queryParams.method = ''
   queryParams.status = ''
+  queryParams.username = ''
   dateRange.value = []
   pagination.page = 1
   loadLogs()
 }
 
+const exportLogs = async () => {
+  try {
+    const params = { ...queryParams }
+    if (dateRange.value?.length === 2) {
+      params.start_date = dayjs(dateRange.value[0]).startOf('day').toISOString()
+      params.end_date = dayjs(dateRange.value[1]).endOf('day').toISOString()
+    }
+    
+    const res = await api.get('/proxy/access_logs/', { params: { ...params, page_size: 1000 } })
+    const data = res.results || res
+    
+    if (!data.length) {
+      ElMessage.warning('没有数据可导出')
+      return
+    }
+    
+    const csv = [
+      ['时间', '路径', '方法', '状态码', '响应时间(ms)', '用户', 'IP地址'].join(','),
+      ...data.map(log => [
+        formatDate(log.created_at),
+        log.path,
+        log.method,
+        log.response_status || '-',
+        log.response_time || '-',
+        log.username || '匿名',
+        log.ip_address || '-'
+      ].join(','))
+    ].join('\n')
+    
+    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `access_logs_${dayjs().format('YYYYMMDD_HHmmss')}.csv`
+    link.click()
+    URL.revokeObjectURL(url)
+    
+    ElMessage.success('导出成功')
+  } catch (error) {
+    ElMessage.error('导出失败')
+  }
+}
+
 const formatDate = (date) => {
-  return dayjs(date).format('YYYY-MM-DD HH:mm:ss')
+  return date ? dayjs(date).format('YYYY-MM-DD HH:mm:ss') : '-'
 }
 
 const getStatusType = (status) => {
+  if (!status) return 'info'
   if (status >= 200 && status < 300) return 'success'
   if (status >= 400 && status < 500) return 'warning'
   if (status >= 500) return 'danger'
   return 'info'
 }
 
+const getMethodType = (method) => {
+  const types = {
+    GET: '',
+    POST: 'success',
+    PUT: 'warning',
+    DELETE: 'danger',
+    PATCH: 'info'
+  }
+  return types[method] || ''
+}
+
+const getTimeClass = (time) => {
+  if (!time) return ''
+  if (time > 1000) return 'text-danger'
+  if (time > 500) return 'text-warning'
+  return 'text-success'
+}
+
 const viewDetail = (log) => {
   currentLog.value = log
   showDetail.value = true
 }
+
+const formatJson = (str) => {
+  if (!str) return ''
+  try {
+    return JSON.stringify(JSON.parse(str), null, 2)
+  } catch {
+    return str
+  }
+}
+
+const copyToClipboard = async (text) => {
+  try {
+    await navigator.clipboard.writeText(text)
+    ElMessage.success('已复制到剪贴板')
+  } catch {
+    ElMessage.error('复制失败')
+  }
+}
 </script>
 
 <style lang="scss" scoped>
-code {
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.header-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.stats-row {
+  margin-bottom: 20px;
+}
+
+.stat-item {
+  text-align: center;
+  padding: 10px;
+}
+
+.stat-value {
+  font-size: 28px;
+  font-weight: bold;
+  color: #409EFF;
+  
+  &.text-success { color: #67C23A; }
+  &.text-danger { color: #F56C6C; }
+}
+
+.stat-label {
+  margin-top: 8px;
+  color: #909399;
+  font-size: 14px;
+}
+
+.filter-form {
+  margin-bottom: 16px;
+}
+
+.path-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.path-code {
   background: #f5f7fa;
   padding: 2px 6px;
   border-radius: 3px;
   font-size: 13px;
+  font-family: monospace;
 }
 
-.text-danger {
-  color: #F56C6C;
+.text-success { color: #67C23A; }
+.text-warning { color: #E6A23C; }
+.text-danger { color: #F56C6C; }
+
+.pagination-wrapper {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+.detail-section {
+  margin-top: 20px;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  
+  h4 {
+    margin: 0;
+    font-size: 14px;
+    color: #606266;
+  }
 }
 
 .code-block {
   background: #f5f7fa;
   padding: 12px;
   border-radius: 4px;
-  max-height: 200px;
+  max-height: 300px;
   overflow: auto;
+  font-family: monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-all;
   
   &.error {
     color: #F56C6C;
+    background: #fef0f0;
   }
 }
 </style>

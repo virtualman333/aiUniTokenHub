@@ -27,19 +27,19 @@
       </el-table>
     </el-card>
     
-    <el-dialog v-model="showDialog" :title="editForm.value.id ? '编辑分类' : '添加分类'" width="500px">
-      <el-form :model="editForm.value" :rules="rules" label-width="100px">
+    <el-dialog v-model="showDialog" :title="editForm.id ? '编辑分类' : '添加分类'" width="500px">
+      <el-form :model="editForm" :rules="rules" label-width="100px">
         <el-form-item label="分类名称" prop="name">
-          <el-input v-model="editForm.value.name" />
+          <el-input v-model="editForm.name" />
         </el-form-item>
         <el-form-item label="描述">
-          <el-input v-model="editForm.value.description" type="textarea" :rows="3" />
+          <el-input v-model="editForm.description" type="textarea" :rows="3" />
         </el-form-item>
         <el-form-item label="排序">
-          <el-input-number v-model="editForm.value.order" :min="0" />
+          <el-input-number v-model="editForm.order" :min="0" />
         </el-form-item>
         <el-form-item label="启用">
-          <el-switch v-model="editForm.value.is_active" />
+          <el-switch v-model="editForm.is_active" />
         </el-form-item>
       </el-form>
       <template #footer>

@@ -115,10 +115,10 @@
     >
       <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
         <el-form-item label="渠道名称" prop="name">
-          <el-input v-model="form.value.name" placeholder="例如：OpenAI-官方渠道" />
+          <el-input v-model="form.name" placeholder="例如：OpenAI-官方渠道" />
         </el-form-item>
         <el-form-item label="供应商" prop="provider">
-          <el-select v-model="form.value.provider" placeholder="选择供应商" style="width: 100%">
+          <el-select v-model="form.provider" placeholder="选择供应商" style="width: 100%">
             <el-option
               v-for="p in providers"
               :key="p.id"
@@ -128,11 +128,11 @@
           </el-select>
         </el-form-item>
         <el-form-item label="基础URL" prop="base_url">
-          <el-input v-model="form.value.base_url" placeholder="https://api.openai.com/v1" />
+          <el-input v-model="form.base_url" placeholder="https://api.openai.com/v1" />
         </el-form-item>
         <el-form-item label="API Key" prop="api_key">
           <el-input 
-            v-model="form.value.api_key" 
+            v-model="form.api_key" 
             type="password" 
             show-password
             placeholder="sk-..." 
@@ -141,24 +141,24 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="权重" prop="weight">
-              <el-input-number v-model="form.value.weight" :min="1" :max="10" />
+              <el-input-number v-model="form.weight" :min="1" :max="10" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="优先级" prop="priority">
-              <el-input-number v-model="form.value.priority" :min="1" :max="1000" />
+              <el-input-number v-model="form.priority" :min="1" :max="1000" />
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="最大QPS" prop="max_qps">
-              <el-input-number v-model="form.value.max_qps" :min="1" :max="10000" />
+              <el-input-number v-model="form.max_qps" :min="1" :max="10000" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="状态" prop="status">
-              <el-select v-model="form.value.status" style="width: 100%">
+              <el-select v-model="form.status" style="width: 100%">
                 <el-option value="active" label="正常" />
                 <el-option value="disabled" label="已禁用" />
                 <el-option value="maintenance" label="维护中" />
@@ -167,7 +167,7 @@
           </el-col>
         </el-row>
         <el-form-item label="默认渠道">
-          <el-switch v-model="form.value.is_default" />
+          <el-switch v-model="form.is_default" />
         </el-form-item>
       </el-form>
       <template #footer>

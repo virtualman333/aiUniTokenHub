@@ -306,11 +306,36 @@ class ProxyAccessViewSet(viewsets.GenericViewSet):
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated, IsAdminUser])
     def access_logs(self, request):
         """访问日志"""
-        queryset = APIAccessLog.objects.select_related('user', 'endpoint').all().order_by('-created_at')
+        queryset = APIAccessLog.objects.select_related('user', 'endpoint').all()
         
-        # 分页
+        path = request.query_params.get('path')
+        if path:
+            queryset = queryset.filter(path__icontains=path)
+        
+        method = request.query_params.get('method')
+        if method:
+            queryset = queryset.filter(method=method.upper())
+        
+        username = request.query_params.get('username')
+        if username:
+            queryset = queryset.filter(user__username__icontains=username)
+        
+        status_gte = request.query_params.get('status_gte')
+        status_lt = request.query_params.get('status_lt')
+        if status_gte and status_lt:
+            queryset = queryset.filter(response_status__gte=int(status_gte), response_status__lt=int(status_lt))
+        
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date')
+        if start_date:
+            queryset = queryset.filter(created_at__gte=start_date)
+        if end_date:
+            queryset = queryset.filter(created_at__lte=end_date)
+        
+        queryset = queryset.order_by('-created_at')
+        
         page = int(request.query_params.get('page', 1))
-        page_size = int(request.query_params.get('page_size', 10))
+        page_size = int(request.query_params.get('page_size', 20))
         start = (page - 1) * page_size
         end = start + page_size
         

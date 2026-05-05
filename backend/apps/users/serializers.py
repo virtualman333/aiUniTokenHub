@@ -4,11 +4,17 @@ from .models import User, APIKey
 
 class AdminUserSerializer(serializers.ModelSerializer):
     """管理员用户序列化器"""
+    balance = serializers.SerializerMethodField()
+    
     class Meta:
         model = User
         fields = ['id', 'username', 'email', 'role', 'phone', 'company', 
                   'balance', 'is_active', 'is_staff', 'is_superuser', 'created_at']
         read_only_fields = ['id', 'is_staff', 'is_superuser', 'created_at']
+    
+    def get_balance(self, obj):
+        """确保balance返回浮点数而非Decimal"""
+        return float(obj.balance) if obj.balance else 0.0
 
 
 class UserRegisterSerializer(serializers.ModelSerializer):
@@ -42,10 +48,16 @@ class UserLoginSerializer(serializers.Serializer):
 
 class UserSerializer(serializers.ModelSerializer):
     """用户详情"""
+    balance = serializers.SerializerMethodField()
+    
     class Meta:
         model = User
         fields = ['id', 'username', 'email', 'role', 'phone', 'company', 'balance', 'created_at']
         read_only_fields = ['id', 'role', 'balance', 'created_at']
+    
+    def get_balance(self, obj):
+        """确保balance返回浮点数而非Decimal"""
+        return float(obj.balance) if obj.balance else 0.0
 
 
 class APIKeySerializer(serializers.ModelSerializer):
