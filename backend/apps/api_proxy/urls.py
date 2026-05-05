@@ -11,6 +11,7 @@ from .views_openai import (
     models_list,
     model_retrieve,
 )
+from .views import ProxyAccessViewSet
 
 urlpatterns = [
     # OpenAI 兼容端点
@@ -27,4 +28,10 @@ urlpatterns = [
     
     # 根路径
     path('', ModelsView.as_view(), name='api-root'),
+    
+    # 访问日志相关路由（与前端保持一致）
+    path('forward/access_logs/', ProxyAccessViewSet.as_view({'get': 'access_logs'}), name='forward-access-logs'),
+    path('access_logs/', ProxyAccessViewSet.as_view({'get': 'access_logs'}), name='access-logs'),
+    path('access_stats/', ProxyAccessViewSet.as_view({'get': 'access_stats'}), name='access-stats'),
+    path('access_logs/<int:pk>/', ProxyAccessViewSet.as_view({'get': 'access_log_detail'}), name='access-log-detail'),
 ]

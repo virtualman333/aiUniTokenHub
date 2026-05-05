@@ -133,8 +133,17 @@ class AIModelViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = AIModel.objects.select_related('provider', 'category')
         
+        # 检查是否为管理员（支持 is_staff 或 role='admin'）
+        user = self.request.user
+        is_admin = (
+            user.is_authenticated and (
+                getattr(user, 'is_staff', False) or 
+                getattr(user, 'role', None) == 'admin'
+            )
+        )
+        
         # 非管理员只能看到已上架的
-        if not self.request.user.is_authenticated or not getattr(self.request.user, 'role', None) == 'admin':
+        if not is_admin:
             queryset = queryset.filter(status='active')
         
         # 使用 annotate 添加 has_accounts 和 account_count 字段（始终执行）

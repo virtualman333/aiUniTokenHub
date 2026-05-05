@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
@@ -141,7 +143,7 @@ class AdminDashboardViewSet(viewsets.GenericViewSet):
             amount = request.data.get('amount', 0)
             note = request.data.get('note', '')
             
-            user.balance += float(amount)
+            user.balance += Decimal(str(amount))
             user.save()
             
             return APIResponse.success({

@@ -42,6 +42,9 @@
           <h1 class="page-title">{{ currentTitle }}</h1>
         </div>
         <div class="topbar-right">
+          <el-button @click="goToUser" text>
+            <el-icon><Back /></el-icon> 返回用户端
+          </el-button>
           <el-dropdown @command="handleCommand">
             <div class="user-info">
               <div class="avatar">{{ userStore.user?.username?.[0]?.toUpperCase() || 'A' }}</div>
@@ -76,7 +79,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores'
 import {
   HomeFilled, User, Connection, List, Box, Guide,
-  DArrowLeft, DArrowRight, ArrowDown, Tickets
+  DArrowLeft, DArrowRight, ArrowDown, Tickets, Back
 } from '@element-plus/icons-vue'
 
 const route = useRoute()
@@ -111,6 +114,10 @@ const handleCommand = (command) => {
   } else if (command === 'profile') {
     router.push('/admin/settings')
   }
+}
+
+const goToUser = () => {
+  router.push('/')
 }
 
 onMounted(() => {
