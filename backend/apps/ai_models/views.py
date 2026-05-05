@@ -2,12 +2,13 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
-from django.db.models import Q
+from django.db.models import Q, Exists, OuterRef, Count
 from .models import AIModel, ModelProvider, ModelCategory
 from .serializers import (
     AIModelListSerializer, AIModelDetailSerializer, AIModelCreateSerializer,
     ModelProviderSerializer, ModelCategorySerializer
 )
+from .upstream_models import ModelUpstreamAccount
 from apps.utils.response import APIResponse
 
 
@@ -132,9 +133,27 @@ class AIModelViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = AIModel.objects.select_related('provider', 'category')
         
+        # 检查是否为管理员（支持 is_staff 或 role='admin'）
+        user = self.request.user
+        is_admin = (
+            user.is_authenticated and (
+                getattr(user, 'is_staff', False) or 
+                getattr(user, 'role', None) == 'admin'
+            )
+        )
+        
         # 非管理员只能看到已上架的
-        if not self.request.user.is_authenticated or not getattr(self.request.user, 'role', None) == 'admin':
+        if not is_admin:
             queryset = queryset.filter(status='active')
+        
+        # 使用 annotate 添加 has_accounts 和 account_count 字段（始终执行）
+        # 统计启用的账号数量
+        queryset = queryset.annotate(
+            _account_count=Count(
+                'upstream_accounts',
+                filter=Q(upstream_accounts__is_enabled=True)
+            )
+        )
         
         # 筛选参数
         provider = self.request.query_params.get('provider')
@@ -142,6 +161,7 @@ class AIModelViewSet(viewsets.ModelViewSet):
         status = self.request.query_params.get('status')
         search = self.request.query_params.get('search')
         featured = self.request.query_params.get('featured')
+        has_accounts = self.request.query_params.get('has_accounts')
         
         if provider:
             queryset = queryset.filter(provider__code=provider)
@@ -151,6 +171,10 @@ class AIModelViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(status=status)
         if featured == 'true':
             queryset = queryset.filter(is_featured=True)
+        if has_accounts == 'true':
+            queryset = queryset.filter(_account_count__gt=0)
+        elif has_accounts == 'false':
+            queryset = queryset.filter(_account_count=0)
         if search:
             queryset = queryset.filter(
                 Q(name__icontains=search) | 
@@ -231,3 +255,35 @@ class AIModelViewSet(viewsets.ModelViewSet):
         model.is_featured = request.data.get('featured', True)
         model.save()
         return Response({'is_featured': model.is_featured, 'message': '推荐状态已更新'})
+    
+    @action(detail=False, methods=['post'], permission_classes=[IsAdminUser])
+    def batch_delete(self, request):
+        """批量删除模型"""
+        ids = request.data.get('ids', [])
+        if not ids:
+            return Response({'error': '请选择要删除的模型'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        deleted_count, _ = AIModel.objects.filter(id__in=ids).delete()
+        return Response({
+            'deleted': deleted_count,
+            'message': f'成功删除 {deleted_count} 个模型'
+        })
+    
+    @action(detail=False, methods=['post'], permission_classes=[IsAdminUser])
+    def batch_toggle_status(self, request):
+        """批量切换上下架状态"""
+        ids = request.data.get('ids', [])
+        status_type = request.data.get('status')  # 'active' or 'inactive'
+        
+        if not ids:
+            return Response({'error': '请选择要操作的模型'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if status_type not in ['active', 'inactive']:
+            return Response({'error': '状态必须是 active 或 inactive'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        updated_count = AIModel.objects.filter(id__in=ids).update(status=status_type)
+        return Response({
+            'updated': updated_count,
+            'status': status_type,
+            'message': f'成功更新 {updated_count} 个模型状态为 {status_type}'
+        })

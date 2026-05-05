@@ -1,4 +1,6 @@
 import secrets
+from decimal import Decimal
+
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -149,7 +151,7 @@ class BillingViewSet(viewsets.GenericViewSet):
         if amount > 10000:
             return APIResponse.error('单次充值金额不能超过10000元', 400)
         user = request.user
-        user.balance += amount
+        user.balance += Decimal(str(amount))
         user.save()
         bill = Bill.objects.create(
             user=user,

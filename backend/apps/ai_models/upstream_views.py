@@ -33,15 +33,15 @@ class UpstreamAccountViewSet(viewsets.ModelViewSet):
         instance = serializer.save()
         
         # 自动获取并添加模型
-        added_count = self._fetch_and_add_models(instance)
+        added_count, bound_count = self._fetch_and_add_models(instance)
         
         return APIResponse.created(
-            {**serializer.data, 'models_added': added_count},
-            f'创建成功，已自动添加 {added_count} 个模型'
+            {**serializer.data, 'models_added': added_count, 'accounts_bound': bound_count},
+            f'创建成功，已添加 {added_count} 个模型并绑定 {bound_count} 个账号'
         )
     
     def _fetch_and_add_models(self, account):
-        """从上游获取模型列表并添加到数据库"""
+        """从上游获取模型列表并添加到数据库，返回元组(新增模型数, 绑定数)"""
         try:
             import httpx
             
@@ -58,82 +58,111 @@ class UpstreamAccountViewSet(viewsets.ModelViewSet):
             )
             
             if response.status_code != 200:
-                return 0
+                return (0, 0)
             
             data = response.json()
             models_data = data.get('data', []) if isinstance(data, dict) else []
             
             if not models_data:
-                return 0
+                return (0, 0)
+            
+            # 获取或创建供应商
+            provider = self._get_or_create_provider(base_url, account)
+            
+            # 更新账号的供应商（如果未设置）
+            if not account.provider_id:
+                account.provider = provider
+                account.save(update_fields=['provider'])
             
             added_count = 0
+            bound_count = 0  # 新绑定数量
             for model_info in models_data:
                 model_id = model_info.get('id', '')
                 if not model_id:
                     continue
                 
-                # 检查是否已存在
-                if AIModel.objects.filter(code=model_id).exists():
-                    continue
-                
-                # 自动获取供应商
-                provider = self._get_or_create_provider(base_url, account)
-                
-                # 创建模型
-                AIModel.objects.create(
+                # 获取或创建模型
+                model, created = AIModel.objects.get_or_create(
                     code=model_id,
-                    name=model_id,
-                    provider=provider,
-                    status='inactive',  # 新添加的模型默认不启用
-                    description=model_info.get('ready', True) and '可用' or '未知',
+                    defaults={
+                        'name': model_id,
+                        'provider': provider,
+                        'status': 'inactive',  # 新添加的模型默认不启用
+                        'description': '可用' if model_info.get('ready', True) else '未知',
+                    }
                 )
-                added_count += 1
+                
+                if created:
+                    added_count += 1
+                
+                # 自动将账号绑定到模型
+                binding, is_new = ModelUpstreamAccount.objects.get_or_create(
+                    model=model,
+                    account=account,
+                    defaults={'weight': 1, 'is_enabled': True}
+                )
+                if is_new:
+                    bound_count += 1
             
             # 更新账号状态
             account.is_available = True
             account.last_error = ''
             account.save(update_fields=['is_available', 'last_error'])
             
-            return added_count
+            return (added_count, bound_count)
             
         except Exception as e:
             # 记录错误但不影响账号创建
             import traceback
             traceback.print_exc()
-            return 0
+            return (0, 0)
     
     def _get_or_create_provider(self, base_url, account):
         """根据base_url获取或创建供应商"""
-        # 从base_url提取供应商标识
-        provider_code = ''
-        if 'openai' in base_url.lower():
-            provider_code = 'openai'
-        elif 'anthropic' in base_url.lower():
-            provider_code = 'anthropic'
-        elif 'deepseek' in base_url.lower():
-            provider_code = 'deepseek'
-        elif 'zhipu' in base_url.lower() or '智谱' in base_url:
-            provider_code = 'zhipu'
-        elif 'baidu' in base_url.lower() or '百度' in base_url:
-            provider_code = 'baidu'
-        elif 'ali' in base_url.lower() or '阿里' in base_url:
-            provider_code = 'aliyun'
-        elif 'moonshot' in base_url.lower() or '月之暗面' in base_url:
-            provider_code = 'moonshot'
-        elif 'minimax' in base_url.lower():
-            provider_code = 'minimax'
-        elif 'gemini' in base_url.lower():
-            provider_code = 'gemini'
-        else:
-            provider_code = 'custom'
+        # 如果账号已有供应商，直接返回
+        if account.provider_id:
+            return account.provider
         
-        provider, _ = ModelProvider.objects.get_or_create(
+        # 从base_url提取供应商标识
+        provider_mapping = {
+            'openai': 'OpenAI',
+            'anthropic': 'Anthropic',
+            'deepseek': 'DeepSeek',
+            'zhipu': '智谱AI',
+            'baidu': '百度AI',
+            'aliyun': '阿里云',
+            'ali': '阿里云',
+            'moonshot': '月之暗面',
+            'minimax': 'MiniMax',
+            'gemini': 'Google Gemini',
+            'ollama': 'Ollama',
+            'localai': 'LocalAI',
+            'together': 'Together AI',
+            'groq': 'Groq',
+            'mistral': 'Mistral',
+            'cohere': 'Cohere',
+        }
+        
+        base_url_lower = base_url.lower()
+        provider_code = 'custom'
+        provider_name = 'Custom'
+        
+        for key, name in provider_mapping.items():
+            if key in base_url_lower:
+                provider_code = key if key not in ['ali'] else 'aliyun'
+                provider_name = name
+                break
+        
+        provider, created = ModelProvider.objects.get_or_create(
             code=provider_code,
             defaults={
-                'name': provider_code.upper(),
+                'name': provider_name,
                 'is_active': True,
             }
         )
+        
+        if created:
+            print(f"自动创建供应商: {provider_code} - {provider_name}")
         
         return provider
     
@@ -180,8 +209,11 @@ class UpstreamAccountViewSet(viewsets.ModelViewSet):
     def sync_models(self, request, pk=None):
         """从上游账号同步模型列表"""
         account = self.get_object()
-        added_count = self._fetch_and_add_models(account)
-        return APIResponse.success({'added': added_count}, f'成功同步 {added_count} 个模型')
+        added_count, bound_count = self._fetch_and_add_models(account)
+        return APIResponse.success(
+            {'added': added_count, 'bound': bound_count},
+            f'成功同步 {added_count} 个模型，绑定 {bound_count} 个账号'
+        )
 
 
 class ModelUpstreamAccountViewSet(viewsets.GenericViewSet):

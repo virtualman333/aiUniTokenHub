@@ -3,13 +3,7 @@
  * 封装模型列表相关的状态和逻辑
  */
 import { ref } from 'vue'
-import axios from 'axios'
-
-// 创建独立的 axios 实例
-const api = axios.create({
-  baseURL: '/api',
-  timeout: 30000,
-})
+import api from '@/stores'
 
 // 筛选条件类型
 export interface Filters {
@@ -62,7 +56,7 @@ export function useModels() {
    */
   async function fetchFilters() {
     try {
-      const res: any = await api.get('/models/filters/')
+      const res: any = await api.get('/models/models/filters/')
       filters.value = res
     } catch (e) {
       console.error('获取筛选条件失败:', e)
@@ -75,7 +69,7 @@ export function useModels() {
   async function fetchModels(params: Record<string, string> = {}) {
     loading.value = true
     try {
-      const res: any = await api.get('/models/', { params })
+      const res: any = await api.get('/models/models/', { params })
       models.value = res.results || res || []
     } catch (e) {
       console.error('获取模型列表失败:', e)

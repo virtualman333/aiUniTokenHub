@@ -34,6 +34,9 @@
       </nav>
 
       <div class="topbar-right">
+        <el-button v-if="isAdmin" type="primary" @click="goToAdmin">
+          <el-icon><Setting /></el-icon> 进入管理端
+        </el-button>
         <el-dropdown @command="handleCommand">
           <div class="user-info">
             <div class="avatar">{{ userStore.user?.username?.[0]?.toUpperCase() || 'U' }}</div>
@@ -87,6 +90,8 @@ const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
 
+const isAdmin = computed(() => userStore.user?.role === 'admin')
+
 const navItems = [
   { path: '/', label: '控制台', icon: markRaw(HomeFilled) },
   { path: '/api-doc', label: '接口文档', icon: markRaw(Document) },
@@ -117,6 +122,10 @@ const handleCommand = (command) => {
   } else if (command === 'keys') {
     router.push('/my-keys')
   }
+}
+
+const goToAdmin = () => {
+  router.push('/admin')
 }
 </script>
 

@@ -3,8 +3,9 @@ from rest_framework.routers import DefaultRouter
 from .views import AIModelViewSet, ModelProviderViewSet, ModelCategoryViewSet
 from .upstream_views import UpstreamAccountViewSet, ModelUpstreamAccountViewSet
 
+# 主 Router - 用于 /models/ 下的资源
 router = DefaultRouter()
-router.register(r'models', AIModelViewSet, basename='models')
+router.register(r'models', AIModelViewSet, basename='aimodels')
 router.register(r'providers', ModelProviderViewSet, basename='providers')
 router.register(r'categories', ModelCategoryViewSet, basename='modelcategories')
 router.register(r'upstream-accounts', UpstreamAccountViewSet, basename='upstream-accounts')

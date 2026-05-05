@@ -27,6 +27,10 @@
               :value="p.id" 
             />
           </el-select>
+          <el-select v-model="filterHasAccounts" placeholder="账号配置" clearable @change="fetchModels">
+            <el-option label="已配置账号" value="true" />
+            <el-option label="未配置账号" value="false" />
+          </el-select>
           <el-input 
             v-model="searchQuery" 
             placeholder="搜索模型名称" 
@@ -34,6 +38,16 @@
             @input="debounceSearch"
             style="width: 200px"
           />
+          <!-- 批量操作 -->
+          <div class="batch-actions" v-if="selectedModels.length > 0">
+            <span class="selected-count">已选择 {{ selectedModels.length }} 项</span>
+            <el-button size="small" type="warning" @click="batchToggleStatus">
+              批量{{ allSelectedActive ? '下架' : '上架' }}
+            </el-button>
+            <el-button size="small" type="danger" @click="batchDelete">
+              批量删除
+            </el-button>
+          </div>
         </div>
 
         <!-- 模型列表 -->
@@ -42,6 +56,7 @@
           v-loading="loading"
           stripe
           style="width: 100%"
+          @selection-change="handleSelectionChange"
         >
           <el-table-column type="selection" width="50" />
           <el-table-column prop="name" label="模型名称" min-width="180">
@@ -80,10 +95,10 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="账号池" width="100" align="center">
+          <el-table-column label="账号数量" width="100" align="center">
             <template #default="{ row }">
-              <el-tag :type="row.has_accounts ? 'success' : 'info'" size="small">
-                {{ row.has_accounts ? '已配置' : '未配置' }}
+              <el-tag :type="row.account_count > 0 ? 'success' : 'info'" size="small">
+                {{ row.account_count }} 个
               </el-tag>
             </template>
           </el-table-column>
@@ -452,7 +467,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import api from '@/stores'
 
@@ -467,6 +482,8 @@ const total = ref(0)
 const searchQuery = ref('')
 const filterStatus = ref('')
 const filterProvider = ref('')
+const filterHasAccounts = ref('true') // 默认只显示已配置账号的模型
+const selectedModels = ref([])
 
 // 上游账号相关
 const upstreamAccounts = ref([])
@@ -542,10 +559,13 @@ const commonTags = ['免费', 'GPT-4', 'Claude', 'Gemini', '国产', '开源', '
 
 let searchTimer = null
 
-onMounted(() => {
-  fetchModels()
-  fetchProviders()
-  fetchCategories()
+onMounted(async () => {
+  // 并行加载模型列表、供应商和分类
+  await Promise.all([
+    fetchModels(),
+    fetchProviders(),
+    fetchCategories()
+  ])
 })
 
 function onTabChange(tab) {
@@ -564,20 +584,12 @@ async function fetchModels() {
     if (searchQuery.value) params.search = searchQuery.value
     if (filterStatus.value) params.status = filterStatus.value
     if (filterProvider.value) params.provider_id = filterProvider.value
+    if (filterHasAccounts.value) params.has_accounts = filterHasAccounts.value
     
+    // 后端已直接返回 has_accounts 和 account_count 字段
     const res = await api.get('/models/models/', { params })
     models.value = res.results || res
     total.value = res.count || models.value.length
-    
-    // 标记是否有配置账号
-    for (const model of models.value) {
-      try {
-        const accountsRes = await api.get(`/models/model-upstream/model/${model.id}/`)
-        model.has_accounts = accountsRes && accountsRes.length > 0
-      } catch {
-        model.has_accounts = false
-      }
-    }
   } catch (e) {
     console.error('获取模型列表失败:', e)
   } finally {
@@ -621,6 +633,59 @@ function debounceSearch() {
     currentPage.value = 1
     fetchModels()
   }, 300)
+}
+
+// 批量选择处理
+function handleSelectionChange(selection) {
+  selectedModels.value = selection
+}
+
+// 计算是否所有选中项都是上架状态
+const allSelectedActive = computed(() => {
+  return selectedModels.value.every(m => m.status === 'active')
+})
+
+// 批量删除
+async function batchDelete() {
+  if (!selectedModels.value.length) return
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除选中的 ${selectedModels.value.length} 个模型吗？此操作不可恢复。`,
+      '批量删除确认',
+      { type: 'warning' }
+    )
+    const ids = selectedModels.value.map(m => m.id)
+    await api.post('/models/models/batch_delete/', { ids })
+    ElMessage.success('批量删除成功')
+    selectedModels.value = []
+    fetchModels()
+  } catch (e) {
+    if (e !== 'cancel') {
+      ElMessage.error(e.message || '批量删除失败')
+    }
+  }
+}
+
+// 批量切换上下架状态
+async function batchToggleStatus() {
+  if (!selectedModels.value.length) return
+  const newStatus = allSelectedActive ? 'inactive' : 'active'
+  try {
+    await ElMessageBox.confirm(
+      `确定要将选中的 ${selectedModels.value.length} 个模型${newStatus === 'active' ? '上架' : '下架'}吗？`,
+      '批量操作确认',
+      { type: 'warning' }
+    )
+    const ids = selectedModels.value.map(m => m.id)
+    await api.post('/models/models/batch_toggle_status/', { ids, status: newStatus })
+    ElMessage.success(`成功${newStatus === 'active' ? '上架' : '下架'} ${ids.length} 个模型`)
+    selectedModels.value = []
+    fetchModels()
+  } catch (e) {
+    if (e !== 'cancel') {
+      ElMessage.error(e.message || '批量操作失败')
+    }
+  }
 }
 
 function openModelForm(model = null) {
@@ -932,6 +997,21 @@ async function removeBinding(binding) {
   padding: 16px;
   background: #f5f7fa;
   border-radius: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.batch-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-left: auto;
+}
+
+.selected-count {
+  color: #409eff;
+  font-size: 13px;
+  margin-right: 8px;
 }
 
 .model-cell {

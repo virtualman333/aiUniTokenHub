@@ -32,6 +32,12 @@ class AIModelListSerializer(serializers.ModelSerializer):
     provider_code = serializers.CharField(source='provider.code', read_only=True)
     provider_logo = serializers.CharField(source='provider.logo', read_only=True)
     category_name = serializers.CharField(source='category.name', read_only=True)
+    # 使用 _account_count 来判断 has_accounts
+    account_count = serializers.IntegerField(source='_account_count', default=0)
+    has_accounts = serializers.SerializerMethodField()
+    
+    def get_has_accounts(self, obj):
+        return getattr(obj, '_account_count', 0) > 0
     
     class Meta:
         model = AIModel
@@ -41,7 +47,7 @@ class AIModelListSerializer(serializers.ModelSerializer):
             'supports_streaming', 'supports_vision', 'supports_tools', 'supports_json',
             'context_window', 'max_tokens', 'capabilities', 'tags',
             'status', 'is_featured', 'is_new', 'usage_count', 'rating',
-            'created_at'
+            'has_accounts', 'account_count', 'created_at'
         ]
 
 

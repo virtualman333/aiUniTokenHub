@@ -54,8 +54,10 @@ def select_channel_for_model(model_code: str) -> Optional[APIChannel]:
     根据模型代码选择最优渠道（加权负载均衡 + 故障转移）
     """
     try:
-        model = AIModel.objects.get(code=model_code, status='active')
-    except AIModel.DoesNotExist:
+        model = AIModel.objects.filter(code=model_code, status='active').first()
+        if not model:
+            return None
+    except Exception:
         return None
     
     # 获取模型关联的渠道
@@ -163,8 +165,10 @@ def calculate_and_deduct_cost(user, model_code, input_tokens, output_tokens, usa
     返回 (cost, success)
     """
     try:
-        model = AIModel.objects.get(code=model_code, status='active')
-    except AIModel.DoesNotExist:
+        model = AIModel.objects.filter(code=model_code, status='active').first()
+        if not model:
+            return 0, False
+    except Exception:
         return 0, False
     input_cost = (input_tokens / 1000) * float(model.input_price)
     output_cost = (output_tokens / 1000) * float(model.output_price)
@@ -368,32 +372,29 @@ class ChatCompletionsView(APIView):
         
         try:
             timeout = channel.timeout or 300
-            with httpx.Client(timeout=timeout) as client:
-                response = client.post(
-                    url,
-                    headers=headers,
-                    json=request.data,
-                    stream=True,
-                )
-            
-            response_time = 0
             
             def generate():
                 """生成器函数，流式返回SSE数据"""
-                for chunk in response.iter_bytes():
-                    if chunk:
-                        # 保持原始SSE格式
-                        yield chunk
-                
-                # 标记完成
-                channel.increment_calls(success=True, latency=int((time.time() - start_time) * 1000))
+                try:
+                    with httpx.stream('POST', url, headers=headers, json=request.data, timeout=timeout) as response:
+                        for chunk in response.iter_bytes():
+                            if chunk:
+                                # 保持原始SSE格式
+                                yield chunk
+                    
+                    # 标记完成
+                    response_time = int((time.time() - start_time) * 1000)
+                    channel.increment_calls(success=True, latency=response_time)
+                except Exception as e:
+                    channel.increment_calls(success=False, latency=int((time.time() - start_time) * 1000))
+                    yield f'data: [DONE]\n\n'.encode()
+                    yield f'error: {str(e)}\n\n'.encode()
             
             streaming_response = StreamingHttpResponse(
                 generate(),
                 content_type='text/event-stream'
             )
             streaming_response['Cache-Control'] = 'no-cache'
-            streaming_response['Connection'] = 'keep-alive'
             streaming_response['X-Request-ID'] = str(usage_log.id)
             
             return streaming_response

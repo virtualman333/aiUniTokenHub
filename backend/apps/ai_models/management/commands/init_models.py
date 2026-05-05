@@ -160,6 +160,21 @@ class Command(BaseCommand):
                 'description': '智谱AI最新旗舰模型，国产大模型代表',
                 'tags': ['国产', 'GLM', '旗舰'],
             },
+            {
+                'provider': providers['openai'],  # 根据实际情况选择供应商
+                'category': categories['llm'],
+                'name': 'MIMO v2.5',
+                'code': 'mimo-v2.5',
+                'input_price': 0.000001,
+                'output_price': 0.000002,
+                'context_window': 128000,
+                'max_tokens': 4096,
+                'supports_streaming': True,
+                'supports_json': True,
+                'is_featured': True,
+                'description': 'MIMO v2.5 智能助手模型',
+                'tags': ['MIMO', '对话', '智能助手'],
+            },
         ]
         
         for m in models_data:
