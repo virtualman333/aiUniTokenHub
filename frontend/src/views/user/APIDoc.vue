@@ -543,7 +543,7 @@ async function loadUserKeys() {
   }
 }
 
-function selectKey(key: string) {
+function selectKey(key) {
   chatTestForm.apiKey = key
   modelsTestForm.apiKey = key
   ElMessage.success('已选择密钥')
