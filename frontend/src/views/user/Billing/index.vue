@@ -11,7 +11,7 @@
       <el-col :span="8">
         <el-card class="balance-card">
           <div class="balance-label">账户余额</div>
-          <div class="balance-value">¥{{ balance.toFixed(2) }}</div>
+          <div class="balance-value">¥{{ Number(balance).toFixed(2) }}</div>
           <el-button type="primary" class="recharge-btn" @click="showRecharge = true">
             立即充值
           </el-button>
@@ -41,13 +41,13 @@
         <el-table-column label="金额" width="120">
           <template #default="{ row }">
             <span :class="getAmountClass(row.type)">
-              {{ getAmountPrefix(row.type) }}¥{{ Math.abs(row.amount).toFixed(2) }}
+              {{ getAmountPrefix(row.type) }}¥{{ Math.abs(Number(row.amount)).toFixed(2) }}
             </span>
           </template>
         </el-table-column>
         <el-table-column prop="balance" label="余额" width="120">
           <template #default="{ row }">
-            ¥{{ row.balance.toFixed(2) }}
+            ¥{{ Number(row.balance).toFixed(2) }}
           </template>
         </el-table-column>
         <el-table-column prop="description" label="说明" />
@@ -107,6 +107,7 @@ import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import dayjs from 'dayjs'
 import { useBilling } from './composables/useBilling'
+import { fireConfetti } from '@/utils/confetti'
 
 const {
   loading,
@@ -168,8 +169,9 @@ async function handleRecharge() {
     showRecharge.value = false
     loadBalance()
     loadBills()
-  } catch {
-    ElMessage.error('充值失败')
+  } catch (e: any) {
+    const errorMsg = e?.response?.data?.msg || e?.response?.data?.detail || e?.message || '充值失败'
+    ElMessage.error(errorMsg)
   } finally {
     recharging.value = false
   }
@@ -188,8 +190,12 @@ async function handleRedeemCard() {
     cardCode.value = ''
     loadBalance()
     loadBills()
+    
+    // 触发彩色纸屑礼花筒效果
+    fireConfetti()
   } catch (e: any) {
-    ElMessage.error(e.message || '卡密兑换失败')
+    const errorMsg = e.response?.data?.msg || e.response?.data?.detail || e.message || '卡密兑换失败'
+    ElMessage.error(errorMsg)
   } finally {
     recharging.value = false
   }

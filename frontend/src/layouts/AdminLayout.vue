@@ -79,7 +79,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores'
 import {
   HomeFilled, User, Connection, List, Box, Guide,
-  DArrowLeft, DArrowRight, ArrowDown, Tickets, Back
+  DArrowLeft, DArrowRight, ArrowDown, Tickets, Back, CreditCard
 } from '@element-plus/icons-vue'
 
 const route = useRoute()
@@ -90,6 +90,7 @@ const isCollapsed = ref(false)
 const menuItems = [
   { path: '/admin', label: '控制台', icon: markRaw(HomeFilled) },
   { path: '/admin/users', label: '用户管理', icon: markRaw(User) },
+  { path: '/admin/card-management', label: '卡密管理', icon: markRaw(CreditCard) },
   { path: '/admin/access-logs', label: '访问日志', icon: markRaw(List) },
   { path: '/admin/model-management', label: '模型管理', icon: markRaw(Box) },
   { path: '/admin/provider-management', label: '供应商管理', icon: markRaw(Connection) },
