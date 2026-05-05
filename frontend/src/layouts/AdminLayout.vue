@@ -108,7 +108,7 @@ const handleCommand = (command) => {
     userStore.logout()
     router.push('/login')
   } else if (command === 'profile') {
-    router.push('/settings')
+    router.push('/admin/settings')
   }
 }
 
