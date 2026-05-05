@@ -35,7 +35,10 @@ class AuthViewSet(viewsets.GenericViewSet):
     def login(self, request):
         """用户登录"""
         serializer = UserLoginSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        if not serializer.is_valid():
+            errors = serializer.errors
+            first_error = list(errors.values())[0][0] if errors else '参数错误'
+            return APIResponse.error(str(first_error), 400)
         
         user = authenticate(
             username=serializer.validated_data['username'],
@@ -63,7 +66,10 @@ class AuthViewSet(viewsets.GenericViewSet):
     def change_password(self, request):
         """修改密码"""
         serializer = ChangePasswordSerializer(data=request.data, context={'request': request})
-        serializer.is_valid(raise_exception=True)
+        if not serializer.is_valid():
+            errors = serializer.errors
+            first_error = list(errors.values())[0][0] if errors else '参数错误'
+            return APIResponse.error(str(first_error), 400)
         request.user.set_password(serializer.validated_data['new_password'])
         request.user.save()
         return APIResponse.success(None, '密码修改成功')
@@ -84,7 +90,10 @@ class APIKeyViewSet(viewsets.ModelViewSet):
     
     def create(self, request):
         serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        if not serializer.is_valid():
+            errors = serializer.errors
+            first_error = list(errors.values())[0][0] if errors else '参数错误'
+            return APIResponse.error(str(first_error), 400)
         self.perform_create(serializer)
         return APIResponse.created(serializer.data, '创建成功')
     

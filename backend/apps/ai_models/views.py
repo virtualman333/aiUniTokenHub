@@ -62,14 +62,20 @@ class ModelProviderViewSet(viewsets.ModelViewSet):
     
     def create(self, request):
         serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        if not serializer.is_valid():
+            errors = serializer.errors
+            first_error = list(errors.values())[0][0] if errors else '参数错误'
+            return APIResponse.error(str(first_error), 400)
         self.perform_create(serializer)
         return APIResponse.created(serializer.data, '创建成功')
     
     def update(self, request, pk=None):
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data, partial=True)
-        serializer.is_valid(raise_exception=True)
+        if not serializer.is_valid():
+            errors = serializer.errors
+            first_error = list(errors.values())[0][0] if errors else '参数错误'
+            return APIResponse.error(str(first_error), 400)
         self.perform_update(serializer)
         return APIResponse.success(serializer.data, '更新成功')
     

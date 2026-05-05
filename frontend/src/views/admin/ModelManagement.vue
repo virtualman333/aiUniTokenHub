@@ -589,7 +589,7 @@ async function fetchUpstreamAccounts() {
   loadingAccounts.value = true
   try {
     const res = await api.get('/models/upstream-accounts/')
-    upstreamAccounts.value = res
+    upstreamAccounts.value = res.results || res || []
   } catch (e) {
     console.error('获取上游账号失败:', e)
   } finally {
@@ -600,7 +600,7 @@ async function fetchUpstreamAccounts() {
 async function fetchProviders() {
   try {
     const res = await api.get('/models/providers/')
-    providers.value = res
+    providers.value = res.results || res || []
   } catch (e) {
     console.error('获取供应商失败:', e)
   }
@@ -609,7 +609,7 @@ async function fetchProviders() {
 async function fetchCategories() {
   try {
     const res = await api.get('/models/categories/')
-    categories.value = res
+    categories.value = res.results || res || []
   } catch (e) {
     console.error('获取分类失败:', e)
   }
@@ -855,7 +855,7 @@ async function addAccountsToModel() {
   
   addingAccounts.value = true
   try {
-    await api.post('/models/model-upstream/', {
+    await api.post('/models/model-upstream/batch-add/', {
       model_id: currentModel.value.id,
       account_ids: selectedAccountIds.value,
       weight: newAccountWeight.value
@@ -873,7 +873,7 @@ async function addAccountsToModel() {
 
 async function updateWeight(binding) {
   try {
-    await api.patch(`/models/model-upstream/${binding.id}/`, {
+    await api.patch(`/models/model-upstream/${binding.id}/weight/`, {
       weight: binding.weight
     })
   } catch (e) {
@@ -894,7 +894,7 @@ async function toggleBinding(binding) {
 async function removeBinding(binding) {
   try {
     await ElMessageBox.confirm('确定要移除这个账号关联吗？', '提示', { type: 'warning' })
-    await api.delete('/models/model-upstream/', {
+    await api.delete('/models/model-upstream/batch-remove/', {
       data: { binding_ids: [binding.id] }
     })
     ElMessage.success('移除成功')

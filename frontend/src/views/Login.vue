@@ -168,7 +168,7 @@ const handleLogin = async () => {
     const role = Cookies.get('userRole')
     router.push(role === 'admin' ? '/admin' : '/')
   } catch (error) {
-    ElMessage.error(error.response?.data?.message || '登录失败')
+    ElMessage.error(error.message || '登录失败')
   } finally {
     loading.value = false
   }

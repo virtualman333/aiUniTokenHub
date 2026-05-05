@@ -11,16 +11,21 @@ router.register(r'upstream-accounts', UpstreamAccountViewSet, basename='upstream
 
 urlpatterns = [
     # 模型账号关联管理
-    path('model-upstream/', ModelUpstreamAccountViewSet.as_view({
+    path('model-upstream/model/<int:model_id>/', ModelUpstreamAccountViewSet.as_view({
         'get': 'list_by_model',
-        'post': 'batch_add',
-        'delete': 'batch_remove',
     }), name='model-upstream-list'),
-    path('model-upstream/<int:pk>/', ModelUpstreamAccountViewSet.as_view({
+    path('model-upstream/batch-add/', ModelUpstreamAccountViewSet.as_view({
+        'post': 'batch_add',
+    }), name='model-upstream-batch-add'),
+    path('model-upstream/batch-remove/', ModelUpstreamAccountViewSet.as_view({
+        'delete': 'batch_remove',
+    }), name='model-upstream-batch-remove'),
+    path('model-upstream/<int:pk>/weight/', ModelUpstreamAccountViewSet.as_view({
         'patch': 'update_weight',
+    }), name='model-upstream-weight'),
+    path('model-upstream/<int:pk>/toggle/', ModelUpstreamAccountViewSet.as_view({
         'post': 'toggle',
-    }), name='model-upstream-detail'),
-    # 账号选择（负载均衡）
+    }), name='model-upstream-toggle'),
     path('model-upstream/select/<int:model_id>/', ModelUpstreamAccountViewSet.as_view({
         'get': 'select_account',
     }), name='model-upstream-select'),

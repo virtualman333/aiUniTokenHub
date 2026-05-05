@@ -210,8 +210,8 @@ async function fetchProviders() {
     if (filterStatus.value !== '') params.is_active = filterStatus.value
     
     const res = await api.get('/models/providers/', { params })
-    providers.value = res.results || res
-    total.value = res.count || providers.value.length
+    providers.value = res.results || res || []
+    total.value = res.total || providers.value.length
   } catch (e) {
     ElMessage.error('获取供应商列表失败')
   } finally {

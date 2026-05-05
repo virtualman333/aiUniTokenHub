@@ -132,7 +132,7 @@ const handleRegister = async () => {
     ElMessage.success('注册成功')
     router.push('/')
   } catch (error) {
-    ElMessage.error(error.response?.data?.message || '注册失败')
+    ElMessage.error(error.message || '注册失败')
   } finally {
     loading.value = false
   }

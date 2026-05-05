@@ -53,7 +53,7 @@ class ProxyAccessViewSet(viewsets.GenericViewSet):
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated, IsAdminUser])
     def access_logs(self, request):
         """访问日志"""
-        queryset = APIAccessLog.objects.select_related('user', 'endpoint').all()
+        queryset = APIAccessLog.objects.select_related('user').all()
         
         path = request.query_params.get('path')
         if path:
