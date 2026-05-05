@@ -158,7 +158,29 @@ class AIModelViewSet(viewsets.ModelViewSet):
                 Q(tags__icontains=search)
             )
         
-        return queryset
+        return queryset.order_by('-is_featured', '-usage_count')
+    
+    def list(self, request):
+        """获取模型列表"""
+        queryset = self.get_queryset()
+        
+        # 分页
+        page = int(request.query_params.get('page', 1))
+        page_size = int(request.query_params.get('page_size', 20))
+        start = (page - 1) * page_size
+        end = start + page_size
+        
+        total = queryset.count()
+        items = queryset[start:end]
+        
+        serializer = self.get_serializer(items, many=True)
+        return APIResponse.paginated(serializer.data, total, page, page_size, '获取成功')
+    
+    def retrieve(self, request, pk=None):
+        """获取模型详情"""
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return APIResponse.success(serializer.data, '获取成功')
     
     @action(detail=False, methods=['get'])
     def search(self, request):

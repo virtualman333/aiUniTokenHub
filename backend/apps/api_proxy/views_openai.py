@@ -541,7 +541,7 @@ class EmbeddingsView(APIView):
 
 
 @api_view(['GET'])
-@permission_classes([AllowAny])
+@permission_classes([AllowAny])  # noqa
 def models_list(request):
     """
     返回可用的模型列表（OpenAI格式）
