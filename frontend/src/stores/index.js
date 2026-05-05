@@ -7,6 +7,35 @@ const api = axios.create({
   timeout: 30000,
 })
 
+// 响应拦截器 - 处理统一响应格式 {code, msg, data}
+api.interceptors.response.use(
+  response => {
+    const res = response.data
+    // 如果是统一响应格式
+    if (res && 'code' in res && 'data' in res) {
+      // 成功且有业务数据，直接返回 data
+      if (res.code >= 200 && res.code < 300) {
+        return res.data
+      }
+      // 错误情况，抛出带有消息的错误
+      const error = new Error(res.msg || '操作失败')
+      error.response = response
+      error.code = res.code
+      return Promise.reject(error)
+    }
+    // 非统一格式，直接返回原数据
+    return response.data
+  },
+  error => {
+    if (error.response?.status === 401) {
+      Cookies.remove('token')
+      Cookies.remove('userRole')
+      window.location.href = '/login'
+    }
+    return Promise.reject(error)
+  }
+)
+
 // 请求拦截器
 api.interceptors.request.use(
   config => {
@@ -17,19 +46,6 @@ api.interceptors.request.use(
     return config
   },
   error => Promise.reject(error)
-)
-
-// 响应拦截器
-api.interceptors.response.use(
-  response => response.data,
-  error => {
-    if (error.response?.status === 401) {
-      Cookies.remove('token')
-      Cookies.remove('userRole')
-      window.location.href = '/login'
-    }
-    return Promise.reject(error)
-  }
 )
 
 export const useUserStore = defineStore('user', {
@@ -124,12 +140,12 @@ export const useDashboardStore = defineStore('dashboard', {
     },
     
     async fetchRequestStats(days = 7) {
-      this.requestStats = await api.get('/dashboard/request_stats/', { params: { days } })
+      this.requestStats = await api.get('/dashboard/trend/', { params: { days } })
       return this.requestStats
     },
     
     async fetchTopAPIs(limit = 10) {
-      this.topAPIs = await api.get('/dashboard/top_apis/', { params: { limit } })
+      this.topAPIs = await api.get('/dashboard/distribution/', { params: { limit } })
       return this.topAPIs
     },
   }

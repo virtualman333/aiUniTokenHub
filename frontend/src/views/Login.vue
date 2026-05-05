@@ -23,7 +23,7 @@
           
           <div class="features">
             <div class="feature">
-              <el-icon><Connection /></el-icon>
+              <el-icon><Link /></el-icon>
               <span>多渠道聚合</span>
             </div>
             <div class="feature">
@@ -126,7 +126,7 @@ import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores'
 import { ElMessage } from 'element-plus'
-import { User, Lock, Connection, TrendCharts, Coin, ConnectionBold } from '@element-plus/icons-vue'
+import { User, Lock, Link, TrendCharts, Coin } from '@element-plus/icons-vue'
 import Cookies from 'js-cookie'
 
 const router = useRouter()

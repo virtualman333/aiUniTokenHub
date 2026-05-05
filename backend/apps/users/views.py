@@ -9,6 +9,7 @@ from .serializers import (
     APIKeySerializer, ChangePasswordSerializer
 )
 from .authentication import generate_token
+from apps.utils.response import APIResponse
 
 
 class AuthViewSet(viewsets.GenericViewSet):
@@ -22,11 +23,10 @@ class AuthViewSet(viewsets.GenericViewSet):
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
         token = generate_token(user)
-        return Response({
-            'message': '注册成功',
+        return APIResponse.created({
             'user': UserSerializer(user).data,
             'token': token
-        }, status=status.HTTP_201_CREATED)
+        }, '注册成功')
     
     @action(detail=False, methods=['post'])
     def login(self, request):
@@ -40,22 +40,21 @@ class AuthViewSet(viewsets.GenericViewSet):
         )
         
         if not user:
-            return Response({'message': '用户名或密码错误'}, status=status.HTTP_401_UNAUTHORIZED)
+            return APIResponse.error('用户名或密码错误', 401)
         
         if not user.is_active:
-            return Response({'message': '账号已被禁用'}, status=status.HTTP_401_UNAUTHORIZED)
+            return APIResponse.error('账号已被禁用', 401)
         
         token = generate_token(user)
-        return Response({
-            'message': '登录成功',
+        return APIResponse.success({
             'user': UserSerializer(user).data,
             'token': token
-        })
+        }, '登录成功')
     
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
     def me(self, request):
         """获取当前用户信息"""
-        return Response(UserSerializer(request.user).data)
+        return APIResponse.success(UserSerializer(request.user).data, '获取成功')
     
     @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated])
     def change_password(self, request):
@@ -64,7 +63,7 @@ class AuthViewSet(viewsets.GenericViewSet):
         serializer.is_valid(raise_exception=True)
         request.user.set_password(serializer.validated_data['new_password'])
         request.user.save()
-        return Response({'message': '密码修改成功'})
+        return APIResponse.success(None, '密码修改成功')
 
 
 class APIKeyViewSet(viewsets.ModelViewSet):
@@ -75,6 +74,22 @@ class APIKeyViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         return APIKey.objects.filter(user=self.request.user)
     
+    def list(self, request):
+        queryset = self.get_queryset()
+        serializer = self.get_serializer(queryset, many=True)
+        return APIResponse.success(serializer.data, '获取成功')
+    
+    def create(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        return APIResponse.created(serializer.data, '创建成功')
+    
+    def destroy(self, request, pk=None):
+        instance = self.get_object()
+        instance.delete()
+        return APIResponse.success(None, '删除成功')
+    
     @action(detail=False, methods=['delete'])
     def revoke(self, request):
         """撤销密钥"""
@@ -82,6 +97,6 @@ class APIKeyViewSet(viewsets.ModelViewSet):
         try:
             api_key = self.get_queryset().get(id=key_id)
             api_key.delete()
-            return Response({'message': '密钥已撤销'})
+            return APIResponse.success(None, '密钥已撤销')
         except APIKey.DoesNotExist:
-            return Response({'message': '密钥不存在'}, status=status.HTTP_404_NOT_FOUND)
+            return APIResponse.error('密钥不存在', 404)

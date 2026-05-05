@@ -115,10 +115,10 @@
     >
       <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
         <el-form-item label="渠道名称" prop="name">
-          <el-input v-model="form.name" placeholder="例如：OpenAI-官方渠道" />
+          <el-input v-model="form.value.name" placeholder="例如：OpenAI-官方渠道" />
         </el-form-item>
         <el-form-item label="供应商" prop="provider">
-          <el-select v-model="form.provider" placeholder="选择供应商" style="width: 100%">
+          <el-select v-model="form.value.provider" placeholder="选择供应商" style="width: 100%">
             <el-option
               v-for="p in providers"
               :key="p.id"
@@ -128,11 +128,11 @@
           </el-select>
         </el-form-item>
         <el-form-item label="基础URL" prop="base_url">
-          <el-input v-model="form.base_url" placeholder="https://api.openai.com/v1" />
+          <el-input v-model="form.value.base_url" placeholder="https://api.openai.com/v1" />
         </el-form-item>
         <el-form-item label="API Key" prop="api_key">
           <el-input 
-            v-model="form.api_key" 
+            v-model="form.value.api_key" 
             type="password" 
             show-password
             placeholder="sk-..." 
@@ -141,24 +141,24 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="权重" prop="weight">
-              <el-input-number v-model="form.weight" :min="1" :max="10" />
+              <el-input-number v-model="form.value.weight" :min="1" :max="10" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="优先级" prop="priority">
-              <el-input-number v-model="form.priority" :min="1" :max="1000" />
+              <el-input-number v-model="form.value.priority" :min="1" :max="1000" />
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="最大QPS" prop="max_qps">
-              <el-input-number v-model="form.max_qps" :min="1" :max="10000" />
+              <el-input-number v-model="form.value.max_qps" :min="1" :max="10000" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="状态" prop="status">
-              <el-select v-model="form.status" style="width: 100%">
+              <el-select v-model="form.value.status" style="width: 100%">
                 <el-option value="active" label="正常" />
                 <el-option value="disabled" label="已禁用" />
                 <el-option value="maintenance" label="维护中" />
@@ -167,7 +167,7 @@
           </el-col>
         </el-row>
         <el-form-item label="默认渠道">
-          <el-switch v-model="form.is_default" />
+          <el-switch v-model="form.value.is_default" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -193,7 +193,7 @@ const isEdit = ref(false)
 const submitting = ref(false)
 const formRef = ref()
 
-const form = reactive({
+const defaultForm = () => ({
   id: null,
   name: '',
   provider: null,
@@ -206,6 +206,8 @@ const form = reactive({
   status: 'active',
   is_default: false
 })
+
+const form = ref({ ...defaultForm() })
 
 const rules = {
   name: [{ required: true, message: '请输入渠道名称', trigger: 'blur' }],
@@ -252,22 +254,10 @@ const loadProviders = async () => {
 const showDialog = (type, row = null) => {
   if (type === 'add') {
     isEdit.value = false
-    Object.assign(form, {
-      id: null,
-      name: '',
-      provider: null,
-      base_url: '',
-      api_key: '',
-      weight: 1,
-      priority: 100,
-      max_qps: 100,
-      max_tpm: 100000,
-      status: 'active',
-      is_default: false
-    })
+    form.value = { ...defaultForm() }
   } else {
     isEdit.value = true
-    Object.assign(form, {
+    form.value = {
       id: row.id,
       name: row.name,
       provider: row.provider?.id || row.provider,
@@ -279,7 +269,7 @@ const showDialog = (type, row = null) => {
       max_tpm: row.max_tpm,
       status: row.status,
       is_default: row.is_default
-    })
+    }
   }
   dialogVisible.value = true
 }
@@ -291,10 +281,10 @@ const submitForm = async () => {
   submitting.value = true
   try {
     if (isEdit.value) {
-      await api.put(`/models/channels/${form.id}/`, form)
+      await api.put(`/models/channels/${form.value.id}/`, form.value)
       ElMessage.success('更新成功')
     } else {
-      await api.post('/models/channels/', form)
+      await api.post('/models/channels/', form.value)
       ElMessage.success('添加成功')
     }
     dialogVisible.value = false

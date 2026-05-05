@@ -229,9 +229,9 @@ const loadUsers = async () => {
     if (queryParams.role) params.role = queryParams.role
     if (queryParams.is_active !== '') params.is_active = queryParams.is_active
     
-    const res = await api.get('/users/', { params })
+    const res = await api.get('/dashboard/users/', { params })
     users.value = res.results || res
-    pagination.total = res.count || users.value.length
+    pagination.total = res.total || res.count || users.value.length
   } catch (error) {
     ElMessage.error('加载用户失败: ' + (error.message || ''))
   } finally {
@@ -265,7 +265,7 @@ const editUser = (user) => {
 
 const saveUser = async () => {
   try {
-    await api.patch(`/users/${editForm.id}/`, {
+    await api.patch(`/dashboard/users/${editForm.id}/`, {
       email: editForm.email,
       phone: editForm.phone,
       company: editForm.company,
@@ -288,7 +288,7 @@ const adjustBalance = (user) => {
 
 const saveBalance = async () => {
   try {
-    await api.post(`/users/${currentUser.value.id}/adjust_balance/`, {
+    await api.patch(`/dashboard/users/${currentUser.value.id}/balance/`, {
       amount: balanceAmount.value
     })
     ElMessage.success('余额调整成功')
@@ -305,7 +305,7 @@ const toggleStatus = async (user) => {
       `确定要${user.is_active ? '禁用' : '启用'}用户 ${user.username} 吗？`,
       '提示'
     )
-    await api.post(`/users/${user.id}/toggle_status/`)
+    await api.post(`/dashboard/users/${user.id}/toggle-status/`)
     ElMessage.success('操作成功')
     loadUsers()
   } catch {}

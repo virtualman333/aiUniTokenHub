@@ -1,107 +1,168 @@
-from rest_framework import viewsets
+from rest_framework import viewsets, status
 from rest_framework.decorators import action
-from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated, IsAdminUser
+from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
+from django.db import models
 from django.db.models import Count, Sum, Avg
 from django.utils import timezone
 from datetime import timedelta
 from apps.users.models import User, APIKey, UsageLog
-from apps.api_proxy.models import APIEndpoint, APICategory
+from apps.users.serializers import AdminUserSerializer
+from apps.api_proxy.models import APIEndpoint, APICategory, APIAccessLog
+from apps.api_proxy.serializers import APIAccessLogSerializer
+from apps.utils.response import APIResponse
 
 
-class DashboardViewSet(viewsets.GenericViewSet):
-    """仪表盘"""
-    permission_classes = [IsAuthenticated]
+class AdminDashboardViewSet(viewsets.GenericViewSet):
+    """管理端仪表盘"""
+    permission_classes = [IsAuthenticated, IsAdminUser]
+    
+    def get_permissions(self):
+        if self.action in ['list_users', 'retrieve_user']:
+            return [IsAuthenticated(), IsAdminUser()]
+        return [IsAuthenticated(), IsAdminUser()]
     
     @action(detail=False, methods=['get'])
     def overview(self, request):
         """总览数据"""
-        is_admin = request.user.role == 'admin'
-        
         today = timezone.now().date()
-        today_start = timezone.make_aware(timezone.datetime.combine(today, timezone.datetime.min.time()))
-        
-        base_qs = UsageLog.objects.all() if is_admin else UsageLog.objects.filter(user=request.user)
-        base_qs_today = base_qs.filter(created_at__gte=today_start)
+        month_start = timezone.make_aware(timezone.datetime.combine(today.replace(day=1), timezone.datetime.min.time()))
         
         data = {
-            'total_requests': base_qs.count(),
-            'today_requests': base_qs_today.count(),
-            'total_users': User.objects.count() if is_admin else 1,
-            'total_apis': APIEndpoint.objects.count() if is_admin else APIEndpoint.objects.filter(is_active=True).count(),
+            'total_users': User.objects.count(),
+            'total_apis': APIEndpoint.objects.count(),
+            'total_requests': UsageLog.objects.count(),
+            'monthly_cost': float(UsageLog.objects.filter(created_at__gte=month_start).aggregate(
+                total=Sum('cost')
+            )['total'] or 0),
         }
         
-        # 计算成功率
-        total = base_qs.count()
-        success = base_qs.filter(status_code__gte=200, status_code__lt=300).count()
-        data['success_rate'] = round(success / total * 100, 2) if total > 0 else 100
-        
-        # 平均响应时间
-        avg_time = base_qs.aggregate(avg=Avg('response_time'))['avg']
-        data['avg_response_time'] = round(avg_time, 2) if avg_time else 0
-        
-        return Response(data)
+        return APIResponse.success(data, '获取成功')
     
     @action(detail=False, methods=['get'])
-    def request_stats(self, request):
-        """请求统计"""
-        is_admin = request.user.role == 'admin'
+    def trend(self, request):
+        """请求趋势"""
         days = int(request.query_params.get('days', 7))
         
         stats = []
-        for i in range(days):
+        for i in range(days - 1, -1, -1):
             date = timezone.now().date() - timedelta(days=i)
             start = timezone.make_aware(timezone.datetime.combine(date, timezone.datetime.min.time()))
             end = timezone.make_aware(timezone.datetime.combine(date, timezone.datetime.max.time()))
             
-            qs = UsageLog.objects.filter(created_at__gte=start, created_at__lte=end)
-            if not is_admin:
-                qs = qs.filter(user=request.user)
-            
+            count = UsageLog.objects.filter(created_at__gte=start, created_at__lte=end).count()
             stats.append({
-                'date': date.strftime('%Y-%m-%d'),
-                'count': qs.count(),
-                'avg_time': round(qs.aggregate(avg=Avg('response_time'))['avg'] or 0, 2),
+                'date': date.strftime('%m-%d'),
+                'count': count
             })
         
-        return Response(stats[::-1])
+        return APIResponse.success(stats, '获取成功')
     
     @action(detail=False, methods=['get'])
-    def top_apis(self, request):
-        """热门API"""
-        is_admin = request.user.role == 'admin'
-        limit = int(request.query_params.get('limit', 10))
+    def distribution(self, request):
+        """API调用分布"""
+        top_apis = UsageLog.objects.values('endpoint').annotate(
+            count=Count('id')
+        ).order_by('-count')[:10]
         
-        qs = UsageLog.objects.values('endpoint').annotate(count=Count('id')).order_by('-count')[:limit]
         result = []
-        for item in qs:
+        total = sum(item['count'] for item in top_apis) or 1
+        for item in top_apis:
             endpoint = APIEndpoint.objects.filter(path=item['endpoint']).first()
-            if endpoint:
-                result.append({
-                    'name': endpoint.name,
-                    'path': endpoint.path,
-                    'count': item['count'],
-                })
+            result.append({
+                'name': endpoint.name if endpoint else item['endpoint'],
+                'value': item['count'],
+                'percent': round(item['count'] / total * 100, 1)
+            })
         
-        return Response(result)
+        return APIResponse.success(result, '获取成功')
     
-    @action(detail=False, methods=['get'], permission_classes=[IsAdminUser])
-    def admin_stats(self, request):
-        """管理员统计"""
-        data = {
-            'users': {
-                'total': User.objects.count(),
-                'active': User.objects.filter(is_active=True).count(),
-                'new_today': User.objects.filter(date_joined__date=timezone.now().date()).count(),
-            },
-            'api_keys': {
-                'total': APIKey.objects.count(),
-                'active': APIKey.objects.filter(is_active=True).count(),
-            },
-            'apis': {
-                'total': APIEndpoint.objects.count(),
-                'active': APIEndpoint.objects.filter(is_active=True).count(),
-                'categories': APICategory.objects.count(),
-            },
-        }
-        return Response(data)
+    def list_users(self, request):
+        """获取用户列表"""
+        queryset = User.objects.all().order_by('-created_at')
+        
+        # 搜索过滤
+        search = request.query_params.get('search')
+        if search:
+            queryset = queryset.filter(
+                models.Q(username__icontains=search) |
+                models.Q(email__icontains=search) |
+                models.Q(phone__icontains=search)
+            )
+        
+        # 角色过滤
+        role = request.query_params.get('role')
+        if role:
+            queryset = queryset.filter(role=role)
+        
+        # 状态过滤
+        is_active = request.query_params.get('is_active')
+        if is_active is not None:
+            queryset = queryset.filter(is_active=is_active.lower() == 'true')
+        
+        # 分页
+        page = int(request.query_params.get('page', 1))
+        page_size = int(request.query_params.get('page_size', 20))
+        start = (page - 1) * page_size
+        end = start + page_size
+        
+        total = queryset.count()
+        users = queryset[start:end]
+        serializer = AdminUserSerializer(users, many=True)
+        
+        return APIResponse.paginated(serializer.data, total, page, page_size, '获取成功')
+    
+    def retrieve_user(self, request, pk=None):
+        """获取单个用户"""
+        try:
+            user = User.objects.get(pk=pk)
+            serializer = AdminUserSerializer(user)
+            return APIResponse.success(serializer.data, '获取成功')
+        except User.DoesNotExist:
+            return APIResponse.error('用户不存在', 404)
+    
+    def partial_update_user(self, request, pk=None):
+        """更新用户"""
+        try:
+            user = User.objects.get(pk=pk)
+            serializer = AdminUserSerializer(user, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return APIResponse.success(serializer.data, '更新成功')
+            return APIResponse.error(str(serializer.errors), 400)
+        except User.DoesNotExist:
+            return APIResponse.error('用户不存在', 404)
+    
+    @action(detail=True, methods=['patch'], url_path='balance')
+    def adjust_balance(self, request, pk=None):
+        """调整用户余额"""
+        try:
+            user = User.objects.get(pk=pk)
+            amount = request.data.get('amount', 0)
+            note = request.data.get('note', '')
+            
+            user.balance += float(amount)
+            user.save()
+            
+            return APIResponse.success({
+                'balance': user.balance,
+                'message': f'余额已{"增加" if amount >= 0 else "减少"} {abs(amount)} 元'
+            }, '调整成功')
+        except User.DoesNotExist:
+            return APIResponse.error('用户不存在', 404)
+        except Exception as e:
+            return APIResponse.error(str(e), 400)
+    
+    @action(detail=True, methods=['post'], url_path='toggle-status')
+    def toggle_status(self, request, pk=None):
+        """切换用户状态"""
+        try:
+            user = User.objects.get(pk=pk)
+            user.is_active = not user.is_active
+            user.save()
+            
+            return APIResponse.success({
+                'is_active': user.is_active,
+                'message': f'用户已{"启用" if user.is_active else "禁用"}'
+            }, '操作成功')
+        except User.DoesNotExist:
+            return APIResponse.error('用户不存在', 404)

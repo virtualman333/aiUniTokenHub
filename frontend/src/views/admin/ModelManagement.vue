@@ -305,7 +305,8 @@ const formVisible = ref(false)
 const formRef = ref()
 const isEdit = ref(false)
 const submitting = ref(false)
-const formData = ref({
+const defaultFormData = () => ({
+  id: null,
   name: '',
   code: '',
   provider: null,
@@ -327,6 +328,8 @@ const formData = ref({
   api_endpoint: '',
   api_model_id: ''
 })
+
+const formData = ref({ ...defaultFormData() })
 
 const formRules = {
   name: [{ required: true, message: '请输入模型名称', trigger: 'blur' }],
@@ -410,7 +413,7 @@ function openModelForm(model = null) {
       context_window: model.context_window,
       max_tokens: model.max_tokens,
       description: model.description || '',
-      tags: model.tags || [],
+      tags: [...(model.tags || [])],
       status: model.status,
       is_featured: model.is_featured,
       is_new: model.is_new,
@@ -419,28 +422,7 @@ function openModelForm(model = null) {
     }
   } else {
     isEdit.value = false
-    formData.value = {
-      name: '',
-      code: '',
-      provider: null,
-      category: null,
-      version: '',
-      input_price: 0,
-      output_price: 0,
-      supports_streaming: true,
-      supports_vision: false,
-      supports_tools: false,
-      supports_json: false,
-      context_window: 4096,
-      max_tokens: 2048,
-      description: '',
-      tags: [],
-      status: 'active',
-      is_featured: false,
-      is_new: false,
-      api_endpoint: '',
-      api_model_id: ''
-    }
+    formData.value = { ...defaultFormData() }
   }
   formVisible.value = true
 }

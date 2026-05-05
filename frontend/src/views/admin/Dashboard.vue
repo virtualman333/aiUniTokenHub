@@ -124,7 +124,7 @@ const loadDashboardData = async () => {
   try {
     const [overview, logs] = await Promise.all([
       api.get('/dashboard/overview/'),
-      api.get('/proxy/forward/access-logs/', { params: { page_size: 5 } })
+      api.get('/proxy/forward/access_logs/', { params: { page_size: 5 } })
     ])
 
     stats[0].value = overview.total_users || 0
@@ -132,7 +132,11 @@ const loadDashboardData = async () => {
     stats[2].value = overview.total_requests || 0
     stats[3].value = `¥${(overview.monthly_cost || 0).toFixed(2)}`
     
-    recentLogs.value = logs.results || logs || []
+    recentLogs.value = (logs.results || logs || []).map(log => ({
+      ...log,
+      username: log.username || '匿名',
+      endpoint: log.endpoint_name || log.path
+    }))
   } catch (error) {
     console.error('加载数据失败:', error)
   }

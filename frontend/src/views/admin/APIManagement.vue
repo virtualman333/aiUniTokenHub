@@ -92,20 +92,20 @@
     <!-- 添加/编辑对话框 -->
     <el-dialog 
       v-model="showDialog" 
-      :title="editForm.id ? '编辑API' : '添加API'" 
+      :title="editForm.value.id ? '编辑API' : '添加API'" 
       width="650px" 
       destroy-on-close
     >
-      <el-form ref="formRef" :model="editForm" :rules="rules" label-width="100px">
+      <el-form ref="formRef" :model="editForm.value" :rules="rules" label-width="100px">
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="API名称" prop="name">
-              <el-input v-model="editForm.name" placeholder="ChatGPT-4o" />
+              <el-input v-model="editForm.value.name" placeholder="ChatGPT-4o" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="分类" prop="category">
-              <el-select v-model="editForm.category" placeholder="请选择" style="width: 100%">
+              <el-select v-model="editForm.value.category" placeholder="请选择" style="width: 100%">
                 <el-option 
                   v-for="cat in categories" 
                   :key="cat.id" 
@@ -120,7 +120,7 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="请求方法" prop="method">
-              <el-select v-model="editForm.method" style="width: 100%">
+              <el-select v-model="editForm.value.method" style="width: 100%">
                 <el-option label="GET" value="GET" />
                 <el-option label="POST" value="POST" />
                 <el-option label="PUT" value="PUT" />
@@ -132,7 +132,7 @@
           <el-col :span="12">
             <el-form-item label="价格(元)" prop="price">
               <el-input-number 
-                v-model="editForm.price" 
+                v-model="editForm.value.price" 
                 :precision="6" 
                 :min="0" 
                 :step="0.0001"
@@ -143,19 +143,19 @@
         </el-row>
         
         <el-form-item label="路径" prop="path">
-          <el-input v-model="editForm.path" placeholder="/v1/chat/completions" />
+          <el-input v-model="editForm.value.path" placeholder="/v1/chat/completions" />
         </el-form-item>
         
         <el-form-item label="目标URL" prop="target_url">
           <el-input 
-            v-model="editForm.target_url" 
+            v-model="editForm.value.target_url" 
             placeholder="https://api.openai.com/v1/chat/completions"
           />
         </el-form-item>
         
         <el-form-item label="描述">
           <el-input 
-            v-model="editForm.description" 
+            v-model="editForm.value.description" 
             type="textarea" 
             :rows="2"
             placeholder="API功能描述"
@@ -165,12 +165,12 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="限流(次/分)">
-              <el-input-number v-model="editForm.rate_limit" :min="1" :max="10000" style="width: 100%" />
+              <el-input-number v-model="editForm.value.rate_limit" :min="1" :max="10000" style="width: 100%" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="超时(秒)">
-              <el-input-number v-model="editForm.timeout" :min="1" :max="300" style="width: 100%" />
+              <el-input-number v-model="editForm.value.timeout" :min="1" :max="300" style="width: 100%" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -178,12 +178,12 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="公开访问">
-              <el-switch v-model="editForm.is_public" />
+              <el-switch v-model="editForm.value.is_public" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="启用状态">
-              <el-switch v-model="editForm.is_active" />
+              <el-switch v-model="editForm.value.is_active" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -209,7 +209,7 @@ const loading = ref(false)
 const showDialog = ref(false)
 const formRef = ref()
 
-const editForm = reactive({
+const defaultEditForm = () => ({
   id: null,
   name: '',
   category: null,
@@ -223,6 +223,8 @@ const editForm = reactive({
   is_public: true,
   is_active: true
 })
+
+const editForm = ref({ ...defaultEditForm() })
 
 const rules = {
   name: [{ required: true, message: '请输入API名称', trigger: 'blur' }],
@@ -273,7 +275,7 @@ const getMethodType = (method) => {
 
 const openDialog = (row = null) => {
   if (row) {
-    Object.assign(editForm, {
+    editForm.value = {
       id: row.id,
       name: row.name,
       category: row.category,
@@ -286,22 +288,12 @@ const openDialog = (row = null) => {
       price: row.price,
       is_public: row.is_public,
       is_active: row.is_active
-    })
+    }
   } else {
-    Object.assign(editForm, {
-      id: null,
-      name: '',
-      category: categories.value[0]?.id || null,
-      method: 'POST',
-      path: '',
-      target_url: '',
-      description: '',
-      rate_limit: 60,
-      timeout: 30,
-      price: 0,
-      is_public: true,
-      is_active: true
-    })
+    editForm.value = {
+      ...defaultEditForm(),
+      category: categories.value[0]?.id || null
+    }
   }
   showDialog.value = true
 }
@@ -311,10 +303,10 @@ const saveEndpoint = async () => {
   if (!valid) return
   
   try {
-    if (editForm.id) {
-      await api.put(`/proxy/endpoints/${editForm.id}/`, editForm)
+    if (editForm.value.id) {
+      await api.put(`/proxy/endpoints/${editForm.value.id}/`, editForm.value)
     } else {
-      await api.post('/proxy/endpoints/', editForm)
+      await api.post('/proxy/endpoints/', editForm.value)
     }
     ElMessage.success('保存成功')
     showDialog.value = false

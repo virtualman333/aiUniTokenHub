@@ -7,7 +7,7 @@ class APICategorySerializer(serializers.ModelSerializer):
     
     class Meta:
         model = APICategory
-        fields = ['id', 'name', 'description', 'icon', 'order', 'endpoint_count']
+        fields = ['id', 'name', 'description', 'icon', 'order', 'is_active', 'endpoint_count']
     
     def get_endpoint_count(self, obj):
         return obj.endpoints.filter(is_active=True).count()
@@ -18,9 +18,26 @@ class APIEndpointSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = APIEndpoint
-        fields = ['id', 'category', 'category_name', 'name', 'path', 'method',
-                   'description', 'doc_url', 'is_public', 'rate_limit', 'price',
-                   'timeout', 'created_at']
+        fields = [
+            'id', 'category', 'category_name', 'name', 'path', 'method',
+            'description', 'doc_url', 'target_url', 'headers', 'parameters',
+            'is_public', 'is_active', 'rate_limit', 'price', 'timeout',
+            'created_at', 'updated_at'
+        ]
+
+
+class APIAccessLogSerializer(serializers.ModelSerializer):
+    username = serializers.CharField(source='user.username', read_only=True, default='匿名')
+    endpoint_name = serializers.CharField(source='endpoint.name', read_only=True, default='')
+    
+    class Meta:
+        model = APIAccessLog
+        fields = [
+            'id', 'username', 'api_key', 'endpoint', 'endpoint_name',
+            'method', 'path', 'request_headers', 'request_params', 'request_body',
+            'response_status', 'response_body', 'response_time',
+            'ip_address', 'error_message', 'created_at'
+        ]
 
 
 class ProxyRequestSerializer(serializers.Serializer):
@@ -31,14 +48,3 @@ class ProxyRequestSerializer(serializers.Serializer):
     headers = serializers.DictField(required=False, default=dict)
     params = serializers.DictField(required=False, default=dict)
     data = serializers.JSONField(required=False)
-
-
-class APIAccessLogSerializer(serializers.ModelSerializer):
-    endpoint_name = serializers.CharField(source='endpoint.name', read_only=True)
-    api_key_name = serializers.CharField(source='api_key.name', read_only=True)
-    
-    class Meta:
-        model = APIAccessLog
-        fields = ['id', 'api_key', 'api_key_name', 'endpoint', 'endpoint_name',
-                   'method', 'path', 'response_status', 'response_time',
-                   'ip_address', 'created_at']
