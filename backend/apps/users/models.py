@@ -37,6 +37,12 @@ class APIKey(models.Model):
     expires_at = models.DateTimeField('过期时间', blank=True, null=True)
     allow_ips = models.TextField('允许访问IP', blank=True, help_text='多个IP用逗号分隔，留空表示不限制')
     rate_limit = models.IntegerField('速率限制(次/分钟)', default=60)
+    
+    # 额度控制
+    remaining_calls = models.IntegerField('剩余调用次数', null=True, blank=True,
+                                         help_text='null表示无限制')
+    total_calls = models.IntegerField('总调用次数', default=0)
+    
     created_at = models.DateTimeField('创建时间', auto_now_add=True)
     updated_at = models.DateTimeField('更新时间', auto_now=True)
     
@@ -67,6 +73,12 @@ class UsageLog(models.Model):
     response_body = models.TextField('响应体', blank=True)
     status_code = models.IntegerField('状态码', default=0)
     response_time = models.IntegerField('响应时间(ms)', default=0)
+    
+    # Token 使用统计
+    input_tokens = models.IntegerField('输入Token', default=0)
+    output_tokens = models.IntegerField('输出Token', default=0)
+    total_tokens = models.IntegerField('总Token', default=0)
+    
     ip_address = models.GenericIPAddressField('IP地址', null=True, blank=True)
     error_message = models.TextField('错误信息', blank=True)
     created_at = models.DateTimeField('创建时间', auto_now_add=True, db_index=True)

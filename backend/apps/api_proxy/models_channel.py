@@ -42,11 +42,16 @@ class APIChannel(models.Model):
     # 限流配置
     max_qps = models.IntegerField('最大QPS', default=100)
     max_tpm = models.IntegerField('最大TPM(每分钟)', default=100000)
+    timeout = models.IntegerField('超时时间(秒)', default=120)
     
     # 统计
     total_calls = models.BigIntegerField('总调用次数', default=0)
     success_rate = models.FloatField('成功率', default=100.0)
     avg_latency = models.IntegerField('平均延迟(ms)', default=0)
+    
+    # 额度控制
+    remaining_quota = models.BigIntegerField('剩余配额', null=True, blank=True,
+                                            help_text='null表示无限制')
     
     # 优先级（数字越小优先级越高）
     priority = models.IntegerField('优先级', default=100)

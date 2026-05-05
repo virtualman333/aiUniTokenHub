@@ -103,6 +103,10 @@ export const useUserStore = defineStore('user', {
         new_password: newPassword
       })
     },
+    
+    async fetchApiKeys() {
+      return await api.get('/users/keys/')
+    },
   }
 })
 
