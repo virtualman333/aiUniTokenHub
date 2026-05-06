@@ -170,7 +170,7 @@
 
 <script setup>
 import { ref, computed } from 'vue'
-import CodeBlock from './components/CodeBlock.vue'
+import CodeBlock from '@/components/CodeBlock.vue'
 
 const activeTab = ref('claudecode')
 const apiBaseUrl = ref(window.location.origin + '/api/proxy/v1')
