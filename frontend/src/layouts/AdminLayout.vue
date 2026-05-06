@@ -4,11 +4,7 @@
     <aside class="sidebar" :class="{ collapsed: isCollapsed }">
       <div class="logo">
         <div class="logo-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-            <path d="M2 17l10 5 10-5"/>
-            <path d="M2 12l10 5 10-5"/>
-          </svg>
+          <img :src="logoSrc" alt="logo" class="logo-img" />
         </div>
         <span v-if="!isCollapsed" class="logo-text">uniTokenHub</span>
       </div>
@@ -82,6 +78,7 @@ import {
   DArrowLeft, DArrowRight, ArrowDown, Tickets, Back, CreditCard,
   Share, Setting
 } from '@element-plus/icons-vue'
+import logoSrc from '@/assets/image/logo.jpeg'
 
 const route = useRoute()
 const router = useRouter()
@@ -173,6 +170,13 @@ onMounted(() => {
 .logo-icon svg {
   width: 100%;
   height: 100%;
+}
+
+.logo-img {
+  width: 100%;
+  height: 100%;
+  border-radius: 8px;
+  object-fit: cover;
 }
 
 .logo-text {

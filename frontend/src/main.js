@@ -6,7 +6,21 @@ import * as ElementPlusIconsVue from '@element-plus/icons-vue'
 import 'element-plus/dist/index.css'
 import router from './router'
 import App from './App.vue'
+import faviconUrl from '@/assets/image/logo_48x48.ico'
 import './styles/index.scss'
+
+// 动态设置浏览器标签页的 favicon
+function setFavicon(href) {
+  let link = document.querySelector("link[rel~='icon']")
+  if (!link) {
+    link = document.createElement('link')
+    link.rel = 'icon'
+    document.head.appendChild(link)
+  }
+  link.type = 'image/x-icon'
+  link.href = href
+}
+setFavicon(faviconUrl)
 
 const app = createApp(App)
 

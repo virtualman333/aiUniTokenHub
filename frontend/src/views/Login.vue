@@ -5,18 +5,7 @@
       <div class="brand-section">
         <div class="brand-content">
           <div class="logo">
-            <svg viewBox="0 0 48 48" fill="none">
-              <rect x="4" y="4" width="40" height="40" rx="8" fill="url(#logoGradient)"/>
-              <path d="M24 12L12 20l12 8 12-8-12-8z" fill="#fff" opacity="0.9"/>
-              <path d="M12 28l12 8 12-8" stroke="#fff" stroke-width="2" opacity="0.7"/>
-              <path d="M12 24l12 8 12-8" stroke="#fff" stroke-width="2" opacity="0.5"/>
-              <defs>
-                <linearGradient id="logoGradient" x1="4" y1="4" x2="44" y2="44">
-                  <stop stop-color="#4ade80"/>
-                  <stop offset="1" stop-color="#22c55e"/>
-                </linearGradient>
-              </defs>
-            </svg>
+            <img :src="logoSrc" alt="logo" class="logo-img" />
           </div>
           <h1 class="brand-title">uniTokenHub</h1>
           <p class="brand-subtitle">统一Token中转服务</p>
@@ -128,6 +117,7 @@ import { useUserStore } from '@/stores'
 import { ElMessage } from 'element-plus'
 import { User, Lock, Link, TrendCharts, Coin } from '@element-plus/icons-vue'
 import Cookies from 'js-cookie'
+import logoSrc from '@/assets/image/logo.jpeg'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -219,9 +209,12 @@ const handleLogin = async () => {
   margin-bottom: 24px;
 }
 
-.logo svg {
+.logo-img {
   width: 100%;
   height: 100%;
+  object-fit: cover;
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
 }
 
 .brand-title {

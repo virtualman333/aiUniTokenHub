@@ -2,7 +2,7 @@
   <div class="register-container">
     <div class="register-box">
       <div class="register-header">
-        <el-icon class="logo-icon"><Link /></el-icon>
+        <img :src="logoSrc" alt="logo" class="logo-img" />
         <h2>创建账号</h2>
         <p>加入 uniTokenHub</p>
       </div>
@@ -114,6 +114,7 @@ import { ElMessage } from 'element-plus'
 import { User, Message, Lock, Link, Key } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores'
 import api from '@/stores'
+import logoSrc from '@/assets/image/logo.jpeg'
 
 const router = useRouter()
 const route = useRoute()
@@ -259,10 +260,13 @@ const handleRegister = async () => {
   text-align: center;
   margin-bottom: 30px;
   
-  .logo-icon {
-    font-size: 48px;
-    color: #667eea;
-    margin-bottom: 10px;
+  .logo-img {
+    width: 64px;
+    height: 64px;
+    border-radius: 16px;
+    object-fit: cover;
+    margin-bottom: 12px;
+    box-shadow: 0 6px 18px rgba(102, 126, 234, 0.25);
   }
   
   h2 {
