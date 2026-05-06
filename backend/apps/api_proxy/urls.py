@@ -12,6 +12,18 @@ from .views_openai import (
     model_retrieve,
 )
 from .views import ProxyAccessViewSet
+from .views_chat import ConversationViewSet
+
+# 会话相关
+conversation_list = ConversationViewSet.as_view({'get': 'list', 'post': 'create'})
+conversation_detail = ConversationViewSet.as_view({
+    'get': 'retrieve',
+    'patch': 'partial_update',
+    'delete': 'destroy',
+})
+conversation_clear = ConversationViewSet.as_view({'post': 'clear'})
+conversation_messages = ConversationViewSet.as_view({'get': 'messages', 'post': 'messages'})
+conversation_message_delete = ConversationViewSet.as_view({'delete': 'delete_message'})
 
 urlpatterns = [
     # OpenAI 兼容端点
@@ -25,7 +37,15 @@ urlpatterns = [
     
     # 通用路由 - 捕获所有 /v1/* 请求
     path('v1/<path:path>', ModelsView.as_view(), name='v1-generic'),
-    
+
+    # 对话会话相关
+    path('conversations/', conversation_list, name='conversations'),
+    path('conversations/<int:pk>/', conversation_detail, name='conversation-detail'),
+    path('conversations/<int:pk>/clear/', conversation_clear, name='conversation-clear'),
+    path('conversations/<int:pk>/messages/', conversation_messages, name='conversation-messages'),
+    path('conversations/<int:pk>/messages/<int:msg_id>/', conversation_message_delete,
+         name='conversation-message-delete'),
+
     # 根路径
     path('', ModelsView.as_view(), name='api-root'),
     

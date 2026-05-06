@@ -3,16 +3,29 @@
  *
  * 后端入口：POST /api/proxy/v1/chat/completions
  * 鉴权：Authorization: Bearer <用户 APIKey, sk-...>
+ *
+ * 关键：
+ * - 使用原生 fetch + ReadableStream 解析 SSE，避免 axios 的整段缓冲
+ * - 内置"打字效果"队列：把收到的 token 入队，由 RAF/定时器按字 flush 到 UI
+ *   即使后端一次性返回，也会呈现逐字打字效果
  */
 import { ref } from 'vue'
+import {
+  appendMessage,
+  type MessageItem,
+} from './useConversations'
 
 export interface ChatMessage {
+  id?: number // 数据库 id（持久化后）
   role: 'system' | 'user' | 'assistant'
   content: string
   /** 仅前端使用：流式过程中标记是否还在生成 */
   pending?: boolean
   /** 仅前端使用：错误信息 */
   error?: string
+  total_tokens?: number
+  prompt_tokens?: number
+  completion_tokens?: number
 }
 
 export interface SendOptions {
@@ -20,9 +33,11 @@ export interface SendOptions {
   model: string
   messages: Array<Pick<ChatMessage, 'role' | 'content'>>
   temperature?: number
-  /** 用户消息追加到 messages 后的占位 assistant 消息 ref，便于实时刷新 UI */
+  /** 流过程中：每次拿到上游推送的增量原始文本 */
   onDelta: (deltaText: string) => void
-  /** 流结束回调，传完整文本 */
+  /** 拿到 usage 信息时的回调 */
+  onUsage?: (usage: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number }) => void
+  /** 流结束回调，传完整原始文本 */
   onDone?: (fullText: string) => void
   /** 错误回调 */
   onError?: (msg: string) => void
@@ -39,6 +54,7 @@ export async function streamChatCompletion(opts: SendOptions): Promise<void> {
     messages,
     temperature = 0.7,
     onDelta,
+    onUsage,
     onDone,
     onError,
     signal,
@@ -53,6 +69,7 @@ export async function streamChatCompletion(opts: SendOptions): Promise<void> {
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${apiKey}`,
+        Accept: 'text/event-stream',
       },
       body: JSON.stringify({
         model,
@@ -68,11 +85,10 @@ export async function streamChatCompletion(opts: SendOptions): Promise<void> {
   }
 
   if (!response.ok || !response.body) {
-    // 尝试解析错误体
     let errMsg = `HTTP ${response.status}`
     try {
       const data = await response.json()
-      errMsg = data?.error?.message || data?.detail || errMsg
+      errMsg = data?.error?.message || data?.detail || data?.msg || errMsg
     } catch {
       // ignore
     }
@@ -99,7 +115,6 @@ export async function streamChatCompletion(opts: SendOptions): Promise<void> {
         const rawEvent = buffer.slice(0, sepIndex)
         buffer = buffer.slice(sepIndex + 2)
 
-        // 每个事件可能由多行 "data: xxx" 组成（OpenAI 通常一行）
         const lines = rawEvent.split('\n')
         for (const line of lines) {
           const trimmed = line.trim()
@@ -112,7 +127,6 @@ export async function streamChatCompletion(opts: SendOptions): Promise<void> {
           }
           try {
             const json = JSON.parse(data)
-            // 错误事件
             if (json.error) {
               const msg = json.error?.message || JSON.stringify(json.error)
               onError?.(msg)
@@ -126,6 +140,7 @@ export async function streamChatCompletion(opts: SendOptions): Promise<void> {
               fullText += delta
               onDelta(delta)
             }
+            if (json.usage) onUsage?.(json.usage)
           } catch {
             // 非 JSON 数据直接忽略
           }
@@ -143,13 +158,100 @@ export async function streamChatCompletion(opts: SendOptions): Promise<void> {
 }
 
 /**
+ * 字符打字队列：把收到的字符入队，按固定速率 flush 到 UI 文本
+ * 这样即使上游一次性返回大段，UI 也会逐字展示。
+ */
+function createTypewriter(
+  apply: (char: string) => void,
+  options: { charsPerTick?: number; intervalMs?: number } = {}
+) {
+  const charsPerTick = options.charsPerTick ?? 2
+  const intervalMs = options.intervalMs ?? 16
+  let queue = ''
+  let timer: number | null = null
+  let finished = false
+  let onIdle: (() => void) | null = null
+
+  function start() {
+    if (timer != null) return
+    timer = window.setInterval(() => {
+      if (queue.length === 0) {
+        if (finished) {
+          stop()
+          onIdle?.()
+        }
+        return
+      }
+      const take = queue.slice(0, charsPerTick)
+      queue = queue.slice(take.length)
+      for (const ch of take) apply(ch)
+    }, intervalMs)
+  }
+
+  function stop() {
+    if (timer != null) {
+      clearInterval(timer)
+      timer = null
+    }
+  }
+
+  function push(text: string) {
+    queue += text
+    start()
+  }
+
+  function finish(): Promise<void> {
+    finished = true
+    return new Promise((resolve) => {
+      if (queue.length === 0) {
+        stop()
+        resolve()
+      } else {
+        onIdle = resolve
+      }
+    })
+  }
+
+  function flushAll() {
+    if (queue.length > 0) {
+      for (const ch of queue) apply(ch)
+      queue = ''
+    }
+    stop()
+  }
+
+  return { push, finish, flushAll, stop }
+}
+
+/**
  * 顶层 composable：管理消息列表、发送状态、终止控制
  */
 export function useChat() {
   const messages = ref<ChatMessage[]>([])
   const sending = ref(false)
+  const conversationId = ref<number | null>(null)
   let abortCtrl: AbortController | null = null
 
+  function loadFromMessages(remote: MessageItem[]) {
+    messages.value = remote.map((m) => ({
+      id: m.id,
+      role: m.role,
+      content: m.content,
+      total_tokens: m.total_tokens,
+      prompt_tokens: m.prompt_tokens,
+      completion_tokens: m.completion_tokens,
+    }))
+  }
+
+  function reset() {
+    messages.value = []
+    conversationId.value = null
+  }
+
+  /**
+   * 发送一条用户消息
+   * 必须先有 conversationId（由调用方负责创建/选择会话）
+   */
   async function send(params: {
     apiKey: string
     model: string
@@ -161,19 +263,42 @@ export function useChat() {
     if (!apiKey) throw new Error('请选择一个 API 密钥')
     if (!model) throw new Error('请选择一个模型')
     if (!userInput.trim()) throw new Error('请输入内容')
+    if (!conversationId.value) throw new Error('未指定会话')
     if (sending.value) return
 
-    // 第一次对话时，如果指定 systemPrompt 且历史中无 system，则注入
+    // 第一次对话时，如果指定 systemPrompt 且历史中无 system，则注入并持久化
     if (
       systemPrompt &&
       systemPrompt.trim() &&
       !messages.value.some((m) => m.role === 'system')
     ) {
-      messages.value.unshift({ role: 'system', content: systemPrompt.trim() })
+      const sysMsg: ChatMessage = { role: 'system', content: systemPrompt.trim() }
+      messages.value.unshift(sysMsg)
+      try {
+        const saved = await appendMessage(conversationId.value, {
+          role: 'system',
+          content: sysMsg.content,
+          model_code: model,
+        })
+        sysMsg.id = saved.id
+      } catch {
+        // 忽略持久化错误，仍可继续对话
+      }
     }
 
-    // 追加用户消息
-    messages.value.push({ role: 'user', content: userInput })
+    // 追加用户消息（持久化）
+    const userMsg: ChatMessage = { role: 'user', content: userInput }
+    messages.value.push(userMsg)
+    try {
+      const saved = await appendMessage(conversationId.value, {
+        role: 'user',
+        content: userMsg.content,
+        model_code: model,
+      })
+      userMsg.id = saved.id
+    } catch {
+      // 忽略
+    }
 
     // 占位 assistant 消息
     const assistantMsg: ChatMessage = {
@@ -191,6 +316,15 @@ export function useChat() {
       .filter((m) => m.role !== 'assistant' || !m.pending)
       .map((m) => ({ role: m.role, content: m.content }))
 
+    // 字符打字机：把上游的 token 排队，逐字写入 assistantMsg.content
+    const typer = createTypewriter((ch) => {
+      assistantMsg.content += ch
+    })
+
+    let usage:
+      | { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number }
+      | undefined
+
     await streamChatCompletion({
       apiKey,
       model,
@@ -198,13 +332,40 @@ export function useChat() {
       temperature,
       signal: abortCtrl.signal,
       onDelta: (delta) => {
-        assistantMsg.content += delta
+        typer.push(delta)
       },
-      onDone: () => {
+      onUsage: (u) => {
+        usage = u
+      },
+      onDone: async () => {
+        await typer.finish()
         assistantMsg.pending = false
+        if (usage) {
+          assistantMsg.prompt_tokens = usage.prompt_tokens
+          assistantMsg.completion_tokens = usage.completion_tokens
+          assistantMsg.total_tokens = usage.total_tokens
+        }
         sending.value = false
+
+        // 持久化 assistant 消息
+        if (conversationId.value && assistantMsg.content) {
+          try {
+            const saved = await appendMessage(conversationId.value, {
+              role: 'assistant',
+              content: assistantMsg.content,
+              model_code: model,
+              prompt_tokens: assistantMsg.prompt_tokens || 0,
+              completion_tokens: assistantMsg.completion_tokens || 0,
+              total_tokens: assistantMsg.total_tokens || 0,
+            })
+            assistantMsg.id = saved.id
+          } catch {
+            // ignore
+          }
+        }
       },
       onError: (msg) => {
+        typer.flushAll()
         assistantMsg.error = msg
         assistantMsg.pending = false
         sending.value = false
@@ -223,8 +384,11 @@ export function useChat() {
   return {
     messages,
     sending,
+    conversationId,
     send,
     abort,
     clear,
+    reset,
+    loadFromMessages,
   }
 }

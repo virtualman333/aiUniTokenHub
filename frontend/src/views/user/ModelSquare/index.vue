@@ -125,7 +125,11 @@ function showModelDetail(model: Record<string, any>) {
 
 function useModel() {
   detailVisible.value = false
-  router.push({ name: 'APIDoc' })
+  if (currentModel.value?.code) {
+    router.push({ name: 'Chat', query: { model: currentModel.value.code } })
+  } else {
+    router.push({ name: 'Chat' })
+  }
 }
 </script>
 

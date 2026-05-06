@@ -90,12 +90,17 @@
     
     <template #footer>
       <el-button @click="$emit('update:visible', false)">关闭</el-button>
-      <el-button type="primary" @click="$emit('use')">立即使用</el-button>
+      <el-button type="primary" @click="$emit('use')">
+        <el-icon><ChatRound /></el-icon>
+        开始对话
+      </el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
+import { ChatRound } from '@element-plus/icons-vue'
+
 defineProps<{
   visible: boolean
   model: Record<string, any> | null
