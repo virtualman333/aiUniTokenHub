@@ -19,6 +19,7 @@ export interface MessageItem {
   id: number
   role: 'system' | 'user' | 'assistant'
   content: string
+  reasoning_content?: string
   model_code: string
   prompt_tokens: number
   completion_tokens: number
@@ -66,6 +67,7 @@ export async function appendMessage(
   payload: {
     role: 'system' | 'user' | 'assistant'
     content: string
+    reasoning_content?: string
     model_code?: string
     prompt_tokens?: number
     completion_tokens?: number

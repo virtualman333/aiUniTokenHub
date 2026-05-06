@@ -10,6 +10,32 @@
         <span>{{ msg.error }}</span>
       </div>
       <template v-else>
+        <!-- 推理模型的思考过程 -->
+        <div v-if="hasReasoning" class="reasoning-block" :class="{ active: msg.reasoning_pending }">
+          <div class="reasoning-head" @click="reasoningOpen = !reasoningOpen">
+            <span class="reasoning-icon">
+              <el-icon><MagicStick /></el-icon>
+            </span>
+            <span class="reasoning-title">
+              {{ msg.reasoning_pending ? '思考中…' : '思考过程' }}
+            </span>
+            <span class="reasoning-meta" v-if="!msg.reasoning_pending">
+              {{ reasoningChars }} 字
+            </span>
+            <el-icon class="reasoning-arrow" :class="{ open: reasoningOpen }">
+              <ArrowRightBold />
+            </el-icon>
+          </div>
+          <transition name="expand">
+            <div v-show="reasoningOpen" class="reasoning-body">
+              <div
+                class="md-content reasoning-content"
+                v-html="reasoningHtml"
+              />
+            </div>
+          </transition>
+        </div>
+
         <div
           v-if="msg.role === 'assistant'"
           class="md-content"
@@ -86,14 +112,19 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import { User, Cpu, WarningFilled, DocumentCopy, DataLine } from '@element-plus/icons-vue'
+import { computed, ref, watch } from 'vue'
+import {
+  User, Cpu, WarningFilled, DocumentCopy, DataLine,
+  MagicStick, ArrowRightBold,
+} from '@element-plus/icons-vue'
 import { renderMarkdown } from '@/utils/markdown'
 
 interface Msg {
   role: 'system' | 'user' | 'assistant'
   content: string
+  reasoning_content?: string
   pending?: boolean
+  reasoning_pending?: boolean
   error?: string
   total_tokens?: number
   prompt_tokens?: number
@@ -106,12 +137,39 @@ defineEmits<{ copy: [text: string] }>()
 
 const cursorHtml = '<span class="typing-cursor">▍</span>'
 
+// 思考过程展开/折叠状态：流式 reasoning 中默认展开，结束后自动折叠
+const reasoningOpen = ref(false)
+watch(
+  () => props.msg.reasoning_pending,
+  (val, oldVal) => {
+    if (val) {
+      reasoningOpen.value = true
+    } else if (oldVal && !val) {
+      // 推理结束 → 自动折叠（用户仍可手动展开查看）
+      reasoningOpen.value = false
+    }
+  },
+  { immediate: true }
+)
+
+const hasReasoning = computed(
+  () => props.msg.role === 'assistant' && !!(props.msg.reasoning_content && props.msg.reasoning_content.length > 0)
+)
+
+const reasoningChars = computed(() => (props.msg.reasoning_content || '').length)
+
 // 仅当 msg.content 或 pending 变化时重新渲染 markdown，
 // 不会因为同列表里其它消息变化而被牵连重新计算。
 const htmlContent = computed(() => {
   if (props.msg.role !== 'assistant') return ''
   const html = renderMarkdown(props.msg.content || '')
-  return props.msg.pending ? html + cursorHtml : html
+  // 只在没有 reasoning 进行中、且消息 pending 时显示主光标
+  return props.msg.pending && !props.msg.reasoning_pending ? html + cursorHtml : html
+})
+
+const reasoningHtml = computed(() => {
+  const html = renderMarkdown(props.msg.reasoning_content || '')
+  return props.msg.reasoning_pending ? html + cursorHtml : html
 })
 
 const cachedTokens = computed(() => Number(props.msg.usage?.prompt_tokens_details?.cached_tokens || 0))
@@ -181,6 +239,129 @@ const cacheRead = computed(() => Number(props.msg.usage?.cache_read_input_tokens
   background: #fff;
   border: 1px solid #e5e7eb;
   border-bottom-left-radius: 4px;
+}
+
+/* ============ 思考过程（reasoning） ============ */
+.reasoning-block {
+  margin: -4px -4px 10px;
+  padding: 0;
+  border: 1px solid #e0e7ff;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #fafbff 0%, #f5f7ff 100%);
+  overflow: hidden;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.reasoning-block.active {
+  border-color: #c7d2fe;
+  box-shadow: 0 0 0 3px rgba(199, 210, 254, 0.3);
+}
+
+.reasoning-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s;
+}
+
+.reasoning-head:hover {
+  background: rgba(99, 102, 241, 0.06);
+}
+
+.reasoning-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #ede9fe;
+  color: #7c3aed;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.reasoning-block.active .reasoning-icon {
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(124, 58, 237, 0.4); }
+  50% { box-shadow: 0 0 0 6px rgba(124, 58, 237, 0); }
+}
+
+.reasoning-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: #4338ca;
+  flex: 1;
+}
+
+.reasoning-meta {
+  font-size: 11px;
+  color: #94a3b8;
+  font-variant-numeric: tabular-nums;
+}
+
+.reasoning-arrow {
+  color: #94a3b8;
+  font-size: 12px;
+  transition: transform 0.25s ease;
+}
+
+.reasoning-arrow.open {
+  transform: rotate(90deg);
+}
+
+.reasoning-body {
+  padding: 0 14px 12px;
+  border-top: 1px dashed #e0e7ff;
+  margin-top: 0;
+}
+
+.reasoning-content {
+  margin-top: 10px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: #4b5563;
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.reasoning-content :deep(p) {
+  margin: 0 0 6px;
+}
+
+.reasoning-content :deep(code) {
+  background: #eef2ff;
+  color: #4338ca;
+  font-size: 12px;
+}
+
+.reasoning-content :deep(pre) {
+  background: #1e1b4b;
+}
+
+/* expand/collapse 过渡 */
+.expand-enter-active,
+.expand-leave-active {
+  transition: max-height 0.25s ease, opacity 0.2s ease;
+  overflow: hidden;
+}
+
+.expand-enter-from,
+.expand-leave-to {
+  max-height: 0;
+  opacity: 0;
+}
+
+.expand-enter-to,
+.expand-leave-from {
+  max-height: 500px;
+  opacity: 1;
 }
 
 .msg-bubble.has-error {

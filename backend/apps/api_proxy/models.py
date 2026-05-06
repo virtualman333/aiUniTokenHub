@@ -74,6 +74,8 @@ class ChatMessage(models.Model):
                                      related_name='messages', verbose_name='会话')
     role = models.CharField('角色', max_length=16, choices=ROLE_CHOICES)
     content = models.TextField('内容', blank=True, default='')
+    reasoning_content = models.TextField('思考过程', blank=True, default='',
+                                         help_text='推理类模型（如 DeepSeek-R1 / o1）的思维链内容')
     model_code = models.CharField('模型', max_length=128, blank=True, default='')
     prompt_tokens = models.IntegerField('提示tokens', default=0)
     completion_tokens = models.IntegerField('回复tokens', default=0)

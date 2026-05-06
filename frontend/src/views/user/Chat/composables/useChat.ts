@@ -40,8 +40,12 @@ export interface ChatMessage {
   id?: number // 数据库 id（持久化后）
   role: 'system' | 'user' | 'assistant'
   content: string
+  /** 推理类模型（DeepSeek-R1 / o1 等）的思考过程 */
+  reasoning_content?: string
   /** 仅前端使用：流式过程中标记是否还在生成 */
   pending?: boolean
+  /** 仅前端使用：是否还处在 reasoning 阶段（即 content 还没开始） */
+  reasoning_pending?: boolean
   /** 仅前端使用：错误信息 */
   error?: string
   total_tokens?: number
@@ -56,8 +60,10 @@ export interface SendOptions {
   model: string
   messages: Array<Pick<ChatMessage, 'role' | 'content'>>
   temperature?: number
-  /** 流过程中：每次拿到上游推送的增量原始文本 */
+  /** 流过程中：每次拿到上游推送的 content 增量 */
   onDelta: (deltaText: string) => void
+  /** 流过程中：每次拿到上游推送的 reasoning_content 增量（推理模型） */
+  onReasoning?: (deltaText: string) => void
   /** 拿到 usage 信息时的回调（透传完整对象） */
   onUsage?: (usage: UsageDetails) => void
   /** 流结束回调，传完整原始文本 */
@@ -77,6 +83,7 @@ export async function streamChatCompletion(opts: SendOptions): Promise<void> {
     messages,
     temperature = 0.7,
     onDelta,
+    onReasoning,
     onUsage,
     onDone,
     onError,
@@ -155,10 +162,23 @@ export async function streamChatCompletion(opts: SendOptions): Promise<void> {
               onError?.(msg)
               return
             }
+            const choice = json?.choices?.[0]
             const delta: string =
-              json?.choices?.[0]?.delta?.content ??
-              json?.choices?.[0]?.message?.content ??
+              choice?.delta?.content ??
+              choice?.message?.content ??
               ''
+            // 兼容多种推理输出字段：
+            // - DeepSeek / Qwen / 智谱：delta.reasoning_content
+            // - Anthropic 兼容层：delta.thinking
+            const reasoningDelta: string =
+              choice?.delta?.reasoning_content ??
+              choice?.delta?.reasoning ??
+              choice?.delta?.thinking ??
+              choice?.message?.reasoning_content ??
+              ''
+            if (reasoningDelta) {
+              onReasoning?.(reasoningDelta)
+            }
             if (delta) {
               fullText += delta
               onDelta(delta)
@@ -272,6 +292,7 @@ export function useChat() {
       id: m.id,
       role: m.role,
       content: m.content,
+      reasoning_content: m.reasoning_content || '',
       total_tokens: m.total_tokens,
       prompt_tokens: m.prompt_tokens,
       completion_tokens: m.completion_tokens,
@@ -344,7 +365,9 @@ export function useChat() {
     messages.value.push({
       role: 'assistant',
       content: '',
+      reasoning_content: '',
       pending: true,
+      reasoning_pending: false,
     })
     const assistantMsg = messages.value[messages.value.length - 1]
 
@@ -356,9 +379,12 @@ export function useChat() {
       .filter((m) => m.role !== 'assistant' || !m.pending)
       .map((m) => ({ role: m.role, content: m.content }))
 
-    // 字符打字机：把上游的 token 排队，按帧批量写入 assistantMsg.content
-    const typer = createTypewriter((chunk) => {
+    // 两套打字机：一套写正文 content，一套写 reasoning_content
+    const contentTyper = createTypewriter((chunk) => {
       assistantMsg.content += chunk
+    })
+    const reasoningTyper = createTypewriter((chunk) => {
+      assistantMsg.reasoning_content = (assistantMsg.reasoning_content || '') + chunk
     })
 
     let usage: UsageDetails | undefined
@@ -370,14 +396,25 @@ export function useChat() {
       temperature,
       signal: abortCtrl.signal,
       onDelta: (delta) => {
-        typer.push(delta)
+        // 一旦正文开始，关闭 reasoning_pending 状态
+        if (assistantMsg.reasoning_pending) {
+          assistantMsg.reasoning_pending = false
+        }
+        contentTyper.push(delta)
+      },
+      onReasoning: (delta) => {
+        if (!assistantMsg.reasoning_pending) {
+          assistantMsg.reasoning_pending = true
+        }
+        reasoningTyper.push(delta)
       },
       onUsage: (u) => {
         usage = u
       },
       onDone: async () => {
-        await typer.finish()
+        await Promise.all([reasoningTyper.finish(), contentTyper.finish()])
         assistantMsg.pending = false
+        assistantMsg.reasoning_pending = false
         if (usage) {
           assistantMsg.prompt_tokens = usage.prompt_tokens
           assistantMsg.completion_tokens = usage.completion_tokens
@@ -386,12 +423,13 @@ export function useChat() {
         }
         sending.value = false
 
-        // 持久化 assistant 消息
-        if (conversationId.value && assistantMsg.content) {
+        // 持久化 assistant 消息（含 reasoning_content）
+        if (conversationId.value && (assistantMsg.content || assistantMsg.reasoning_content)) {
           try {
             const saved = await appendMessage(conversationId.value, {
               role: 'assistant',
               content: assistantMsg.content,
+              reasoning_content: assistantMsg.reasoning_content || '',
               model_code: model,
               prompt_tokens: assistantMsg.prompt_tokens || 0,
               completion_tokens: assistantMsg.completion_tokens || 0,
@@ -405,9 +443,11 @@ export function useChat() {
         }
       },
       onError: (msg) => {
-        typer.flushAll()
+        contentTyper.flushAll()
+        reasoningTyper.flushAll()
         assistantMsg.error = msg
         assistantMsg.pending = false
+        assistantMsg.reasoning_pending = false
         sending.value = false
       },
     })
