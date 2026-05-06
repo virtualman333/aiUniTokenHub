@@ -83,7 +83,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores'
 import {
   HomeFilled, Document, Box, List, Setting, Wallet, Key, 
-  ArrowDown, SwitchButton, Tickets
+  ArrowDown, SwitchButton, Tickets, ChatRound
 } from '@element-plus/icons-vue'
 
 const route = useRoute()
@@ -96,6 +96,7 @@ const navItems = [
   { path: '/', label: '控制台', icon: markRaw(HomeFilled) },
   { path: '/api-doc', label: '接口文档', icon: markRaw(Document) },
   { path: '/model-square', label: '模型广场', icon: markRaw(Box) },
+  { path: '/chat', label: 'AI 对话', icon: markRaw(ChatRound) },
   { path: '/usage-log', label: '使用记录', icon: markRaw(List) },
   { path: '/tickets', label: '工单中心', icon: markRaw(Tickets) },
 ]

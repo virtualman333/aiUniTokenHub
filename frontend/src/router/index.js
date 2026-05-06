@@ -41,6 +41,12 @@ const routes = [
         meta: { title: '模型广场' }
       },
       {
+        path: 'chat',
+        name: 'Chat',
+        component: () => import('@/views/user/Chat/index.vue'),
+        meta: { title: 'AI 对话' }
+      },
+      {
         path: 'my-keys',
         name: 'MyKeys',
         component: () => import('@/views/user/MyKeys/index.vue'),
