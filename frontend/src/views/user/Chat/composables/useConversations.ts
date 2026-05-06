@@ -23,6 +23,7 @@ export interface MessageItem {
   prompt_tokens: number
   completion_tokens: number
   total_tokens: number
+  usage_details?: Record<string, any>
   created_at: string
 }
 
@@ -69,6 +70,7 @@ export async function appendMessage(
     prompt_tokens?: number
     completion_tokens?: number
     total_tokens?: number
+    usage_details?: Record<string, any>
   }
 ): Promise<MessageItem> {
   return await api.post(`${BASE}/${conversationId}/messages/`, payload)

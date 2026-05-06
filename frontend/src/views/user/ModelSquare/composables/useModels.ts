@@ -24,6 +24,7 @@ export interface AIModel {
   description?: string
   input_price: number
   output_price: number
+  cached_input_price: number
   context_window: number
   max_tokens: number
   supports_streaming: boolean

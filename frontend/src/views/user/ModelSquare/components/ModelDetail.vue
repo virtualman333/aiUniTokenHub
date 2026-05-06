@@ -65,15 +65,19 @@
       </div>
       
       <div class="detail-section">
-        <h4>定价</h4>
+        <h4>定价（元 / 百万 tokens）</h4>
         <div class="pricing-table">
           <div class="price-row">
             <span>输入</span>
-            <strong>¥{{ formatPrice(model.input_price) }}/1K tokens</strong>
+            <strong>¥{{ formatPrice(model.input_price) }}</strong>
+          </div>
+          <div class="price-row" v-if="Number(model.cached_input_price) > 0">
+            <span>缓存命中</span>
+            <strong class="cached">¥{{ formatPrice(model.cached_input_price) }}</strong>
           </div>
           <div class="price-row">
             <span>输出</span>
-            <strong>¥{{ formatPrice(model.output_price) }}/1K tokens</strong>
+            <strong>¥{{ formatPrice(model.output_price) }}</strong>
           </div>
         </div>
       </div>
@@ -112,8 +116,8 @@ defineEmits<{
 }>()
 
 function formatPrice(price: number | string | null): string {
-  if (!price || price == 0) return '0.00'
-  return parseFloat(String(price)).toFixed(6)
+  if (price === null || price === undefined || price === '' || Number(price) === 0) return '0'
+  return parseFloat(String(price)).toFixed(2)
 }
 
 function formatNumber(num: number | string | null): string {
@@ -255,6 +259,10 @@ function getStatusType(status: string): string {
 .price-row strong {
   color: #f56c6c;
   font-size: 16px;
+}
+
+.price-row strong.cached {
+  color: #10b981;
 }
 
 .tag-list {

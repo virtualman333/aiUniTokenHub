@@ -209,9 +209,15 @@ def get_client_ip(request) -> str:
     return request.META.get('REMOTE_ADDR', '')
 
 
-def calculate_and_deduct_cost(user, model_code, input_tokens, output_tokens, usage_log=None):
+def calculate_and_deduct_cost(user, model_code, input_tokens, output_tokens,
+                              usage_log=None, cached_tokens: int = 0):
     """
-    根据 token 用量和模型定价计算费用并扣减用户余额
+    根据 token 用量和模型定价计算费用并扣减用户余额。
+    单价单位：元 / 百万 tokens
+
+    - input_tokens: 总的提示 tokens（包含缓存命中部分）
+    - cached_tokens: 其中命中缓存的 tokens；按 cached_input_price 计费
+    - output_tokens: 输出 tokens
     返回 (cost, success)
     """
     try:
@@ -220,21 +226,47 @@ def calculate_and_deduct_cost(user, model_code, input_tokens, output_tokens, usa
             return 0, False
     except Exception:
         return 0, False
-    input_cost = (input_tokens / 1000) * float(model.input_price)
-    output_cost = (output_tokens / 1000) * float(model.output_price)
-    cost = round(input_cost + output_cost, 6)
+
+    PER_MILLION = 1_000_000.0
+
+    cached_tokens = max(0, int(cached_tokens or 0))
+    input_tokens = max(0, int(input_tokens or 0))
+    output_tokens = max(0, int(output_tokens or 0))
+
+    # 缓存命中数不能超过总输入
+    cached_tokens = min(cached_tokens, input_tokens)
+    non_cached_input = input_tokens - cached_tokens
+
+    input_price = float(model.input_price or 0)
+    output_price = float(model.output_price or 0)
+    cached_price = float(model.cached_input_price or 0)
+    # 若未配置缓存价，则按普通输入价计费
+    effective_cached_price = cached_price if cached_price > 0 else input_price
+
+    input_cost = (non_cached_input / PER_MILLION) * input_price
+    cached_cost = (cached_tokens / PER_MILLION) * effective_cached_price
+    output_cost = (output_tokens / PER_MILLION) * output_price
+    cost = round(input_cost + cached_cost + output_cost, 6)
+
     if cost <= 0:
         return 0, True
     if user.balance < cost:
         return cost, False
     user.balance -= cost
     user.save()
+
+    desc_parts = [f'输入{input_tokens}tokens']
+    if cached_tokens > 0:
+        desc_parts.append(f'其中缓存{cached_tokens}')
+    desc_parts.append(f'输出{output_tokens}tokens')
+    description = f'API调用 {model_code} ({", ".join(desc_parts)})'
+
     Bill.objects.create(
         user=user,
         type='consume',
         amount=-cost,
         balance=user.balance,
-        description=f'API调用 {model_code} (输入{input_tokens}tokens, 输出{output_tokens}tokens)',
+        description=description,
         usage_log=usage_log
     )
     return cost, True
@@ -601,24 +633,34 @@ class ChatCompletionsView(APIView):
         """更新使用日志并执行计费"""
         log.response_time = response_time
         log.status_code = response.status_code
-        
+
+        cached_tokens = 0
+
         # 计算token使用量（如果有）
         if isinstance(response_data, dict):
-            usage = response_data.get('usage', {})
-            log.input_tokens = usage.get('prompt_tokens', 0)
-            log.output_tokens = usage.get('completion_tokens', 0)
-            log.total_tokens = usage.get('total_tokens', 0)
-            
+            usage = response_data.get('usage', {}) or {}
+            log.input_tokens = usage.get('prompt_tokens', 0) or 0
+            log.output_tokens = usage.get('completion_tokens', 0) or 0
+            log.total_tokens = usage.get('total_tokens', 0) or 0
+
+            # 兼容多家上游的缓存命中字段
+            ptd = usage.get('prompt_tokens_details') or {}
+            if isinstance(ptd, dict):
+                cached_tokens = int(ptd.get('cached_tokens') or 0)
+            # Anthropic: cache_read_input_tokens
+            cached_tokens = cached_tokens or int(usage.get('cache_read_input_tokens') or 0)
+
             if hasattr(response, 'headers'):
                 log.response_body = str(response_data)[:5000]
-        
+
         log.save()
-        
+
         # 计费扣费（仅在请求成功时）
         if response.status_code < 400 and log.total_tokens > 0:
             cost, success = calculate_and_deduct_cost(
                 log.user, model_code,
-                log.input_tokens, log.output_tokens, log
+                log.input_tokens, log.output_tokens, log,
+                cached_tokens=cached_tokens,
             )
             if not success and cost > 0:
                 # 余额不足，记录警告但不影响响应
