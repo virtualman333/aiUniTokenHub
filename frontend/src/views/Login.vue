@@ -89,21 +89,6 @@
             <span>还没有账户？</span>
             <el-link type="primary" @click="$router.push('/register')">立即注册</el-link>
           </div>
-
-          <!-- 测试账号提示 -->
-          <div class="test-accounts">
-            <div class="test-title">测试账号</div>
-            <div class="test-accounts-grid">
-              <div class="test-account" @click="fillTest('admin')">
-                <span class="role">管理员</span>
-                <code>admin / admin123</code>
-              </div>
-              <div class="test-account" @click="fillTest('testuser')">
-                <span class="role">用户</span>
-                <code>testuser / test123</code>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </div>
@@ -334,53 +319,6 @@ const handleLogin = async () => {
   text-align: center;
   color: #6b7280;
   margin-bottom: 24px;
-}
-
-/* 测试账号 */
-.test-accounts {
-  background: #f9fafb;
-  border-radius: 12px;
-  padding: 16px;
-}
-
-.test-title {
-  font-size: 12px;
-  color: #6b7280;
-  margin-bottom: 8px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.test-accounts-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-}
-
-.test-account {
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  padding: 8px 12px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.test-account:hover {
-  border-color: #4ade80;
-  background: #f0fdf4;
-}
-
-.test-account .role {
-  display: block;
-  font-size: 12px;
-  color: #6b7280;
-  margin-bottom: 2px;
-}
-
-.test-account code {
-  font-size: 12px;
-  color: #1f2937;
 }
 
 @media (max-width: 768px) {
