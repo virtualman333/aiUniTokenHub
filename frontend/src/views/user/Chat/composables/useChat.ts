@@ -181,66 +181,78 @@ export async function streamChatCompletion(opts: SendOptions): Promise<void> {
 }
 
 /**
- * 字符打字队列：把收到的字符入队，按固定速率 flush 到 UI 文本
- * 这样即使上游一次性返回大段，UI 也会逐字展示。
+ * 字符打字队列：把收到的字符入队，按帧（requestAnimationFrame）批量 flush 到 UI。
+ * 这样：
+ *  - 即使上游一次性返回大段，UI 也会逐字展示
+ *  - 避免每个字符都触发 Vue 响应式 + markdown 重渲染（高 CPU 卡顿）
+ *  - 跟随浏览器渲染节奏，体感更顺滑
  */
 function createTypewriter(
-  apply: (char: string) => void,
-  options: { charsPerTick?: number; intervalMs?: number } = {}
+  apply: (chunk: string) => void,
+  options: { charsPerFrame?: number } = {}
 ) {
-  const charsPerTick = options.charsPerTick ?? 2
-  const intervalMs = options.intervalMs ?? 16
+  // 每帧最多写入的字符数；过低会显得慢，过高失去打字效果
+  const charsPerFrame = options.charsPerFrame ?? 3
   let queue = ''
-  let timer: number | null = null
+  let rafId: number | null = null
   let finished = false
   let onIdle: (() => void) | null = null
 
-  function start() {
-    if (timer != null) return
-    timer = window.setInterval(() => {
-      if (queue.length === 0) {
-        if (finished) {
-          stop()
-          onIdle?.()
-        }
-        return
+  function tick() {
+    rafId = null
+    if (queue.length === 0) {
+      if (finished) {
+        onIdle?.()
       }
-      const take = queue.slice(0, charsPerTick)
-      queue = queue.slice(take.length)
-      for (const ch of take) apply(ch)
-    }, intervalMs)
+      return
+    }
+    // 一次最多写 charsPerFrame；若积压很多，按比例放大避免拖太久
+    const dynamic = Math.max(charsPerFrame, Math.ceil(queue.length / 60))
+    const take = queue.slice(0, dynamic)
+    queue = queue.slice(take.length)
+    apply(take)
+    schedule()
   }
 
-  function stop() {
-    if (timer != null) {
-      clearInterval(timer)
-      timer = null
-    }
+  function schedule() {
+    if (rafId != null) return
+    rafId = requestAnimationFrame(tick)
   }
 
   function push(text: string) {
+    if (!text) return
     queue += text
-    start()
+    schedule()
   }
 
   function finish(): Promise<void> {
     finished = true
     return new Promise((resolve) => {
-      if (queue.length === 0) {
-        stop()
+      if (queue.length === 0 && rafId == null) {
         resolve()
       } else {
         onIdle = resolve
+        schedule()
       }
     })
   }
 
   function flushAll() {
     if (queue.length > 0) {
-      for (const ch of queue) apply(ch)
+      apply(queue)
       queue = ''
     }
-    stop()
+    if (rafId != null) {
+      cancelAnimationFrame(rafId)
+      rafId = null
+    }
+  }
+
+  function stop() {
+    if (rafId != null) {
+      cancelAnimationFrame(rafId)
+      rafId = null
+    }
   }
 
   return { push, finish, flushAll, stop }
@@ -327,12 +339,14 @@ export function useChat() {
     }
 
     // 占位 assistant 消息
-    const assistantMsg: ChatMessage = {
+    // 注意：messages 是 ref<ChatMessage[]>，push 进去的对象会被 Vue 包成 Proxy。
+    // 必须使用数组中的代理引用来修改，原始字面量引用不会被 Vue 侦测。
+    messages.value.push({
       role: 'assistant',
       content: '',
       pending: true,
-    }
-    messages.value.push(assistantMsg)
+    })
+    const assistantMsg = messages.value[messages.value.length - 1]
 
     sending.value = true
     abortCtrl = new AbortController()
@@ -342,9 +356,9 @@ export function useChat() {
       .filter((m) => m.role !== 'assistant' || !m.pending)
       .map((m) => ({ role: m.role, content: m.content }))
 
-    // 字符打字机：把上游的 token 排队，逐字写入 assistantMsg.content
-    const typer = createTypewriter((ch) => {
-      assistantMsg.content += ch
+    // 字符打字机：把上游的 token 排队，按帧批量写入 assistantMsg.content
+    const typer = createTypewriter((chunk) => {
+      assistantMsg.content += chunk
     })
 
     let usage: UsageDetails | undefined

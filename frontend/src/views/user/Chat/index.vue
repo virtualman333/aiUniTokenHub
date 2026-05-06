@@ -148,117 +148,12 @@
           <p>选择模型与密钥后，在下方输入消息</p>
         </div>
 
-        <div
+        <MessageBubble
           v-for="(msg, idx) in visibleMessages"
           :key="msg.id ?? idx"
-          class="msg-row"
-          :class="msg.role"
-        >
-          <div class="avatar" :class="msg.role">
-            <el-icon v-if="msg.role === 'user'"><User /></el-icon>
-            <el-icon v-else><Cpu /></el-icon>
-          </div>
-          <div class="msg-bubble" :class="{ 'has-error': !!msg.error }">
-            <div v-if="msg.error" class="msg-error">
-              <el-icon><WarningFilled /></el-icon>
-              <span>{{ msg.error }}</span>
-            </div>
-            <template v-else>
-              <!-- assistant 走 markdown，user 保持纯文本 -->
-              <div
-                v-if="msg.role === 'assistant'"
-                class="md-content"
-                v-html="renderMarkdown(msg.content) + (msg.pending ? cursorHtml : '')"
-              />
-              <div v-else class="msg-content user-content">
-                {{ msg.content }}
-              </div>
-            </template>
-            <div v-if="msg.role === 'assistant' && !msg.pending && msg.content" class="msg-actions">
-              <el-button text size="small" @click="copyText(msg.content)">
-                <el-icon><DocumentCopy /></el-icon> 复制
-              </el-button>
-              <el-popover
-                v-if="msg.total_tokens"
-                placement="top"
-                trigger="hover"
-                :width="240"
-                popper-class="token-popover"
-              >
-                <template #reference>
-                  <span class="token-hint">
-                    <el-icon><DataLine /></el-icon>
-                    tokens: {{ msg.total_tokens }}
-                  </span>
-                </template>
-                <div class="token-detail">
-                  <div class="td-title">Token 用量明细</div>
-                  <div class="td-row">
-                    <span>总计</span>
-                    <strong>{{ msg.total_tokens || 0 }}</strong>
-                  </div>
-                  <div class="td-row">
-                    <span>输入 (prompt)</span>
-                    <strong>{{ msg.prompt_tokens || 0 }}</strong>
-                  </div>
-                  <div
-                    v-if="getCachedTokens(msg) > 0"
-                    class="td-row sub"
-                  >
-                    <span>└ 缓存命中</span>
-                    <strong>{{ getCachedTokens(msg) }}</strong>
-                  </div>
-                  <div
-                    v-if="getPromptAudio(msg) > 0"
-                    class="td-row sub"
-                  >
-                    <span>└ 语音输入</span>
-                    <strong>{{ getPromptAudio(msg) }}</strong>
-                  </div>
-                  <div class="td-row">
-                    <span>输出 (completion)</span>
-                    <strong>{{ msg.completion_tokens || 0 }}</strong>
-                  </div>
-                  <div
-                    v-if="getReasoningTokens(msg) > 0"
-                    class="td-row sub"
-                  >
-                    <span>└ 推理 (reasoning)</span>
-                    <strong>{{ getReasoningTokens(msg) }}</strong>
-                  </div>
-                  <div
-                    v-if="getAcceptedPrediction(msg) > 0"
-                    class="td-row sub"
-                  >
-                    <span>└ 预测命中</span>
-                    <strong>{{ getAcceptedPrediction(msg) }}</strong>
-                  </div>
-                  <div
-                    v-if="getRejectedPrediction(msg) > 0"
-                    class="td-row sub"
-                  >
-                    <span>└ 预测拒绝</span>
-                    <strong>{{ getRejectedPrediction(msg) }}</strong>
-                  </div>
-                  <div
-                    v-if="getCacheCreation(msg) > 0"
-                    class="td-row sub"
-                  >
-                    <span>└ 缓存创建 (Anthropic)</span>
-                    <strong>{{ getCacheCreation(msg) }}</strong>
-                  </div>
-                  <div
-                    v-if="getCacheRead(msg) > 0"
-                    class="td-row sub"
-                  >
-                    <span>└ 缓存读取 (Anthropic)</span>
-                    <strong>{{ getCacheRead(msg) }}</strong>
-                  </div>
-                </div>
-              </el-popover>
-            </div>
-          </div>
-        </div>
+          :msg="msg"
+          @copy="copyText"
+        />
       </div>
 
       <!-- 输入区 -->
@@ -305,22 +200,18 @@ import {
   Delete,
   ChatRound,
   ChatLineRound,
-  User,
-  Cpu,
   Promotion,
   CircleClose,
-  WarningFilled,
   Plus,
   MoreFilled,
   Edit,
   Top,
   Brush,
-  DocumentCopy,
-  DataLine,
 } from '@element-plus/icons-vue'
 import { useChat } from './composables/useChat'
 import { useMyKeys } from '../MyKeys/composables/useMyKeys'
 import { useModels } from '../ModelSquare/composables/useModels'
+import MessageBubble from './components/MessageBubble.vue'
 import {
   listConversations,
   createConversation,
@@ -330,7 +221,6 @@ import {
   clearConversation,
   type ConversationItem,
 } from './composables/useConversations'
-import { renderMarkdown } from '@/utils/markdown'
 
 const route = useRoute()
 const router = useRouter()
@@ -358,8 +248,6 @@ const systemPrompt = ref<string>('')
 const temperature = ref<number>(0.7)
 const inputText = ref<string>('')
 const messagesRef = ref<HTMLElement | null>(null)
-
-const cursorHtml = '<span class="typing-cursor">▍</span>'
 
 // 仅展示非 system 消息
 const visibleMessages = computed(() =>
@@ -413,12 +301,20 @@ onMounted(async () => {
   }
 })
 
+// 流式时高频更新，对最后一条消息的内容做轻量 watch（不开 deep）
+let scrollPending = false
 watch(
-  messages,
+  () => visibleMessages.value.length + ':' + (visibleMessages.value[visibleMessages.value.length - 1]?.content?.length || 0),
   () => {
-    scrollToBottom()
-  },
-  { deep: true }
+    if (scrollPending) return
+    scrollPending = true
+    requestAnimationFrame(() => {
+      scrollPending = false
+      if (messagesRef.value) {
+        messagesRef.value.scrollTop = messagesRef.value.scrollHeight
+      }
+    })
+  }
 )
 
 function scrollToBottom() {
@@ -589,29 +485,6 @@ async function copyText(text: string) {
   } catch {
     ElMessage.error('复制失败')
   }
-}
-
-// ============== Token 明细辅助 ==============
-function getCachedTokens(msg: any): number {
-  return Number(msg?.usage?.prompt_tokens_details?.cached_tokens || 0)
-}
-function getPromptAudio(msg: any): number {
-  return Number(msg?.usage?.prompt_tokens_details?.audio_tokens || 0)
-}
-function getReasoningTokens(msg: any): number {
-  return Number(msg?.usage?.completion_tokens_details?.reasoning_tokens || 0)
-}
-function getAcceptedPrediction(msg: any): number {
-  return Number(msg?.usage?.completion_tokens_details?.accepted_prediction_tokens || 0)
-}
-function getRejectedPrediction(msg: any): number {
-  return Number(msg?.usage?.completion_tokens_details?.rejected_prediction_tokens || 0)
-}
-function getCacheCreation(msg: any): number {
-  return Number(msg?.usage?.cache_creation_input_tokens || 0)
-}
-function getCacheRead(msg: any): number {
-  return Number(msg?.usage?.cache_read_input_tokens || 0)
 }
 
 // 路由 query 改变时（如从模型广场再次跳转）切换模型
