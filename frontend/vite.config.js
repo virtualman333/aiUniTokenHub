@@ -92,10 +92,8 @@ export default defineConfig({
         target: 'http://127.0.0.1:8000',
         changeOrigin: true,
       },
-      '/admin': {
-        target: 'http://127.0.0.1:8000',
-        changeOrigin: true,
-      },
+      // 注意：不要把 /admin 代理到 Django，因为前端 Vue 路由 /admin/* 是管理后台页面。
+      // 如需访问 Django 自带的管理后台，请直接访问 http://127.0.0.1:8000/admin/
     },
     historyApiFallback: true,
   },
