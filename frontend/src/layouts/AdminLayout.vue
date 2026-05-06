@@ -80,7 +80,7 @@ import { useUserStore } from '@/stores'
 import {
   HomeFilled, User, Connection, List, Box, Guide,
   DArrowLeft, DArrowRight, ArrowDown, Tickets, Back, CreditCard,
-  Share
+  Share, Setting
 } from '@element-plus/icons-vue'
 
 const route = useRoute()
@@ -98,6 +98,7 @@ const menuItems = [
   { path: '/admin/provider-management', label: '供应商管理', icon: markRaw(Connection) },
   { path: '/admin/channel-management', label: '渠道管理', icon: markRaw(Guide) },
   { path: '/admin/ticket-management', label: '工单管理', icon: markRaw(Tickets) },
+  { path: '/admin/system-settings', label: '系统设置', icon: markRaw(Setting) },
 ]
 
 const currentTitle = computed(() => {

@@ -134,6 +134,12 @@ const routes = [
         meta: { title: '个人设置' }
       },
       {
+        path: 'system-settings',
+        name: 'SystemSettings',
+        component: () => import('@/views/admin/SystemSettings.vue'),
+        meta: { title: '系统设置' }
+      },
+      {
         path: 'ticket-management',
         name: 'TicketManagement',
         component: () => import('@/views/admin/TicketManagement.vue'),

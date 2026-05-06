@@ -209,3 +209,71 @@ class InviteReward(models.Model):
     
     def __str__(self):
         return f"{self.inviter.username} <- {self.invitee.username} ¥{self.reward_amount}"
+
+
+class EmailConfig(models.Model):
+    """邮箱发送配置（单例）。后台可视化配置 SMTP。"""
+
+    is_enabled = models.BooleanField('启用邮箱服务', default=False)
+    smtp_host = models.CharField('SMTP 服务器', max_length=200, blank=True, default='')
+    smtp_port = models.IntegerField('SMTP 端口', default=465)
+    use_ssl = models.BooleanField('使用 SSL', default=True,
+                                  help_text='465 端口建议 SSL；587 端口建议 TLS（关闭 SSL）')
+    use_tls = models.BooleanField('使用 TLS (STARTTLS)', default=False)
+    smtp_user = models.CharField('SMTP 用户名', max_length=200, blank=True, default='')
+    smtp_password = models.CharField('SMTP 密码/授权码', max_length=255, blank=True, default='')
+    from_email = models.CharField('发件人邮箱', max_length=200, blank=True, default='',
+                                  help_text='可与 smtp_user 不同；通常填同一个邮箱地址')
+    from_name = models.CharField('发件人名称', max_length=200, blank=True, default='uniTokenHub')
+
+    code_expire_minutes = models.IntegerField('验证码有效期（分钟）', default=5)
+    code_resend_seconds = models.IntegerField('验证码重发间隔（秒）', default=60)
+    daily_limit_per_email = models.IntegerField('单邮箱每日发送上限', default=10)
+
+    updated_at = models.DateTimeField('更新时间', auto_now=True)
+
+    class Meta:
+        db_table = 'email_config'
+        verbose_name = '邮箱配置'
+        verbose_name_plural = '邮箱配置'
+
+    def __str__(self):
+        return f'EmailConfig(enabled={self.is_enabled})'
+
+    @classmethod
+    def get_config(cls):
+        cfg, _ = cls.objects.get_or_create(pk=1)
+        return cfg
+
+
+class EmailVerifyCode(models.Model):
+    """邮箱验证码记录"""
+
+    PURPOSE_CHOICES = [
+        ('register', '注册'),
+        ('reset_password', '重置密码'),
+    ]
+
+    email = models.EmailField('邮箱', db_index=True)
+    code = models.CharField('验证码', max_length=10)
+    purpose = models.CharField('用途', max_length=32, choices=PURPOSE_CHOICES, default='register')
+    is_used = models.BooleanField('已使用', default=False)
+    expires_at = models.DateTimeField('过期时间')
+    created_at = models.DateTimeField('创建时间', auto_now_add=True, db_index=True)
+
+    class Meta:
+        db_table = 'email_verify_codes'
+        verbose_name = '邮箱验证码'
+        verbose_name_plural = '邮箱验证码'
+        ordering = ('-created_at',)
+
+    def __str__(self):
+        return f'{self.email} {self.code} ({self.purpose})'
+
+    @property
+    def is_expired(self):
+        return timezone.now() > self.expires_at
+
+    @property
+    def is_valid(self):
+        return (not self.is_used) and (not self.is_expired)

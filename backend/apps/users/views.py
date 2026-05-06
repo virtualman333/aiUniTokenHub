@@ -1,4 +1,6 @@
 import secrets
+import random
+from datetime import timedelta
 from decimal import Decimal
 
 from rest_framework import viewsets, status
@@ -8,7 +10,10 @@ from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
 from django.contrib.auth import authenticate
 from django.db import models as db_models
 from django.utils import timezone
-from .models import User, APIKey, Bill, CardPassword, InviteConfig, InviteReward
+from .models import (
+    User, APIKey, Bill, CardPassword, InviteConfig, InviteReward,
+    EmailConfig, EmailVerifyCode,
+)
 from .serializers import (
     UserRegisterSerializer, UserLoginSerializer, UserSerializer,
     APIKeySerializer, ChangePasswordSerializer, BillSerializer,
@@ -16,22 +21,120 @@ from .serializers import (
     InviteConfigSerializer, InviteRewardSerializer
 )
 from .authentication import generate_token
+from .mailer import send_email, render_verify_code_email, EmailNotConfigured
 from apps.utils.response import APIResponse
 
 
 class AuthViewSet(viewsets.GenericViewSet):
     """认证视图集"""
     permission_classes = [AllowAny]
-    
+
+    @action(detail=False, methods=['post'], url_path='send_email_code')
+    def send_email_code(self, request):
+        """发送邮箱验证码（注册用）"""
+        email = (request.data.get('email') or '').strip().lower()
+        purpose = request.data.get('purpose') or 'register'
+
+        if not email:
+            return APIResponse.error('邮箱不能为空', 400)
+        if '@' not in email or '.' not in email:
+            return APIResponse.error('邮箱格式不正确', 400)
+
+        cfg = EmailConfig.get_config()
+        if not cfg.is_enabled:
+            return APIResponse.error('邮箱服务未启用，请联系管理员', 503)
+
+        # 注册场景：邮箱不能已被使用
+        if purpose == 'register' and User.objects.filter(email=email).exists():
+            return APIResponse.error('该邮箱已被注册', 400)
+
+        now = timezone.now()
+
+        # 频控：重发间隔
+        last = (
+            EmailVerifyCode.objects
+            .filter(email=email, purpose=purpose)
+            .order_by('-created_at')
+            .first()
+        )
+        resend_seconds = max(10, int(cfg.code_resend_seconds or 60))
+        if last and (now - last.created_at).total_seconds() < resend_seconds:
+            wait = int(resend_seconds - (now - last.created_at).total_seconds())
+            return APIResponse.error(f'请 {wait} 秒后再试', 429)
+
+        # 频控：当日上限
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        sent_today = EmailVerifyCode.objects.filter(
+            email=email, purpose=purpose, created_at__gte=today_start
+        ).count()
+        daily_limit = max(1, int(cfg.daily_limit_per_email or 10))
+        if sent_today >= daily_limit:
+            return APIResponse.error(f'当日发送已达上限（{daily_limit} 次），请明天再试', 429)
+
+        # 生成 6 位数字验证码
+        code = f'{random.randint(0, 999999):06d}'
+        expire_minutes = max(1, int(cfg.code_expire_minutes or 5))
+        record = EmailVerifyCode.objects.create(
+            email=email,
+            code=code,
+            purpose=purpose,
+            expires_at=now + timedelta(minutes=expire_minutes),
+        )
+
+        # 发送邮件
+        try:
+            subject, html, text = render_verify_code_email(code, expire_minutes, purpose)
+            send_email(email, subject, html, text)
+        except EmailNotConfigured as e:
+            record.delete()
+            return APIResponse.error(str(e), 503)
+        except Exception as e:
+            record.delete()
+            return APIResponse.error(f'邮件发送失败：{e}', 500)
+
+        return APIResponse.success({
+            'expire_minutes': expire_minutes,
+            'resend_seconds': resend_seconds,
+        }, '验证码已发送，请查收邮件')
+
     @action(detail=False, methods=['post'])
     def register(self, request):
-        """用户注册"""
-        serializer = UserRegisterSerializer(data=request.data)
+        """用户注册（需邮箱验证码）"""
+        email = (request.data.get('email') or '').strip().lower()
+        code = (request.data.get('email_code') or '').strip()
+
+        if not email:
+            return APIResponse.error('邮箱不能为空', 400)
+        if not code:
+            return APIResponse.error('请填写邮箱验证码', 400)
+
+        # 校验验证码
+        record = (
+            EmailVerifyCode.objects
+            .filter(email=email, purpose='register', is_used=False)
+            .order_by('-created_at')
+            .first()
+        )
+        if not record:
+            return APIResponse.error('请先获取邮箱验证码', 400)
+        if record.is_expired:
+            return APIResponse.error('验证码已过期，请重新获取', 400)
+        if record.code != code:
+            return APIResponse.error('验证码不正确', 400)
+
+        # 序列化注册（注意把 email 标准化）
+        data = {**request.data, 'email': email}
+        serializer = UserRegisterSerializer(data=data)
         if not serializer.is_valid():
             errors = serializer.errors
             first_error = list(errors.values())[0][0] if errors else '参数错误'
             return APIResponse.error(str(first_error), 400)
         user = serializer.save()
+
+        # 标记验证码已使用
+        record.is_used = True
+        record.save(update_fields=['is_used'])
+
         token = generate_token(user)
         return APIResponse.created({
             'user': UserSerializer(user).data,

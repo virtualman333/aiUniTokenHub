@@ -21,7 +21,7 @@ class UserRegisterSerializer(serializers.ModelSerializer):
     """用户注册"""
     password = serializers.CharField(write_only=True, min_length=6)
     password_confirm = serializers.CharField(write_only=True)
-    email = serializers.EmailField(required=False, allow_blank=True)
+    email = serializers.EmailField(required=True, allow_blank=False)
     phone = serializers.CharField(required=False, allow_blank=True, max_length=20)
     company = serializers.CharField(required=False, allow_blank=True, max_length=200)
     invite_code = serializers.CharField(required=False, allow_blank=True, max_length=16, write_only=True)
@@ -36,6 +36,13 @@ class UserRegisterSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         if attrs.get('password') != attrs.get('password_confirm'):
             raise serializers.ValidationError({'password_confirm': '两次密码不一致'})
+        # 唯一性校验
+        username = attrs.get('username')
+        email = attrs.get('email')
+        if username and User.objects.filter(username=username).exists():
+            raise serializers.ValidationError({'username': '用户名已被使用'})
+        if email and User.objects.filter(email=email).exists():
+            raise serializers.ValidationError({'email': '邮箱已被使用'})
         invite_code = attrs.pop('invite_code', '')
         if invite_code:
             try:

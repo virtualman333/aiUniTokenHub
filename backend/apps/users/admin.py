@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django import forms
 from decimal import Decimal
-from .models import User, APIKey, UsageLog, Bill, CardPassword
+from .models import User, APIKey, UsageLog, Bill, CardPassword, EmailConfig, EmailVerifyCode
 from apps.ai_models.admin import admin_site
 
 
@@ -116,9 +116,52 @@ class CardPasswordAdmin(admin.ModelAdmin):
     readonly_fields = ('used_by', 'used_at')
 
 
+class EmailConfigAdmin(admin.ModelAdmin):
+    """邮箱配置（单例）"""
+    list_display = ('id', 'is_enabled', 'smtp_host', 'smtp_port', 'use_ssl', 'use_tls',
+                    'smtp_user', 'from_email', 'updated_at')
+    fieldsets = (
+        ('基础', {
+            'fields': ('is_enabled',),
+            'description': '关闭后，注册等需要发送邮件的功能将不可用。',
+        }),
+        ('SMTP 服务器', {
+            'fields': ('smtp_host', 'smtp_port', 'use_ssl', 'use_tls',
+                       'smtp_user', 'smtp_password',
+                       'from_email', 'from_name'),
+            'description': '示例：QQ 邮箱 smtp.qq.com:465 SSL；'
+                           '163 邮箱 smtp.163.com:465 SSL；'
+                           '阿里云邮箱 smtp.qiye.aliyun.com:465 SSL。',
+        }),
+        ('验证码策略', {
+            'fields': ('code_expire_minutes', 'code_resend_seconds', 'daily_limit_per_email'),
+        }),
+    )
+
+    def has_add_permission(self, request):
+        # 单例：如已有则不允许再次新建
+        return not EmailConfig.objects.exists()
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+class EmailVerifyCodeAdmin(admin.ModelAdmin):
+    list_display = ('email', 'code', 'purpose', 'is_used', 'expires_at', 'created_at')
+    list_filter = ('purpose', 'is_used')
+    search_fields = ('email', 'code')
+    ordering = ('-created_at',)
+    readonly_fields = ('email', 'code', 'purpose', 'is_used', 'expires_at', 'created_at')
+
+    def has_add_permission(self, request):
+        return False
+
+
 # 注册到自定义 admin_site
 admin_site.register(User, UserAdmin)
 admin_site.register(APIKey, APIKeyAdmin)
 admin_site.register(UsageLog, UsageLogAdmin)
 admin_site.register(Bill, BillAdmin)
 admin_site.register(CardPassword, CardPasswordAdmin)
+admin_site.register(EmailConfig, EmailConfigAdmin)
+admin_site.register(EmailVerifyCode, EmailVerifyCodeAdmin)

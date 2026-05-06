@@ -460,6 +460,16 @@ class ChatCompletionsView(APIView):
             
         except httpx.TimeoutException:
             update_upstream_usage(account, success=False)
+            response_time = int((time.time() - start_time) * 1000)
+            try:
+                log_api_access(
+                    api_key, user, 'POST', '/chat/completions',
+                    request.data, {'error': {'message': 'Request timeout'}}, 504,
+                    response_time, get_client_ip(request),
+                    model=model_obj, upstream_account=account,
+                )
+            except Exception:
+                pass
             return Response({
                 'error': {
                     'message': 'Request timeout. Please try again.',
@@ -467,9 +477,19 @@ class ChatCompletionsView(APIView):
                     'code': 'request_timeout'
                 }
             }, status=status.HTTP_504_GATEWAY_TIMEOUT)
-            
+
         except Exception as e:
             update_upstream_usage(account, success=False)
+            response_time = int((time.time() - start_time) * 1000)
+            try:
+                log_api_access(
+                    api_key, user, 'POST', '/chat/completions',
+                    request.data, {'error': {'message': str(e)}}, 502,
+                    response_time, get_client_ip(request),
+                    model=model_obj, upstream_account=account,
+                )
+            except Exception:
+                pass
             return Response({
                 'error': {
                     'message': f'Internal server error: {str(e)}',
@@ -496,6 +516,11 @@ class ChatCompletionsView(APIView):
         logger.info(f"[ChatCompletions-Stream] Account base_url: {account.base_url}")
         logger.debug(f"[ChatCompletions-Stream] Request headers: {headers}")
 
+        # 提前抓取请求级别的信息，防止生成器执行时请求已关闭
+        client_ip = get_client_ip(request)
+        request_data_copy = {k: v for k, v in request.data.items()} if hasattr(request.data, 'items') else dict(request.data or {})
+        model_obj = AIModel.objects.filter(code=model_name).first()
+
         # 记录使用日志
         usage_log = UsageLog.objects.create(
             user=user,
@@ -509,13 +534,18 @@ class ChatCompletionsView(APIView):
             logger.info(f"[ChatCompletions-Stream] Starting streaming request, timeout={timeout}s")
 
             # 在生成器外部把 request.data 复制出来，避免在生成器执行期间访问已关闭的请求
-            body = dict(request.data)
+            body = dict(request_data_copy)
             body['stream'] = True
 
             def generate():
-                """生成器函数，按行流式返回 SSE 数据，逐 chunk 立即下发"""
+                """生成器函数，按字节流式返回 SSE 数据，并解析 usage 用于结束后的统计/计费"""
+                final_status = 0
+                final_error_msg = ''
+                final_usage = None
+                # 累积未完成的 SSE 事件文本（用于解析 usage / [DONE]）
+                sse_buffer = ''
+
                 try:
-                    # 关闭 httpx 的内部缓冲：使用流式接口 + iter_lines() 按行读取
                     with httpx.stream(
                         'POST',
                         target_url,
@@ -523,6 +553,8 @@ class ChatCompletionsView(APIView):
                         json=body,
                         timeout=httpx.Timeout(timeout, connect=30.0, read=timeout),
                     ) as response:
+                        final_status = response.status_code
+
                         if response.status_code >= 400:
                             try:
                                 error_text = response.read().decode('utf-8', errors='replace')
@@ -530,12 +562,12 @@ class ChatCompletionsView(APIView):
                             except Exception:
                                 error_data = {'error': {'message': 'Upstream error'}}
 
+                            error_msg = error_data.get('error', {}).get('message', str(error_data))
+                            final_error_msg = str(error_msg)
                             logger.error(
                                 f"[ChatCompletions-Stream-Error] user_id={user.id}, account={account.name}, "
                                 f"status={response.status_code}, response={error_data}"
                             )
-
-                            error_msg = error_data.get('error', {}).get('message', str(error_data))
                             yield (
                                 'data: '
                                 + json.dumps({
@@ -550,15 +582,42 @@ class ChatCompletionsView(APIView):
                             update_upstream_usage(account, success=False)
                             return
 
-                        # 正常流式：使用 iter_raw 按字节立刻转发，最大化下游响应速度
-                        # 上游 SSE 已经是按事件 flush 的，我们原样转发即可
+                        # 正常流式：原样按字节转发；同时累计字符串以解析 usage
                         for chunk in response.iter_raw():
-                            if chunk:
-                                yield chunk
-
+                            if not chunk:
+                                continue
+                            # 立即转发给前端
+                            yield chunk
+                            # 解析 SSE 事件提取 usage（最后一个 chunk 通常带 usage）
+                            try:
+                                sse_buffer += chunk.decode('utf-8', errors='replace')
+                            except Exception:
+                                continue
+                            while True:
+                                idx = sse_buffer.find('\n\n')
+                                if idx == -1:
+                                    break
+                                raw_event = sse_buffer[:idx]
+                                sse_buffer = sse_buffer[idx + 2:]
+                                for line in raw_event.split('\n'):
+                                    line = line.strip()
+                                    if not line.startswith('data:'):
+                                        continue
+                                    payload = line[5:].strip()
+                                    if not payload or payload == '[DONE]':
+                                        continue
+                                    try:
+                                        evt = json.loads(payload)
+                                    except Exception:
+                                        continue
+                                    u = evt.get('usage') if isinstance(evt, dict) else None
+                                    if isinstance(u, dict) and u:
+                                        final_usage = u
                         update_upstream_usage(account, success=True)
                 except httpx.TimeoutException:
                     update_upstream_usage(account, success=False)
+                    final_status = 504
+                    final_error_msg = 'Request timeout'
                     logger.error(f"[ChatCompletions-Stream-Timeout] user_id={user.id}, account={account.name}")
                     yield (
                         'data: '
@@ -573,6 +632,8 @@ class ChatCompletionsView(APIView):
                     ).encode('utf-8')
                 except Exception as e:
                     update_upstream_usage(account, success=False)
+                    final_status = 502
+                    final_error_msg = str(e)
                     logger.error(
                         f"[ChatCompletions-Stream-Exception] user_id={user.id}, account={account.name}, error={str(e)}"
                     )
@@ -587,6 +648,60 @@ class ChatCompletionsView(APIView):
                         })
                         + '\n\n'
                     ).encode('utf-8')
+                finally:
+                    # 流结束后：统一记录 APIAccessLog、更新 UsageLog、计费
+                    response_time_ms = int((time.time() - start_time) * 1000)
+                    prompt_tokens = 0
+                    completion_tokens = 0
+                    total_tokens = 0
+                    cached_tokens = 0
+                    if isinstance(final_usage, dict):
+                        prompt_tokens = int(final_usage.get('prompt_tokens') or 0)
+                        completion_tokens = int(final_usage.get('completion_tokens') or 0)
+                        total_tokens = int(final_usage.get('total_tokens') or 0)
+                        ptd = final_usage.get('prompt_tokens_details') or {}
+                        if isinstance(ptd, dict):
+                            cached_tokens = int(ptd.get('cached_tokens') or 0)
+                        cached_tokens = cached_tokens or int(final_usage.get('cache_read_input_tokens') or 0)
+
+                    # 更新 UsageLog
+                    try:
+                        usage_log.status_code = final_status or 200
+                        usage_log.response_time = response_time_ms
+                        usage_log.input_tokens = prompt_tokens
+                        usage_log.output_tokens = completion_tokens
+                        usage_log.total_tokens = total_tokens
+                        usage_log.save()
+                    except Exception as e:
+                        logger.error(f"[ChatCompletions-Stream] update usage_log failed: {e}")
+
+                    # 写 APIAccessLog（保证与 UsageLog 计数一致）
+                    try:
+                        log_api_access(
+                            api_key, user, 'POST', '/chat/completions',
+                            request_data_copy,
+                            final_usage if final_usage else (
+                                {'error': {'message': final_error_msg}} if final_error_msg else {'streamed': True}
+                            ),
+                            final_status or 200,
+                            response_time_ms,
+                            client_ip,
+                            model=model_obj,
+                            upstream_account=account,
+                        )
+                    except Exception as e:
+                        logger.error(f"[ChatCompletions-Stream] write access log failed: {e}")
+
+                    # 计费（仅成功且有 token 数据时）
+                    if (final_status and final_status < 400) and total_tokens > 0:
+                        try:
+                            calculate_and_deduct_cost(
+                                user, model_name,
+                                prompt_tokens, completion_tokens, usage_log,
+                                cached_tokens=cached_tokens,
+                            )
+                        except Exception as e:
+                            logger.error(f"[ChatCompletions-Stream] charge failed: {e}")
 
             streaming_response = StreamingHttpResponse(
                 generate(),

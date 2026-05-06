@@ -718,12 +718,21 @@ async function batchToggleStatus() {
 function openModelForm(model = null) {
   if (model) {
     isEdit.value = true
+    // 兼容列表返回的 ID 与详情返回的嵌套对象两种格式
+    const providerId =
+      model.provider && typeof model.provider === 'object'
+        ? model.provider.id
+        : model.provider ?? null
+    const categoryId =
+      model.category && typeof model.category === 'object'
+        ? model.category.id
+        : model.category ?? null
     formData.value = {
       id: model.id,
       name: model.name,
       code: model.code,
-      provider: model.provider,
-      category: model.category,
+      provider: providerId,
+      category: categoryId,
       version: model.version || '',
       input_price: parseFloat(model.input_price) || 0,
       output_price: parseFloat(model.output_price) || 0,
