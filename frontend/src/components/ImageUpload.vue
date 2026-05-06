@@ -75,7 +75,7 @@ const previewVisible = ref(false)
 const previewUrl = ref('')
 
 const uploadUrl = computed(() => {
-  return '/api/tickets/upload-image/'
+  return `${import.meta.env.VITE_API_BASE_URL || '/api'}/tickets/upload-image/`
 })
 
 const uploadHeaders = computed(() => {

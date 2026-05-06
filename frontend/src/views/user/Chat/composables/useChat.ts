@@ -90,7 +90,8 @@ export async function streamChatCompletion(opts: SendOptions): Promise<void> {
     signal,
   } = opts
 
-  const url = '/api/proxy/v1/chat/completions'
+  const apiBase = import.meta.env.VITE_API_BASE_URL || '/api'
+  const url = `${apiBase}/proxy/v1/chat/completions`
 
   let response: Response
   try {
