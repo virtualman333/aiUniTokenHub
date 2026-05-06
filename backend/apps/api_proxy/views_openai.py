@@ -13,6 +13,7 @@ import httpx
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
+from rest_framework.renderers import BaseRenderer, JSONRenderer
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -26,6 +27,28 @@ from .models import APIAccessLog
 
 
 logger = logging.getLogger('api_proxy')
+
+
+class EventStreamRenderer(BaseRenderer):
+    """
+    用于 SSE 流式响应的 Renderer。
+    仅声明媒体类型，让 DRF 的内容协商通过 ``Accept: text/event-stream``。
+    实际响应由视图直接返回 ``StreamingHttpResponse``，不会调用 render()。
+    """
+
+    media_type = 'text/event-stream'
+    format = 'event-stream'
+    charset = 'utf-8'
+
+    def render(self, data, accepted_media_type=None, renderer_context=None):
+        if data is None:
+            return b''
+        if isinstance(data, (bytes, bytearray)):
+            return bytes(data)
+        if isinstance(data, str):
+            return data.encode(self.charset)
+        return json.dumps(data, ensure_ascii=False).encode(self.charset)
+
 
 
 # ============== 工具函数 ==============
@@ -225,6 +248,8 @@ class ChatCompletionsView(APIView):
     POST /v1/chat/completions
     """
     permission_classes = [AllowAny]
+    # 同时支持 application/json 与 text/event-stream，避免 SSE 客户端因 Accept 报 406
+    renderer_classes = [JSONRenderer, EventStreamRenderer]
     
     def post(self, request):
         return self._handle_chat_completions(request)
@@ -537,7 +562,8 @@ class ChatCompletionsView(APIView):
             )
             streaming_response['Cache-Control'] = 'no-cache, no-transform'
             streaming_response['X-Accel-Buffering'] = 'no'  # 禁用 nginx/反代缓冲
-            streaming_response['Connection'] = 'keep-alive'
+            # 注意：'Connection' 是 hop-by-hop 头，由 WSGI 服务器控制；
+            # Python 内置 wsgiref 会因应用层设置该头而 assert 失败，故不要在这里设置。
             streaming_response['X-Request-ID'] = str(usage_log.id)
 
             return streaming_response
@@ -808,6 +834,7 @@ class ModelsView(APIView):
     通用模型视图 - 处理所有 /v1/* 请求
     """
     permission_classes = [AllowAny]
+    renderer_classes = [JSONRenderer, EventStreamRenderer]
     
     def get(self, request, path=''):
         """处理GET请求"""
