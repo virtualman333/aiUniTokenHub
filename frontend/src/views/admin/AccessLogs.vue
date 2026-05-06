@@ -135,6 +135,35 @@
             </el-tag>
           </template>
         </el-table-column>
+        <el-table-column label="Token (输入/输出/总)" width="170" align="center">
+          <template #default="{ row }">
+            <div v-if="row.total_tokens" class="tokens-cell">
+              <span>{{ row.input_tokens || 0 }}</span>
+              <span class="sep">/</span>
+              <span>{{ row.output_tokens || 0 }}</span>
+              <span class="sep">/</span>
+              <strong>{{ row.total_tokens }}</strong>
+              <el-tooltip
+                v-if="Number(row.cached_tokens) > 0"
+                :content="`其中缓存命中 ${row.cached_tokens} tokens`"
+                placement="top"
+              >
+                <el-tag size="small" type="success" effect="plain" class="cache-tag">
+                  缓存 {{ row.cached_tokens }}
+                </el-tag>
+              </el-tooltip>
+            </div>
+            <span v-else class="text-muted">-</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="费用" width="110" align="right">
+          <template #default="{ row }">
+            <span v-if="Number(row.cost) > 0" class="cost-cell">
+              ¥{{ Number(row.cost).toFixed(4) }}
+            </span>
+            <span v-else class="text-muted">-</span>
+          </template>
+        </el-table-column>
         <el-table-column prop="response_time" label="响应时间" width="120" align="center">
           <template #default="{ row }">
             <span :class="getTimeClass(row.response_time)">
@@ -201,6 +230,22 @@
         </el-descriptions-item>
         <el-descriptions-item label="访问时间">
           {{ formatDate(currentLog?.created_at) }}
+        </el-descriptions-item>
+        <el-descriptions-item label="Tokens (输入/输出/总)">
+          <span v-if="currentLog?.total_tokens">
+            {{ currentLog?.input_tokens || 0 }} / {{ currentLog?.output_tokens || 0 }} /
+            <strong>{{ currentLog?.total_tokens }}</strong>
+            <span v-if="Number(currentLog?.cached_tokens) > 0" class="text-muted" style="margin-left: 6px;">
+              （缓存 {{ currentLog?.cached_tokens }}）
+            </span>
+          </span>
+          <span v-else class="text-muted">-</span>
+        </el-descriptions-item>
+        <el-descriptions-item label="费用">
+          <strong v-if="Number(currentLog?.cost) > 0" style="color: #d97706">
+            ¥{{ Number(currentLog?.cost).toFixed(6) }}
+          </strong>
+          <span v-else class="text-muted">-</span>
         </el-descriptions-item>
       </el-descriptions>
       
@@ -351,13 +396,18 @@ const exportLogs = async () => {
     }
     
     const csv = [
-      ['时间', '路径', '方法', '状态码', '响应时间(ms)', '用户', 'IP地址'].join(','),
+      ['时间', '路径', '方法', '状态码', '响应时间(ms)', '输入Token', '输出Token', '总Token', '缓存Token', '费用(元)', '用户', 'IP地址'].join(','),
       ...data.map(log => [
         formatDate(log.created_at),
         log.path,
         log.method,
         log.response_status || '-',
         log.response_time || '-',
+        log.input_tokens || 0,
+        log.output_tokens || 0,
+        log.total_tokens || 0,
+        log.cached_tokens || 0,
+        Number(log.cost || 0).toFixed(6),
         log.username || '匿名',
         log.ip_address || '-'
       ].join(','))
@@ -484,6 +534,36 @@ const copyToClipboard = async (text) => {
   border-radius: 3px;
   font-size: 13px;
   font-family: monospace;
+}
+
+.tokens-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  color: #475569;
+
+  strong {
+    color: #0f172a;
+    font-weight: 600;
+  }
+
+  .sep {
+    color: #cbd5e1;
+  }
+
+  .cache-tag {
+    margin-left: 6px;
+    transform: scale(0.92);
+  }
+}
+
+.cost-cell {
+  color: #d97706;
+  font-weight: 600;
+  font-family: ui-monospace, monospace;
+  font-size: 13px;
 }
 
 .text-success { color: #67C23A; }

@@ -25,6 +25,14 @@ class APIAccessLog(models.Model):
     response_time = models.IntegerField('响应时间(ms)', default=0)
     ip_address = models.GenericIPAddressField('IP地址', null=True, blank=True)
     error_message = models.TextField('错误信息', blank=True)
+
+    # Token 用量与费用
+    input_tokens = models.IntegerField('输入Token', default=0)
+    output_tokens = models.IntegerField('输出Token', default=0)
+    total_tokens = models.IntegerField('总Token', default=0)
+    cached_tokens = models.IntegerField('缓存命中Token', default=0)
+    cost = models.DecimalField('费用(元)', max_digits=12, decimal_places=6, default=0)
+
     created_at = models.DateTimeField('访问时间', auto_now_add=True, db_index=True)
     
     class Meta:

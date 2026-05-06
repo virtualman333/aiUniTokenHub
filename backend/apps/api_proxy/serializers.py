@@ -16,7 +16,9 @@ class APIAccessLogSerializer(serializers.ModelSerializer):
     # 上游账号信息
     upstream_account_name = serializers.CharField(source='upstream_account.name', read_only=True, default='')
     upstream_provider = serializers.CharField(source='upstream_account.provider.name', read_only=True, default='')
-    
+
+    cost = serializers.FloatField(read_only=True)
+
     class Meta:
         model = APIAccessLog
         fields = [
@@ -26,6 +28,7 @@ class APIAccessLogSerializer(serializers.ModelSerializer):
             'upstream_account', 'upstream_account_name', 'upstream_provider',
             'method', 'path', 'request_headers', 'request_params', 'request_body',
             'response_status', 'response_body', 'response_time',
+            'input_tokens', 'output_tokens', 'total_tokens', 'cached_tokens', 'cost',
             'ip_address', 'error_message', 'created_at'
         ]
 

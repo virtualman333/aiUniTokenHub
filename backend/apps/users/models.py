@@ -14,7 +14,7 @@ class User(AbstractUser):
     role = models.CharField('角色', max_length=20, choices=ROLE_CHOICES, default='user')
     phone = models.CharField('手机号', max_length=20, blank=True, null=True)
     company = models.CharField('公司名称', max_length=200, blank=True, null=True)
-    balance = models.DecimalField('余额', max_digits=10, decimal_places=2, default=0)
+    balance = models.DecimalField('余额', max_digits=12, decimal_places=4, default=0)
     invite_code = models.CharField('邀请码', max_length=16, unique=True, blank=True, null=True, db_index=True)
     invited_by = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='invitees', verbose_name='邀请人')
     created_at = models.DateTimeField('创建时间', auto_now_add=True)
@@ -80,6 +80,8 @@ class UsageLog(models.Model):
     input_tokens = models.IntegerField('输入Token', default=0)
     output_tokens = models.IntegerField('输出Token', default=0)
     total_tokens = models.IntegerField('总Token', default=0)
+    cached_tokens = models.IntegerField('缓存命中Token', default=0)
+    cost = models.DecimalField('费用(元)', max_digits=12, decimal_places=6, default=0)
     
     ip_address = models.GenericIPAddressField('IP地址', null=True, blank=True)
     error_message = models.TextField('错误信息', blank=True)
@@ -103,8 +105,8 @@ class Bill(models.Model):
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='bills')
     type = models.CharField('交易类型', max_length=20, choices=TYPE_CHOICES)
-    amount = models.DecimalField('交易金额', max_digits=10, decimal_places=2)
-    balance = models.DecimalField('交易后余额', max_digits=10, decimal_places=2)
+    amount = models.DecimalField('交易金额', max_digits=12, decimal_places=4)
+    balance = models.DecimalField('交易后余额', max_digits=12, decimal_places=4)
     description = models.CharField('交易说明', max_length=500, blank=True)
     usage_log = models.ForeignKey(
         'UsageLog', on_delete=models.SET_NULL, null=True, blank=True,

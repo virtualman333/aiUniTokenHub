@@ -51,6 +51,35 @@
             </el-tag>
           </template>
         </el-table-column>
+        <el-table-column label="Token (输入/输出/总)" width="170" align="center">
+          <template #default="{ row }">
+            <div v-if="row.total_tokens" class="tokens-cell">
+              <span>{{ row.input_tokens || 0 }}</span>
+              <span class="sep">/</span>
+              <span>{{ row.output_tokens || 0 }}</span>
+              <span class="sep">/</span>
+              <strong>{{ row.total_tokens }}</strong>
+              <el-tooltip
+                v-if="Number(row.cached_tokens) > 0"
+                :content="`缓存命中 ${row.cached_tokens} tokens`"
+                placement="top"
+              >
+                <el-tag size="small" type="success" effect="plain" class="cache-tag">
+                  缓存{{ row.cached_tokens }}
+                </el-tag>
+              </el-tooltip>
+            </div>
+            <span v-else class="text-muted">-</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="费用" width="100" align="right">
+          <template #default="{ row }">
+            <span v-if="Number(row.cost) > 0" class="cost-cell">
+              ¥{{ Number(row.cost).toFixed(4) }}
+            </span>
+            <span v-else class="text-muted">-</span>
+          </template>
+        </el-table-column>
         <el-table-column prop="response_time" label="响应时间" width="110" align="center">
           <template #default="{ row }">
             <span :class="getTimeClass(row.response_time)">
@@ -203,6 +232,36 @@ function getTimeClass(time: number) {
 
 .text-muted {
   color: #909399;
+}
+
+.tokens-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  color: #475569;
+}
+
+.tokens-cell strong {
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.tokens-cell .sep {
+  color: #cbd5e1;
+}
+
+.tokens-cell .cache-tag {
+  margin-left: 6px;
+  transform: scale(0.92);
+}
+
+.cost-cell {
+  color: #d97706;
+  font-weight: 600;
+  font-family: ui-monospace, monospace;
+  font-size: 13px;
 }
 
 .text-success { color: #67C23A; }
