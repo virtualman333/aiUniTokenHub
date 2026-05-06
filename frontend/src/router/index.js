@@ -76,6 +76,12 @@ const routes = [
         component: () => import('@/views/user/Tickets/index.vue'),
         meta: { title: '工单中心' }
       },
+      {
+        path: 'tutorial',
+        name: 'Tutorial',
+        component: () => import('@/views/user/Tutorial/index.vue'),
+        meta: { title: '接入教程' }
+      },
     ]
   },
   

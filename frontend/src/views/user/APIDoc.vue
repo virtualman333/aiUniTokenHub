@@ -34,6 +34,9 @@
       <template #header>
         <div class="card-header">
           <span>认证说明</span>
+          <el-button type="primary" link @click="$router.push('/tutorial')">
+            快速接入教程 <el-icon class="el-icon--right"><ArrowRight /></el-icon>
+          </el-button>
         </div>
       </template>
       <p>所有 API 请求都需要在 Header 中携带您的 API Key：</p>
@@ -430,7 +433,7 @@ print(embedding.data[0].embedding)</pre>
 <script setup>
 import { ref, onMounted, reactive, computed } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Timer, Document, Coin, VideoPlay, Loading, CircleClose } from '@element-plus/icons-vue'
+import { Timer, Document, Coin, VideoPlay, Loading, CircleClose, ArrowRight } from '@element-plus/icons-vue'
 import api from '@/stores'
 import axios from 'axios'
 import Cookies from 'js-cookie'

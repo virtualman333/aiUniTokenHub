@@ -3,7 +3,12 @@
     <!-- 头部 -->
     <div class="header">
       <h1>模型广场</h1>
-      <p class="subtitle">探索、对比、接入优质AI模型</p>
+      <p class="subtitle">
+        探索、对比、接入优质AI模型
+        <el-button type="primary" link @click="$router.push('/tutorial')" style="margin-left: 12px;">
+          快速接入教程 <el-icon class="el-icon--right"><ArrowRight /></el-icon>
+        </el-button>
+      </p>
     </div>
 
     <!-- 筛选栏 -->
@@ -53,6 +58,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { ArrowRight } from '@element-plus/icons-vue'
 import FilterBar from './components/FilterBar.vue'
 import QuickTags from './components/QuickTags.vue'
 import ModelCard from './components/ModelCard.vue'
