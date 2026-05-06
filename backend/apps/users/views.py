@@ -131,6 +131,18 @@ class AuthViewSet(viewsets.GenericViewSet):
             return APIResponse.error(str(first_error), 400)
         user = serializer.save()
 
+        # 新用户注册赠送1元
+        welcome_amount = Decimal('1.00')
+        user.balance = (user.balance or Decimal('0')) + welcome_amount
+        user.save(update_fields=['balance'])
+        Bill.objects.create(
+            user=user,
+            type='recharge',
+            amount=welcome_amount,
+            balance=user.balance,
+            description='新用户注册赠送'
+        )
+
         # 标记验证码已使用
         record.is_used = True
         record.save(update_fields=['is_used'])
@@ -139,7 +151,7 @@ class AuthViewSet(viewsets.GenericViewSet):
         return APIResponse.created({
             'user': UserSerializer(user).data,
             'token': token
-        }, '注册成功')
+        }, '注册成功，已赠送1元新人大礼包')
     
     @action(detail=False, methods=['post'])
     def login(self, request):
