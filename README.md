@@ -77,6 +77,10 @@ python manage.py migrate
 # 创建管理员
 python manage.py createsuperuser
 
+# 切换虚拟环境
+cd D:/aiUniTokenHub/backend
+.\venv\Scripts\Activate.ps1
+
 # 运行服务
 python manage.py runserver
 ```
