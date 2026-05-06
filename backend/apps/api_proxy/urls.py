@@ -11,6 +11,7 @@ from .views_openai import (
     models_list,
     model_retrieve,
 )
+from .views_responses import ResponsesView
 from .views import ProxyAccessViewSet
 from .views_chat import ConversationViewSet
 
@@ -30,6 +31,7 @@ urlpatterns = [
     path('v1/chat/completions', ChatCompletionsView.as_view(), name='chat-completions'),
     path('v1/completions', CompletionsView.as_view(), name='completions'),
     path('v1/embeddings', EmbeddingsView.as_view(), name='embeddings'),
+    path('v1/responses', ResponsesView.as_view(), name='responses'),
     
     # 模型相关
     path('v1/models', models_list, name='models-list'),

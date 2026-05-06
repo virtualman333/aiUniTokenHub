@@ -27,6 +27,7 @@ media/
 .vscode/
 .idea/
 .codebuddy/
+.workbuddy/
 .trae/
 *.swp
 *.swo

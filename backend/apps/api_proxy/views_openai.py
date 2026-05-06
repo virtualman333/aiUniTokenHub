@@ -171,6 +171,10 @@ def check_rate_limit(api_key: APIKey, account: UpstreamAccount) -> Optional[Resp
 def update_upstream_usage(account: UpstreamAccount, success: bool = True):
     """更新上游账号使用统计"""
     try:
+        # 先检查 UpstreamAccount 是否有统计字段
+        # （这些字段实际定义在 ModelUpstreamAccount 上，UpstreamAccount 可能没有）
+        if not hasattr(account, 'usage_count'):
+            return
         account.usage_count += 1
         if not success:
             account.error_count += 1
@@ -1050,6 +1054,10 @@ class ModelsView(APIView):
         elif path == 'embeddings':
             embeddings_view = EmbeddingsView()
             return embeddings_view.post(request)
+        elif path == 'responses':
+            from .views_responses import ResponsesView
+            responses_view = ResponsesView()
+            return responses_view.post(request)
         else:
             return Response({
                 'error': {
