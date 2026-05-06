@@ -32,6 +32,16 @@ api.interceptors.response.use(
       Cookies.remove('userRole')
       window.location.href = '/login'
     }
+    
+    // 尝试从后端响应中提取错误信息
+    if (error.response?.data) {
+      const data = error.response.data
+      const msg = data.msg || data.detail || (typeof data === 'string' ? data : '')
+      if (msg) {
+        error.message = msg
+      }
+    }
+    
     return Promise.reject(error)
   }
 )

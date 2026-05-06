@@ -60,6 +60,9 @@
             <el-table-column label="返利金额" width="100">
               <template #default="{ row }">¥{{ Number(row.reward_amount).toFixed(2) }}</template>
             </el-table-column>
+            <el-table-column label="申请时间" min-width="120">
+              <template #default="{ row }">{{ formatDate(row.created_at) }}</template>
+            </el-table-column>
             <el-table-column label="状态" width="80">
               <template #default="{ row }">
                 <el-tag :type="row.status === 'approved' ? 'success' : row.status === 'pending' ? 'warning' : 'danger'" size="small">
@@ -73,7 +76,7 @@
                   <el-button type="success" size="small" @click="handleApprove(row.id)">通过</el-button>
                   <el-button type="danger" size="small" @click="handleReject(row.id)">拒绝</el-button>
                 </template>
-                <span v-else class="reviewed-time">{{ formatDate(row.reviewed_at) }}</span>
+                <span v-else class="reviewed-time">审核时间：{{ formatDate(row.reviewed_at) }}</span>
               </template>
             </el-table-column>
           </el-table>
@@ -118,7 +121,7 @@ const pagination = reactive({
 const pendingCount = computed(() => rewards.value.filter((r: any) => r.status === 'pending').length)
 
 function formatDate(date: string) {
-  return date ? dayjs(date).format('MM-DD HH:mm') : '-'
+  return date ? dayjs(date).format('YYYY-MM-DD HH:mm') : '-'
 }
 
 async function loadConfig() {
