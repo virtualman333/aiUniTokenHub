@@ -60,9 +60,13 @@ class AIModel(models.Model):
     code = models.CharField('模型代码', max_length=100)
     version = models.CharField('版本', max_length=50, blank=True)
     
-    # 定价
-    input_price = models.DecimalField('输入价格(元/千tokens)', max_digits=10, decimal_places=6, default=0)
-    output_price = models.DecimalField('输出价格(元/千tokens)', max_digits=10, decimal_places=6, default=0)
+    # 定价（单位：元 / 百万 tokens）
+    input_price = models.DecimalField('输入价格(元/百万tokens)', max_digits=12, decimal_places=4, default=0)
+    output_price = models.DecimalField('输出价格(元/百万tokens)', max_digits=12, decimal_places=4, default=0)
+    cached_input_price = models.DecimalField(
+        '缓存命中价格(元/百万tokens)', max_digits=12, decimal_places=4, default=0,
+        help_text='输入 tokens 中命中缓存部分的单价；为 0 时按 input_price 计费'
+    )
     
     # 功能特性
     supports_streaming = models.BooleanField('支持流式', default=True)

@@ -178,9 +178,84 @@
               <el-button text size="small" @click="copyText(msg.content)">
                 <el-icon><DocumentCopy /></el-icon> 复制
               </el-button>
-              <span v-if="msg.total_tokens" class="token-hint">
-                tokens: {{ msg.total_tokens }}
-              </span>
+              <el-popover
+                v-if="msg.total_tokens"
+                placement="top"
+                trigger="hover"
+                :width="240"
+                popper-class="token-popover"
+              >
+                <template #reference>
+                  <span class="token-hint">
+                    <el-icon><DataLine /></el-icon>
+                    tokens: {{ msg.total_tokens }}
+                  </span>
+                </template>
+                <div class="token-detail">
+                  <div class="td-title">Token 用量明细</div>
+                  <div class="td-row">
+                    <span>总计</span>
+                    <strong>{{ msg.total_tokens || 0 }}</strong>
+                  </div>
+                  <div class="td-row">
+                    <span>输入 (prompt)</span>
+                    <strong>{{ msg.prompt_tokens || 0 }}</strong>
+                  </div>
+                  <div
+                    v-if="getCachedTokens(msg) > 0"
+                    class="td-row sub"
+                  >
+                    <span>└ 缓存命中</span>
+                    <strong>{{ getCachedTokens(msg) }}</strong>
+                  </div>
+                  <div
+                    v-if="getPromptAudio(msg) > 0"
+                    class="td-row sub"
+                  >
+                    <span>└ 语音输入</span>
+                    <strong>{{ getPromptAudio(msg) }}</strong>
+                  </div>
+                  <div class="td-row">
+                    <span>输出 (completion)</span>
+                    <strong>{{ msg.completion_tokens || 0 }}</strong>
+                  </div>
+                  <div
+                    v-if="getReasoningTokens(msg) > 0"
+                    class="td-row sub"
+                  >
+                    <span>└ 推理 (reasoning)</span>
+                    <strong>{{ getReasoningTokens(msg) }}</strong>
+                  </div>
+                  <div
+                    v-if="getAcceptedPrediction(msg) > 0"
+                    class="td-row sub"
+                  >
+                    <span>└ 预测命中</span>
+                    <strong>{{ getAcceptedPrediction(msg) }}</strong>
+                  </div>
+                  <div
+                    v-if="getRejectedPrediction(msg) > 0"
+                    class="td-row sub"
+                  >
+                    <span>└ 预测拒绝</span>
+                    <strong>{{ getRejectedPrediction(msg) }}</strong>
+                  </div>
+                  <div
+                    v-if="getCacheCreation(msg) > 0"
+                    class="td-row sub"
+                  >
+                    <span>└ 缓存创建 (Anthropic)</span>
+                    <strong>{{ getCacheCreation(msg) }}</strong>
+                  </div>
+                  <div
+                    v-if="getCacheRead(msg) > 0"
+                    class="td-row sub"
+                  >
+                    <span>└ 缓存读取 (Anthropic)</span>
+                    <strong>{{ getCacheRead(msg) }}</strong>
+                  </div>
+                </div>
+              </el-popover>
             </div>
           </div>
         </div>
@@ -241,6 +316,7 @@ import {
   Top,
   Brush,
   DocumentCopy,
+  DataLine,
 } from '@element-plus/icons-vue'
 import { useChat } from './composables/useChat'
 import { useMyKeys } from '../MyKeys/composables/useMyKeys'
@@ -317,19 +393,23 @@ onMounted(async () => {
   // 默认选第一个可用密钥
   const firstUsable = keys.value.find((k) => !k.is_expired && k.is_active)
   if (firstUsable) selectedKeyId.value = firstUsable.id
-  // 路由参数 ?model=xxx 优先
-  const queryModel = route.query.model as string | undefined
-  if (queryModel) {
-    selectedModel.value = queryModel
-  } else if (modelOptions.value.length > 0) {
-    selectedModel.value = modelOptions.value[0].code
-  }
+
+  // URL 上的 ?model=xxx 优先级最高
+  const queryModel = (route.query.model as string | undefined) || ''
 
   // 默认选择第一个会话；没有则创建
   if (conversations.value.length > 0) {
     await switchConversation(conversations.value[0].id)
   } else {
     await handleNewConversation()
+  }
+
+  // switchConversation/handleNewConversation 会把 selectedModel 设为会话保存的 model_code，
+  // 这里如果 URL 上带了 model，就用它覆盖（并同步到当前会话）。
+  if (queryModel) {
+    applyModelFromQuery(queryModel)
+  } else if (!selectedModel.value && modelOptions.value.length > 0) {
+    selectedModel.value = modelOptions.value[0].code
   }
 })
 
@@ -511,16 +591,51 @@ async function copyText(text: string) {
   }
 }
 
+// ============== Token 明细辅助 ==============
+function getCachedTokens(msg: any): number {
+  return Number(msg?.usage?.prompt_tokens_details?.cached_tokens || 0)
+}
+function getPromptAudio(msg: any): number {
+  return Number(msg?.usage?.prompt_tokens_details?.audio_tokens || 0)
+}
+function getReasoningTokens(msg: any): number {
+  return Number(msg?.usage?.completion_tokens_details?.reasoning_tokens || 0)
+}
+function getAcceptedPrediction(msg: any): number {
+  return Number(msg?.usage?.completion_tokens_details?.accepted_prediction_tokens || 0)
+}
+function getRejectedPrediction(msg: any): number {
+  return Number(msg?.usage?.completion_tokens_details?.rejected_prediction_tokens || 0)
+}
+function getCacheCreation(msg: any): number {
+  return Number(msg?.usage?.cache_creation_input_tokens || 0)
+}
+function getCacheRead(msg: any): number {
+  return Number(msg?.usage?.cache_read_input_tokens || 0)
+}
+
 // 路由 query 改变时（如从模型广场再次跳转）切换模型
 watch(
   () => route.query.model,
   (val) => {
     if (val && typeof val === 'string') {
-      selectedModel.value = val
-      handleModelChange()
+      applyModelFromQuery(val)
     }
   }
 )
+
+/**
+ * 将 URL ?model=xxx 应用到当前选择，并同步到当前会话
+ * - 若该模型存在于模型列表，则选中
+ * - 若不存在，仍然写入（用户可能用的是仅 code 已知的模型）
+ * - 同步到当前会话的 model_code
+ */
+function applyModelFromQuery(code: string) {
+  if (!code) return
+  if (selectedModel.value === code) return
+  selectedModel.value = code
+  handleModelChange()
+}
 </script>
 
 <style scoped>
@@ -842,6 +957,55 @@ watch(
   font-size: 12px;
   color: #9ca3af;
   margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  cursor: help;
+  transition: background 0.15s, color 0.15s;
+}
+
+.token-hint:hover {
+  background: #f3f4f6;
+  color: #4b5563;
+}
+
+.token-detail {
+  font-size: 13px;
+  color: #1f2937;
+}
+
+.token-detail .td-title {
+  font-weight: 600;
+  font-size: 13px;
+  color: #111827;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.token-detail .td-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 3px 0;
+  font-size: 12px;
+}
+
+.token-detail .td-row strong {
+  color: #059669;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.token-detail .td-row.sub {
+  color: #6b7280;
+  padding-left: 8px;
+}
+
+.token-detail .td-row.sub strong {
+  color: #6b7280;
+  font-weight: 500;
 }
 
 /* ============= Markdown 内容样式 ============= */

@@ -15,6 +15,27 @@ import {
   type MessageItem,
 } from './useConversations'
 
+export interface UsageDetails {
+  prompt_tokens?: number
+  completion_tokens?: number
+  total_tokens?: number
+  // OpenAI 详细字段
+  prompt_tokens_details?: {
+    cached_tokens?: number
+    audio_tokens?: number
+  } & Record<string, any>
+  completion_tokens_details?: {
+    reasoning_tokens?: number
+    audio_tokens?: number
+    accepted_prediction_tokens?: number
+    rejected_prediction_tokens?: number
+  } & Record<string, any>
+  // 兼容字段
+  cache_creation_input_tokens?: number
+  cache_read_input_tokens?: number
+  [key: string]: any
+}
+
 export interface ChatMessage {
   id?: number // 数据库 id（持久化后）
   role: 'system' | 'user' | 'assistant'
@@ -26,6 +47,8 @@ export interface ChatMessage {
   total_tokens?: number
   prompt_tokens?: number
   completion_tokens?: number
+  /** 上游返回的完整 usage 对象，含 cached/reasoning 等明细 */
+  usage?: UsageDetails
 }
 
 export interface SendOptions {
@@ -35,8 +58,8 @@ export interface SendOptions {
   temperature?: number
   /** 流过程中：每次拿到上游推送的增量原始文本 */
   onDelta: (deltaText: string) => void
-  /** 拿到 usage 信息时的回调 */
-  onUsage?: (usage: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number }) => void
+  /** 拿到 usage 信息时的回调（透传完整对象） */
+  onUsage?: (usage: UsageDetails) => void
   /** 流结束回调，传完整原始文本 */
   onDone?: (fullText: string) => void
   /** 错误回调 */
@@ -240,6 +263,9 @@ export function useChat() {
       total_tokens: m.total_tokens,
       prompt_tokens: m.prompt_tokens,
       completion_tokens: m.completion_tokens,
+      usage: (m.usage_details && Object.keys(m.usage_details).length > 0
+        ? (m.usage_details as UsageDetails)
+        : undefined),
     }))
   }
 
@@ -321,9 +347,7 @@ export function useChat() {
       assistantMsg.content += ch
     })
 
-    let usage:
-      | { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number }
-      | undefined
+    let usage: UsageDetails | undefined
 
     await streamChatCompletion({
       apiKey,
@@ -344,6 +368,7 @@ export function useChat() {
           assistantMsg.prompt_tokens = usage.prompt_tokens
           assistantMsg.completion_tokens = usage.completion_tokens
           assistantMsg.total_tokens = usage.total_tokens
+          assistantMsg.usage = usage
         }
         sending.value = false
 
@@ -357,6 +382,7 @@ export function useChat() {
               prompt_tokens: assistantMsg.prompt_tokens || 0,
               completion_tokens: assistantMsg.completion_tokens || 0,
               total_tokens: assistantMsg.total_tokens || 0,
+              usage_details: assistantMsg.usage || {},
             })
             assistantMsg.id = saved.id
           } catch {

@@ -40,7 +40,7 @@ class ModelCategoryAdmin(admin.ModelAdmin):
 
 class AIModelAdmin(admin.ModelAdmin):
     list_display = [
-        'name', 'provider', 'category', 'input_price', 'output_price',
+        'name', 'provider', 'category', 'input_price', 'output_price', 'cached_input_price',
         'status', 'is_featured', 'is_new', 'usage_count', 'order', 'created_at'
     ]
     list_filter = ['status', 'is_featured', 'provider', 'category', 'supports_vision']
@@ -52,8 +52,9 @@ class AIModelAdmin(admin.ModelAdmin):
         ('基本信息', {
             'fields': ('name', 'code', 'version', 'provider', 'category', 'status')
         }),
-        ('定价', {
-            'fields': ('input_price', 'output_price')
+        ('定价（元/百万 tokens）', {
+            'fields': ('input_price', 'output_price', 'cached_input_price'),
+            'description': '价格单位均为 元 / 百万 tokens；缓存命中价为 0 时按输入价计费。',
         }),
         ('功能特性', {
             'fields': ('supports_streaming', 'supports_vision', 'supports_tools', 

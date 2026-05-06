@@ -47,13 +47,19 @@
       <div class="price-item">
         <span class="price-label">输入</span>
         <span class="price-value">
-          ¥{{ formatPrice(model.input_price) }}/1K tokens
+          ¥{{ formatPrice(model.input_price) }}/1M
+        </span>
+      </div>
+      <div class="price-item" v-if="Number(model.cached_input_price) > 0">
+        <span class="price-label">缓存</span>
+        <span class="price-value cached">
+          ¥{{ formatPrice(model.cached_input_price) }}/1M
         </span>
       </div>
       <div class="price-item">
         <span class="price-label">输出</span>
         <span class="price-value">
-          ¥{{ formatPrice(model.output_price) }}/1K tokens
+          ¥{{ formatPrice(model.output_price) }}/1M
         </span>
       </div>
     </div>
@@ -82,8 +88,8 @@ defineEmits<{
 }>()
 
 function formatPrice(price: number | string | null): string {
-  if (!price || price == 0) return '0.00'
-  return parseFloat(String(price)).toFixed(6)
+  if (price === null || price === undefined || price === '' || Number(price) === 0) return '0'
+  return parseFloat(String(price)).toFixed(2)
 }
 
 function formatNumber(num: number | string | null): string {
@@ -240,6 +246,10 @@ function handleImageError(e: Event) {
   font-size: 14px;
   font-weight: 600;
   color: #f56c6c;
+}
+
+.price-value.cached {
+  color: #10b981;
 }
 
 .card-footer {

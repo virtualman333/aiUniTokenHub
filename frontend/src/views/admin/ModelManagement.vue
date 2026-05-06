@@ -80,11 +80,14 @@
               <el-tag size="small">{{ row.provider_name }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="定价" width="180">
+          <el-table-column label="定价 (元/1M)" width="220">
             <template #default="{ row }">
               <div class="price-cell">
-                <span>输入: ¥{{ Number(row.input_price || 0).toFixed(4) }}/1K</span>
-                <span>输出: ¥{{ Number(row.output_price || 0).toFixed(4) }}/1K</span>
+                <span>输入: ¥{{ Number(row.input_price || 0).toFixed(2) }}</span>
+                <span v-if="Number(row.cached_input_price) > 0" class="cached">
+                  缓存: ¥{{ Number(row.cached_input_price).toFixed(2) }}
+                </span>
+                <span>输出: ¥{{ Number(row.output_price || 0).toFixed(2) }}</span>
               </div>
             </template>
           </el-table-column>
@@ -250,29 +253,43 @@
           <el-input v-model="formData.version" placeholder="如: 2024-01-25" />
         </el-form-item>
         
-        <el-divider>定价</el-divider>
+        <el-divider>定价（元 / 百万 tokens）</el-divider>
         
         <el-row :gutter="20">
-          <el-col :span="12">
+          <el-col :span="8">
             <el-form-item label="输入价格">
               <el-input-number 
                 v-model="formData.input_price" 
                 :min="0" 
-                :precision="6"
+                :precision="4"
+                :step="0.5"
                 style="width: 100%"
               />
-              <span class="form-tip">元/千tokens</span>
+              <span class="form-tip">元/1M tokens</span>
             </el-form-item>
           </el-col>
-          <el-col :span="12">
+          <el-col :span="8">
+            <el-form-item label="缓存命中价格">
+              <el-input-number 
+                v-model="formData.cached_input_price" 
+                :min="0" 
+                :precision="4"
+                :step="0.1"
+                style="width: 100%"
+              />
+              <span class="form-tip">元/1M tokens；0 时按输入价计费</span>
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
             <el-form-item label="输出价格">
               <el-input-number 
                 v-model="formData.output_price" 
                 :min="0" 
-                :precision="6"
+                :precision="4"
+                :step="0.5"
                 style="width: 100%"
               />
-              <span class="form-tip">元/千tokens</span>
+              <span class="form-tip">元/1M tokens</span>
             </el-form-item>
           </el-col>
         </el-row>
@@ -520,6 +537,7 @@ const defaultFormData = () => ({
   version: '',
   input_price: 0,
   output_price: 0,
+  cached_input_price: 0,
   supports_streaming: true,
   supports_vision: false,
   supports_tools: false,
@@ -709,6 +727,7 @@ function openModelForm(model = null) {
       version: model.version || '',
       input_price: parseFloat(model.input_price) || 0,
       output_price: parseFloat(model.output_price) || 0,
+      cached_input_price: parseFloat(model.cached_input_price) || 0,
       supports_streaming: model.supports_streaming,
       supports_vision: model.supports_vision,
       supports_tools: model.supports_tools,
@@ -1069,6 +1088,10 @@ async function removeBinding(binding) {
   font-size: 12px;
   color: #606266;
   gap: 2px;
+}
+
+.price-cell .cached {
+  color: #10b981;
 }
 
 .cap-badge {

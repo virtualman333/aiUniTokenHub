@@ -23,6 +23,7 @@ def serialize_message(m: ChatMessage) -> dict:
         'prompt_tokens': m.prompt_tokens,
         'completion_tokens': m.completion_tokens,
         'total_tokens': m.total_tokens,
+        'usage_details': m.usage_details or {},
         'created_at': m.created_at.isoformat() if m.created_at else None,
     }
 
@@ -133,6 +134,9 @@ class ConversationViewSet(viewsets.GenericViewSet):
         if role not in ('system', 'user', 'assistant'):
             return APIResponse.error('role 非法', 400)
         with transaction.atomic():
+            usage_details = request.data.get('usage_details') or {}
+            if not isinstance(usage_details, dict):
+                usage_details = {}
             m = ChatMessage.objects.create(
                 conversation=c,
                 role=role,
@@ -141,6 +145,7 @@ class ConversationViewSet(viewsets.GenericViewSet):
                 prompt_tokens=int(request.data.get('prompt_tokens') or 0),
                 completion_tokens=int(request.data.get('completion_tokens') or 0),
                 total_tokens=int(request.data.get('total_tokens') or 0),
+                usage_details=usage_details,
             )
             # 更新会话标题（首次用户消息时自动取前 30 字作为标题）
             if c.title in ('新对话', '', None) and role == 'user' and content:

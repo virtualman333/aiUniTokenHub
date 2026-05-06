@@ -43,7 +43,7 @@ class AIModelListSerializer(serializers.ModelSerializer):
         model = AIModel
         fields = [
             'id', 'name', 'code', 'version', 'provider_name', 'provider_code', 'provider_logo',
-            'category_name', 'input_price', 'output_price', 'description',
+            'category_name', 'input_price', 'output_price', 'cached_input_price', 'description',
             'supports_streaming', 'supports_vision', 'supports_tools', 'supports_json',
             'context_window', 'max_tokens', 'capabilities', 'tags',
             'status', 'is_featured', 'is_new', 'usage_count', 'rating',

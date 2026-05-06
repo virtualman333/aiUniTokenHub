@@ -70,6 +70,7 @@ class ChatMessage(models.Model):
     prompt_tokens = models.IntegerField('提示tokens', default=0)
     completion_tokens = models.IntegerField('回复tokens', default=0)
     total_tokens = models.IntegerField('总tokens', default=0)
+    usage_details = models.JSONField('用量明细', default=dict, blank=True)
     created_at = models.DateTimeField('创建时间', auto_now_add=True, db_index=True)
 
     class Meta:
