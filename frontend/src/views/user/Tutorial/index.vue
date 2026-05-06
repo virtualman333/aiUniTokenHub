@@ -99,10 +99,10 @@
             <p>编辑文件 <code>~/.codex/auth.json</code></p>
             <CodeBlock :code="codexAuthJson" language="json" />
             
-            <h3>常见问题</h3>
+            <!-- <h3>常见问题</h3>
             <h4>报错 <code>wire_api = chat is no longer supported</code> 怎么办？</h4>
             <p><strong>原因：</strong>Codex 新版本使用 Responses API，不支持 <code>wire_api = "chat"</code> 配置。</p>
-            <p><strong>解决方案：</strong>请安装旧版codex</p>
+            <p><strong>解决方案：</strong>请安装旧版codex</p> -->
           </div>
         </el-tab-pane>
 
@@ -188,7 +188,7 @@ const claudeWindowsSettings = computed(() => `{
 }`)
 
 const claudeVscodeConfig = computed(() => `{
-    "primaryApiKey": "fox"
+    "primaryApiKey": "uni"
 }`)
 
 const claudeWindowsTemp = computed(() => `# PowerShell
@@ -272,18 +272,18 @@ const continueConfig = computed(() => `{
   ]
 }`)
 
-const codexConfigToml = computed(() => `model_provider = "fox"
+const codexConfigToml = computed(() => `model_provider = "uni"
 # 可配置模型广场中的模型
 model = "deepseek-v4-pro"
 # 可配置high medium low
 model_reasoning_effort = "high"
 disable_response_storage = true
 
-# foxcode配置
-[model_providers.fox]
-name = "fox"
+# unicode配置
+[model_providers.uni]
+name = "uni"
 base_url = "${apiBaseUrl.value}"
-wire_api = "chat"
+wire_api = "responses"
 requires_openai_auth = true`)
 
 const codexAuthJson = computed(() => `{
