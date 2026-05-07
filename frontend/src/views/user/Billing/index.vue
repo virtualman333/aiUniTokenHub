@@ -11,7 +11,7 @@
       <el-col :span="8">
         <el-card class="balance-card">
           <div class="balance-label">账户余额</div>
-          <div class="balance-value">¥{{ Number(balance).toFixed(2) }}</div>
+          <div class="balance-value">¥{{ Number(balance).toFixed(4) }}</div>
           <el-button type="primary" class="recharge-btn" @click="showRecharge = true">
             立即充值
           </el-button>
@@ -41,13 +41,13 @@
         <el-table-column label="金额" width="120">
           <template #default="{ row }">
             <span :class="getAmountClass(row.type)">
-              {{ getAmountPrefix(row.type) }}¥{{ Math.abs(Number(row.amount)).toFixed(2) }}
+              {{ getAmountPrefix(row.type) }}¥{{ Math.abs(Number(row.amount)).toFixed(4) }}
             </span>
           </template>
         </el-table-column>
         <el-table-column prop="balance" label="余额" width="120">
           <template #default="{ row }">
-            ¥{{ Number(row.balance).toFixed(2) }}
+            ¥{{ Number(row.balance).toFixed(4) }}
           </template>
         </el-table-column>
         <el-table-column prop="description" label="说明" />

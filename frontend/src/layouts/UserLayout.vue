@@ -31,7 +31,7 @@
             <div class="avatar">{{ userStore.user?.username?.[0]?.toUpperCase() || 'U' }}</div>
             <div class="user-detail">
               <span class="username">{{ userStore.user?.username }}</span>
-              <span class="balance">¥{{ Number(userStore.user?.balance || 0).toFixed(2) }}</span>
+              <span class="balance">¥{{ Number(userStore.user?.balance || 0).toFixed(4) }}</span>
             </div>
             <el-icon><ArrowDown /></el-icon>
           </div>
