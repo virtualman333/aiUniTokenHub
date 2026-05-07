@@ -10,7 +10,7 @@
     <el-card class="filter-card">
       <el-form inline :model="queryParams">
         <el-form-item label="状态">
-          <el-select v-model="queryParams.status" placeholder="全部" clearable @change="handleQuery">
+          <el-select v-model="queryParams.status" placeholder="全部" clearable @change="handleQuery" style="width: 100px;">
             <el-option label="成功" value="success" />
             <el-option label="失败" value="error" />
           </el-select>

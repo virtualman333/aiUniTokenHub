@@ -138,11 +138,22 @@
               <li>开启 <strong>Override OpenAI Base URL</strong>，并填入以下地址：
                 <CodeBlock :code="apiBaseUrl" language="text" />
               </li>
-              <li>如果您希望使用特定模型，可以在 <strong>Model Names</strong> 中手动添加您需要的模型名称（例如 <code>claude-3-5-sonnet-20240620</code> 或 <code>gpt-4o</code>）。</li>
+              <li>如果您希望使用特定模型，可以在 <strong>Model Names</strong> 中手动添加您需要的模型名称（例如 <code>gpt-5.5</code>）。</li>
               <li>保存并关闭设置，您现在可以开始使用 AI 辅助编程了！</li>
             </ol>
             
             <el-divider />
+            <h3>Trae 接入方法</h3>
+            <ol>
+              <li>打开Trae设置 - 模型 - 添加模型</li>
+              <li><el-image :src="traeModel" alt="Trae添加模型" /></li>
+              <li>服务商选择openai</li>
+              <li>模型选择自定义模型</li>
+              <li>模型id输入您需要的模型名称(例如gpt-5.5)</li>
+              <li>自定义请求地址填入以下地址：
+                <CodeBlock :code="apiBaseUrl + '/chat/completions'" language="text" />
+              </li>
+            </ol>
 
             <h3>Continue 接入方法</h3>
             <p>对于 VS Code 或 JetBrains 的 Continue 插件：</p>
@@ -171,7 +182,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import CodeBlock from '@/components/CodeBlock.vue'
-
+import traeModel from '@/assets/image/doc/trae-model.png'
 const activeTab = ref('claudecode')
 const apiBaseUrl = ref(window.location.origin + '/api/proxy/v1')
 
