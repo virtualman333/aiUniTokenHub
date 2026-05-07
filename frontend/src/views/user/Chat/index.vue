@@ -221,6 +221,7 @@ import {
   clearConversation,
   type ConversationItem,
 } from './composables/useConversations'
+import { copyToClipboard } from '@/utils/clipboard'
 
 const route = useRoute()
 const router = useRouter()
@@ -479,10 +480,10 @@ async function handleDelete(c: ConversationItem) {
 }
 
 async function copyText(text: string) {
-  try {
-    await navigator.clipboard.writeText(text)
+  const success = await copyToClipboard(text)
+  if (success) {
     ElMessage.success('已复制')
-  } catch {
+  } else {
     ElMessage.error('复制失败')
   }
 }

@@ -153,6 +153,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search, RefreshLeft, CopyDocument } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
 import api from '@/stores'
+import { copyToClipboard } from '@/utils/clipboard'
 
 interface Card {
   id: number
@@ -282,21 +283,23 @@ async function handleDeleteSelected() {
   }
 }
 
-function copyCode(code: string) {
-  navigator.clipboard.writeText(code).then(() => {
+async function copyCode(code: string) {
+  const success = await copyToClipboard(code)
+  if (success) {
     ElMessage.success('已复制到剪贴板')
-  }).catch(() => {
+  } else {
     ElMessage.error('复制失败')
-  })
+  }
 }
 
-function copyAllCodes() {
+async function copyAllCodes() {
   const text = generatedCards.value.map(c => `${c.code}\t${c.amount}`).join('\n')
-  navigator.clipboard.writeText(text).then(() => {
+  const success = await copyToClipboard(text)
+  if (success) {
     ElMessage.success('已复制全部卡密')
-  }).catch(() => {
+  } else {
     ElMessage.error('复制失败')
-  })
+  }
 }
 
 function formatDate(date: string) {

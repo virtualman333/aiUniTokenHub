@@ -72,6 +72,7 @@ import { Plus, View, Hide, DocumentCopy } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
 import CreateKeyDialog from './components/CreateKeyDialog.vue'
 import { useMyKeys } from './composables/useMyKeys'
+import { copyToClipboard } from '@/utils/clipboard'
 
 const { loading, keys, loadKeys, createKey, revokeKey } = useMyKeys()
 
@@ -90,8 +91,12 @@ function formatDate(date: string) {
 }
 
 async function copyKey(key: string) {
-  await navigator.clipboard.writeText(key)
-  ElMessage.success('密钥已复制')
+  const success = await copyToClipboard(key)
+  if (success) {
+    ElMessage.success('密钥已复制')
+  } else {
+    ElMessage.error('复制失败，请手动复制')
+  }
 }
 
 async function handleCreate(data: any) {

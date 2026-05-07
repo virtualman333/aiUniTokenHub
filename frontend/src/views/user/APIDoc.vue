@@ -438,6 +438,7 @@ import api from '@/stores'
 import axios from 'axios'
 import Cookies from 'js-cookie'
 import { useUserStore } from '@/stores'
+import { copyToClipboard } from '@/utils/clipboard'
 
 const apiBaseUrl = ref(window.location.origin + '/api/proxy')
 
@@ -692,9 +693,13 @@ function resetChatForm() {
   streamContent.value = ''
 }
 
-function copyText(text) {
-  navigator.clipboard.writeText(text)
-  ElMessage.success('已复制到剪贴板')
+async function copyText(text) {
+  const success = await copyToClipboard(text)
+  if (success) {
+    ElMessage.success('已复制到剪贴板')
+  } else {
+    ElMessage.error('复制失败')
+  }
 }
 </script>
 

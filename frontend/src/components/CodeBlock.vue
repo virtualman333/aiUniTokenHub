@@ -20,6 +20,7 @@ import bash from 'highlight.js/lib/languages/bash'
 import powershell from 'highlight.js/lib/languages/powershell'
 import plaintext from 'highlight.js/lib/languages/plaintext'
 import ini from 'highlight.js/lib/languages/ini'
+import { copyToClipboard } from '@/utils/clipboard'
 
 // 注册所需语言
 hljs.registerLanguage('json', json)
@@ -52,12 +53,13 @@ const highlightedCode = computed(() => {
   return hljs.highlightAuto(props.code).value
 })
 
-function copyCode() {
-  navigator.clipboard.writeText(props.code).then(() => {
+async function copyCode() {
+  const success = await copyToClipboard(props.code)
+  if (success) {
     ElMessage.success('代码已复制到剪贴板')
-  }).catch(() => {
+  } else {
     ElMessage.error('复制失败，请手动复制')
-  })
+  }
 }
 </script>
 

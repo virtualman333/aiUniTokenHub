@@ -138,6 +138,7 @@ import { ElMessage } from 'element-plus'
 import StatCard from './components/StatCard.vue'
 import RequestChart from './components/RequestChart.vue'
 import { useDashboard } from './composables/useDashboard'
+import { copyToClipboard } from '@/utils/clipboard'
 
 const {
   loading,
@@ -155,13 +156,14 @@ const inviteLink = computed(() => {
   return `${window.location.origin}/register?invite=${code}`
 })
 
-function copyInviteLink() {
+async function copyInviteLink() {
   if (!inviteLink.value) return
-  navigator.clipboard.writeText(inviteLink.value).then(() => {
+  const success = await copyToClipboard(inviteLink.value)
+  if (success) {
     ElMessage.success('邀请链接已复制')
-  }).catch(() => {
+  } else {
     ElMessage.error('复制失败，请手动复制')
-  })
+  }
 }
 
 onMounted(() => {

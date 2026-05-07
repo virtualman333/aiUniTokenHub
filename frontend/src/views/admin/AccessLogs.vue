@@ -292,6 +292,7 @@ import { ElMessage } from 'element-plus'
 import { Search, RefreshLeft, Download, CopyDocument } from '@element-plus/icons-vue'
 import api from '@/stores'
 import dayjs from 'dayjs'
+import { copyToClipboard as clipboardCopy } from '@/utils/clipboard'
 
 const logs = ref([])
 const loading = ref(false)
@@ -472,10 +473,10 @@ const formatJson = (str) => {
 }
 
 const copyToClipboard = async (text) => {
-  try {
-    await navigator.clipboard.writeText(text)
+  const success = await clipboardCopy(text)
+  if (success) {
     ElMessage.success('已复制到剪贴板')
-  } catch {
+  } else {
     ElMessage.error('复制失败')
   }
 }
