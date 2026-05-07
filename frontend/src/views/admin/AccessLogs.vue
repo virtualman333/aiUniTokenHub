@@ -463,12 +463,20 @@ const viewDetail = (log) => {
   showDetail.value = true
 }
 
+const decodeUnicode = (str) => {
+  if (!str) return ''
+  return str.replace(/\\u([\dA-Fa-f]{4})/g, (match, p1) => {
+    return String.fromCharCode(parseInt(p1, 16))
+  })
+}
+
 const formatJson = (str) => {
   if (!str) return ''
   try {
-    return JSON.stringify(JSON.parse(str), null, 2)
+    const decoded = decodeUnicode(str)
+    return JSON.stringify(JSON.parse(decoded), null, 2)
   } catch {
-    return str
+    return decodeUnicode(str)
   }
 }
 

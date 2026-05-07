@@ -14,17 +14,17 @@
       
       <div v-if="log?.request_body" class="detail-section">
         <h4>请求体</h4>
-        <pre class="detail-code">{{ log.request_body }}</pre>
+        <pre class="detail-code">{{ formatCode(log.request_body) }}</pre>
       </div>
       
       <div v-if="log?.response_body" class="detail-section">
         <h4>响应体</h4>
-        <pre class="detail-code">{{ log.response_body }}</pre>
+        <pre class="detail-code">{{ formatCode(log.response_body) }}</pre>
       </div>
       
       <div v-if="log?.error_message" class="detail-section">
         <h4>错误信息</h4>
-        <pre class="detail-code error">{{ log.error_message }}</pre>
+        <pre class="detail-code error">{{ formatCode(log.error_message) }}</pre>
       </div>
     </template>
   </el-dialog>
@@ -52,6 +52,18 @@ watch(() => props.modelValue, (val) => {
 watch(visible, (val) => {
   emit('update:modelValue', val)
 })
+
+function decodeUnicode(str: string) {
+  if (!str) return ''
+  return str.replace(/\\u([\dA-Fa-f]{4})/g, (match, p1) => {
+    return String.fromCharCode(parseInt(p1, 16))
+  })
+}
+
+function formatCode(content: string) {
+  if (!content) return ''
+  return decodeUnicode(content)
+}
 
 function formatDate(date: string) {
   return date ? dayjs(date).format('YYYY-MM-DD HH:mm:ss') : '-'
