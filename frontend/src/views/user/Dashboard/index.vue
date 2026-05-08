@@ -7,7 +7,7 @@
         <p class="subtitle">查看您的 API 使用概览</p>
       </div>
       <div class="header-actions">
-        <el-button type="primary" @click="$router.push('/api-doc')">
+        <el-button type="primary" @click="$router.push('/app/api-doc')">
           <el-icon><Document /></el-icon>
           查看文档
         </el-button>

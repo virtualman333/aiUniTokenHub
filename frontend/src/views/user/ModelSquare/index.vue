@@ -5,7 +5,7 @@
       <h1>模型广场</h1>
       <p class="subtitle">
         探索、对比、接入优质AI模型
-        <el-button type="primary" @click="$router.push('/tutorial')" style="margin-left: 12px;">
+        <el-button type="primary" @click="$router.push('/app/tutorial')" style="margin-left: 12px;">
           快速接入教程 <el-icon class="el-icon--right"><ArrowRight /></el-icon>
         </el-button>
       </p>

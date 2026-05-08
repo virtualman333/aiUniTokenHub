@@ -181,7 +181,7 @@
               <li>{{ t('home.pricing.enterprise.feature4') }}</li>
               <li>{{ t('home.pricing.enterprise.feature5') }}</li>
             </ul>
-            <button class="btn btn-outline" @click="$router.push('/tickets')">{{ t('home.pricing.contact') }}</button>
+            <button class="btn btn-outline" @click="$router.push('/app/tickets')">{{ t('home.pricing.contact') }}</button>
           </div>
         </div>
       </div>
@@ -193,7 +193,7 @@
         <div class="docs-content">
           <h2>{{ t('home.docs.title') }}</h2>
           <p>{{ t('home.docs.subtitle') }}</p>
-          <button class="btn btn-primary" @click="$router.push('/api-doc')">{{ t('home.docs.getStarted') }}</button>
+          <button class="btn btn-primary" @click="$router.push('/app/api-doc')">{{ t('home.docs.getStarted') }}</button>
         </div>
       </div>
     </section>

@@ -34,7 +34,7 @@
       <template #header>
         <div class="card-header">
           <span>认证说明</span>
-          <el-button type="primary" @click="$router.push('/tutorial')">
+          <el-button type="primary" @click="$router.push('/app/tutorial')">
             快速接入教程 <el-icon class="el-icon--right"><ArrowRight /></el-icon>
           </el-button>
         </div>
