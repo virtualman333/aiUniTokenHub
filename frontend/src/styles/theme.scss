@@ -1,0 +1,403 @@
+:root {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f5f7fa;
+  --bg-card: #ffffff;
+  --text-primary: #1a1a2e;
+  --text-secondary: #606266;
+  --text-muted: #909399;
+  --border-color: #e4e7ed;
+  --shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+}
+
+html.dark {
+  --bg-primary: #141414;
+  --bg-secondary: #1e1e1e;
+  --bg-card: #252525;
+  --text-primary: #e4e4e7;
+  --text-secondary: #a1a1aa;
+  --text-muted: #71717a;
+  --border-color: #3f3f46;
+  --shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.3);
+}
+
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  transition: background-color 0.3s, color 0.3s;
+}
+
+/* Element Plus 组件深色主题覆盖 */
+html.dark {
+  --el-bg-color: var(--bg-primary);
+  --el-bg-color-page: var(--bg-primary);
+  --el-bg-color-overlay: var(--bg-card);
+  --el-fill-color: var(--bg-secondary);
+  --el-fill-color-blank: var(--bg-card);
+  --el-text-color-primary: var(--text-primary);
+  --el-text-color-regular: var(--text-secondary);
+  --el-text-color-secondary: var(--text-muted);
+  --el-text-color-placeholder: var(--text-muted);
+  --el-border-color: var(--border-color);
+  --el-border-color-light: var(--border-color);
+  --el-border-color-lighter: var(--border-color);
+  --el-border-color-extra-light: var(--border-color);
+  --el-box-shadow-light: var(--shadow);
+  --el-box-shadow: var(--shadow);
+  --el-color-primary-light-9: var(--bg-secondary);
+}
+
+/* Card 组件 */
+.el-card {
+  background-color: var(--bg-card);
+  border-color: var(--border-color);
+  box-shadow: var(--shadow);
+  
+  .el-card__header {
+    border-bottom-color: var(--border-color);
+  }
+}
+
+/* Table 组件 */
+.el-descriptions,
+.el-table {
+  --el-descriptions-border-color: var(--border-color);
+  --el-table-border-color: var(--border-color);
+  --el-table-header-bg-color: var(--bg-secondary);
+  --el-table-row-hover-bg-color: var(--bg-secondary);
+  --el-table-tr-bg-color: var(--bg-card);
+  --el-table-text-color: var(--text-primary);
+  --el-table-header-text-color: var(--text-primary);
+}
+
+/* Dialog 组件 */
+.el-dialog {
+  background-color: var(--bg-card);
+  
+  .el-dialog__header {
+    border-bottom-color: var(--border-color);
+  }
+  
+  .el-dialog__footer {
+    border-top-color: var(--border-color);
+  }
+}
+
+/* Drawer 组件 */
+.el-drawer {
+  background-color: var(--bg-card);
+  
+  .el-drawer__header {
+    border-bottom-color: var(--border-color);
+  }
+}
+
+/* Form 组件 */
+.el-form-item__label {
+  color: var(--text-primary);
+}
+
+/* Input 组件 */
+.el-input__wrapper {
+  background-color: var(--bg-card);
+  box-shadow: 0 0 0 1px var(--border-color) inset;
+  
+  &:hover {
+    box-shadow: 0 0 0 1px var(--text-secondary) inset;
+  }
+  
+  &.is-focus {
+    box-shadow: 0 0 0 1px var(--el-color-primary) inset;
+  }
+}
+
+.el-textarea__inner {
+  background-color: var(--bg-card);
+  border-color: var(--border-color);
+  
+  &:hover {
+    border-color: var(--text-secondary);
+  }
+  
+  &:focus {
+    border-color: var(--el-color-primary);
+  }
+}
+
+/* Select 组件 */
+.el-select__wrapper {
+  background-color: var(--bg-card);
+  box-shadow: 0 0 0 1px var(--border-color) inset;
+  
+  &:hover {
+    box-shadow: 0 0 0 1px var(--text-secondary) inset;
+  }
+  
+  &.is-focus {
+    box-shadow: 0 0 0 1px var(--el-color-primary) inset;
+  }
+}
+
+.el-select-dropdown {
+  background-color: var(--bg-card);
+  border-color: var(--border-color);
+}
+
+.el-select-dropdown__item {
+  color: var(--text-primary);
+  
+  &:hover {
+    background-color: var(--bg-secondary);
+  }
+  
+  &.selected {
+    color: var(--el-color-primary);
+  }
+}
+
+/* Dropdown 组件 */
+.el-dropdown-menu {
+  background-color: var(--bg-card);
+  border-color: var(--border-color);
+}
+
+.el-dropdown-menu__item {
+  color: var(--text-primary);
+  
+  &:hover {
+    background-color: var(--bg-secondary);
+  }
+}
+
+/* Tabs 组件 */
+.el-tabs {
+  --el-tabs-header-border-color: var(--border-color);
+}
+
+.el-tabs__item {
+  color: var(--text-secondary);
+  
+  &:hover {
+    color: var(--text-primary);
+  }
+  
+  &.is-active {
+    color: var(--el-color-primary);
+  }
+}
+
+.el-tabs__active-bar {
+  background-color: var(--el-color-primary);
+}
+
+.el-tabs__nav-wrap::after {
+  background-color: var(--border-color);
+}
+
+/* Breadcrumb 组件 */
+.el-breadcrumb__inner {
+  color: var(--text-secondary);
+}
+
+.el-breadcrumb__item:last-child .el-breadcrumb__inner {
+  color: var(--text-primary);
+}
+
+/* Tag 组件 */
+.el-tag {
+  background-color: var(--bg-secondary);
+  border-color: var(--border-color);
+  color: var(--text-primary);
+}
+
+/* Badge 组件 */
+.el-badge__content {
+  border-color: var(--bg-primary);
+}
+
+/* Pagination 组件 */
+.el-pager li {
+  background-color: var(--bg-card);
+  color: var(--text-primary);
+  
+  &.is-active {
+    color: var(--el-color-primary);
+  }
+  
+  &:hover {
+    color: var(--el-color-primary);
+  }
+}
+
+/* Switch 组件 */
+html.dark .el-switch.is-checked .el-switch__core {
+  background-color: var(--el-color-primary);
+}
+
+/* Radio 组件 */
+.el-radio__label {
+  color: var(--text-primary);
+}
+
+/* Checkbox 组件 */
+.el-checkbox__label {
+  color: var(--text-primary);
+}
+
+/* DatePicker 组件 */
+.el-picker-panel {
+  background-color: var(--bg-card);
+  border-color: var(--border-color);
+  color: var(--text-primary);
+  
+  .el-picker-panel__header {
+    border-bottom-color: var(--border-color);
+  }
+}
+
+.el-date-picker__header-label {
+  color: var(--text-primary);
+}
+
+.el-date-table th {
+  color: var(--text-secondary);
+  border-bottom-color: var(--border-color);
+}
+
+.el-date-table td .el-date-table-cell__text {
+  color: var(--text-primary);
+  
+  &:hover {
+    background-color: var(--bg-secondary);
+  }
+}
+
+/* Message 组件 */
+.el-message {
+  background-color: var(--bg-card);
+  border-color: var(--border-color);
+  box-shadow: var(--shadow);
+}
+
+/* Notification 组件 */
+.el-notification {
+  background-color: var(--bg-card);
+  border-color: var(--border-color);
+  box-shadow: var(--shadow);
+}
+
+/* MessageBox 组件 */
+.el-message-box {
+  background-color: var(--bg-card);
+  border-color: var(--border-color);
+}
+
+/* Popover 组件 */
+.el-popover {
+  background-color: var(--bg-card);
+  border-color: var(--border-color);
+}
+
+/* Tooltip 组件 */
+.el-popper {
+  background-color: var(--bg-card);
+  border-color: var(--border-color);
+  color: var(--text-primary);
+}
+
+/* Upload 组件 */
+.el-upload-dragger {
+  background-color: var(--bg-secondary);
+  border-color: var(--border-color);
+  
+  &:hover {
+    border-color: var(--el-color-primary);
+  }
+}
+
+/* Transfer 组件 */
+.el-transfer-panel {
+  background-color: var(--bg-card);
+  border-color: var(--border-color);
+  
+  .el-transfer-panel__header {
+    border-bottom-color: var(--border-color);
+  }
+}
+
+/* Tree 组件 */
+.el-tree {
+  background-color: var(--bg-card);
+  color: var(--text-primary);
+  
+  .el-tree-node__content:hover {
+    background-color: var(--bg-secondary);
+  }
+}
+
+/* Menu 组件 */
+.el-menu {
+  border-right-color: var(--border-color);
+}
+
+/* Code 块样式 */
+pre.code-block,
+pre.detail-code {
+  background-color: var(--bg-secondary) !important;
+  color: var(--text-primary);
+}
+
+.path-code,
+.endpoint-text {
+  background-color: var(--bg-secondary);
+}
+
+.text-muted {
+  color: var(--text-muted) !important;
+}
+
+/* 用户布局样式适配 */
+.user-layout {
+  background: var(--bg-secondary) !important;
+}
+
+.topbar {
+  background: var(--bg-primary) !important;
+  border-bottom: 1px solid var(--border-color) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  background: rgba(255, 255, 255, 0.9);
+  
+  html.dark & {
+    background: rgba(20, 20, 20, 0.9) !important;
+  }
+}
+
+/* 管理布局样式适配 */
+.admin-layout {
+  background: var(--bg-secondary);
+}
+
+/* 页面容器适配 */
+.page-container {
+  background-color: var(--bg-secondary);
+  min-height: 100vh;
+}
+
+/* 滚动条样式 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--text-muted);
+  border-radius: 4px;
+  
+  &:hover {
+    background: var(--text-secondary);
+  }
+}

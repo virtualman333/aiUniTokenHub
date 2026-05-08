@@ -7,21 +7,21 @@
           <div class="logo">
             <img :src="logoSrc" alt="logo" class="logo-img" />
           </div>
-          <h1 class="brand-title">uniTokenHub</h1>
-          <p class="brand-subtitle">统一Token中转服务</p>
+          <h1 class="brand-title">{{ t('brand.title') }}</h1>
+          <p class="brand-subtitle">{{ t('brand.subtitle') }}</p>
           
           <div class="features">
             <div class="feature">
               <el-icon><Link /></el-icon>
-              <span>多渠道聚合</span>
+              <span>{{ t('brand.multiChannel') }}</span>
             </div>
             <div class="feature">
               <el-icon><TrendCharts /></el-icon>
-              <span>智能负载均衡</span>
+              <span>{{ t('brand.loadBalance') }}</span>
             </div>
             <div class="feature">
               <el-icon><Coin /></el-icon>
-              <span>透明计费</span>
+              <span>{{ t('brand.transparentBilling') }}</span>
             </div>
           </div>
         </div>
@@ -37,8 +37,8 @@
       <div class="form-section">
         <div class="form-container">
           <div class="form-header">
-            <h2>欢迎回来</h2>
-            <p>登录到您的账户</p>
+            <h2>{{ t('auth.welcomeBack') }}</h2>
+            <p>{{ t('auth.loginToAccount') }}</p>
           </div>
 
           <el-form 
@@ -51,7 +51,7 @@
             <el-form-item prop="username">
               <el-input 
                 v-model="loginForm.username" 
-                placeholder="用户名"
+                :placeholder="t('auth.username')"
                 size="large"
                 :prefix-icon="User"
               />
@@ -61,7 +61,7 @@
               <el-input 
                 v-model="loginForm.password" 
                 type="password"
-                placeholder="密码"
+                :placeholder="t('auth.password')"
                 size="large"
                 :prefix-icon="Lock"
                 show-password
@@ -70,8 +70,8 @@
             </el-form-item>
 
             <div class="form-options">
-              <el-checkbox v-model="rememberMe">记住我</el-checkbox>
-              <el-link type="primary">忘记密码？</el-link>
+              <el-checkbox v-model="rememberMe">{{ t('auth.rememberMe') }}</el-checkbox>
+              <el-link type="primary">{{ t('auth.forgotPassword') }}</el-link>
             </div>
 
             <el-button 
@@ -81,13 +81,13 @@
               class="login-btn"
               @click="handleLogin"
             >
-              登录
+              {{ t('auth.login') }}
             </el-button>
           </el-form>
 
           <div class="form-footer">
-            <span>还没有账户？</span>
-            <el-link type="primary" @click="$router.push('/register')">立即注册</el-link>
+            <span>{{ t('auth.noAccount') }}</span>
+            <el-link type="primary" @click="$router.push('/register')">{{ t('auth.signUpNow') }}</el-link>
           </div>
         </div>
       </div>
@@ -99,11 +99,13 @@
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores'
+import { useI18n } from '@/composables/useI18n'
 import { ElMessage } from 'element-plus'
 import { User, Lock, Link, TrendCharts, Coin } from '@element-plus/icons-vue'
 import Cookies from 'js-cookie'
 import logoSrc from '@/assets/image/logo.png'
 
+const { t } = useI18n()
 const router = useRouter()
 const userStore = useUserStore()
 const formRef = ref()
@@ -116,8 +118,8 @@ const loginForm = reactive({
 })
 
 const rules = {
-  username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
-  password: [{ required: true, message: '请输入密码', trigger: 'blur' }]
+  username: [{ required: true, message: t('auth.pleaseInputUsername'), trigger: 'blur' }],
+  password: [{ required: true, message: t('auth.pleaseInputPassword'), trigger: 'blur' }]
 }
 
 const fillTest = (type) => {
@@ -137,13 +139,13 @@ const handleLogin = async () => {
   loading.value = true
   try {
     await userStore.login(loginForm.username, loginForm.password)
-    ElMessage.success('登录成功')
+    ElMessage.success(t('auth.loginSuccess'))
     
     // 根据角色跳转
     const role = Cookies.get('userRole')
     router.push(role === 'admin' ? '/admin' : '/')
   } catch (error) {
-    ElMessage.error(error.message || '登录失败')
+    ElMessage.error(error.message || t('auth.loginFailed'))
   } finally {
     loading.value = false
   }
@@ -168,6 +170,11 @@ const handleLogin = async () => {
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
   max-width: 1000px;
   width: 100%;
+}
+
+/* 深色主题适配 */
+html.dark .login-container {
+  background: #252525;
 }
 
 /* 左侧品牌区域 */
@@ -273,6 +280,7 @@ const handleLogin = async () => {
   display: flex;
   align-items: center;
   justify-content: center;
+  background: var(--bg-card);
 }
 
 .form-container {
@@ -288,12 +296,12 @@ const handleLogin = async () => {
 .form-header h2 {
   font-size: 28px;
   font-weight: 700;
-  color: #1f2937;
+  color: var(--text-primary);
   margin: 0 0 8px;
 }
 
 .form-header p {
-  color: #6b7280;
+  color: var(--text-secondary);
   margin: 0;
 }
 
@@ -317,7 +325,7 @@ const handleLogin = async () => {
 
 .form-footer {
   text-align: center;
-  color: #6b7280;
+  color: var(--text-secondary);
   margin-bottom: 24px;
 }
 

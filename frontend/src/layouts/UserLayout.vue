@@ -23,6 +23,8 @@
       </nav>
 
       <div class="topbar-right">
+        <ThemeToggle />
+        <LangToggle />
         <el-button v-if="isAdmin" type="primary" @click="goToAdmin">
           <el-icon><Setting /></el-icon> 进入管理端
         </el-button>
@@ -74,6 +76,8 @@ import {
   HomeFilled, Document, Box, List, Setting, Wallet, Key, 
   ArrowDown, SwitchButton, Tickets, ChatRound
 } from '@element-plus/icons-vue'
+import ThemeToggle from '@/components/ThemeToggle.vue'
+import LangToggle from '@/components/LangToggle.vue'
 import logoSrc from '@/assets/image/logo.png'
 
 const route = useRoute()

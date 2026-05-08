@@ -10,7 +10,7 @@ load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
+SECRET_KEY = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production-with-min-32-chars')
 
 DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'
 
@@ -156,6 +156,12 @@ CORS_ALLOW_CREDENTIALS = True
 JWT_SECRET_KEY = SECRET_KEY
 JWT_ALGORITHM = 'HS256'
 JWT_EXPIRATION_HOURS = 24
+
+# 自定义认证后端
+AUTHENTICATION_BACKENDS = [
+    'apps.users.backends.EmailOrUsernameBackend',
+    'django.contrib.auth.backends.ModelBackend',
+]
 
 # SimpleUI Settings
 SIMPLEUI_CONFIG = {

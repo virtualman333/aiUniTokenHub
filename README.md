@@ -1,6 +1,7 @@
 # uniTokenHub
 
 开箱即用的 API 中转站框架 / 统一 API 网关服务
+官网:https://unitokenhub.m3it.cn/
 
 ## 🚀 项目简介
 
@@ -127,9 +128,9 @@ npm run build:zip
 |------|------|--------|
 | DEBUG | 调试模式 | True |
 | SECRET_KEY | Django 密钥 | dev-secret-key-change-in-production |
-| DB_NAME | 数据库名 | unitokenhub |
-| DB_USER | 数据库用户名 | unitokenhub |
-| DB_PASSWORD | 数据库密码 | unitokenhub |
+| DB_NAME | 数据库名 | ********* |
+| DB_USER | 数据库用户名 | ********* |
+| DB_PASSWORD | 数据库密码 | ********* |
 | DB_HOST | 数据库主机 | 127.0.0.1 |
 | DB_PORT | 数据库端口 | 3306 |
 | REDIS_URL | Redis 连接 | (可选) |
@@ -172,15 +173,6 @@ npm run build:zip
 2. **内部 API 网关** - 企业内部服务统一入口和鉴权
 3. **API 商业化** - 快速搭建自己的 API 售卖平台
 4. **API 监控分析** - 请求统计、性能监控、成本分析
-
-## 📋 测试账号
-
-项目提供初始化脚本 `init_test_users.py`，执行后可使用以下账号：
-
-| 角色 | 用户名 | 密码 | 初始余额 |
-|------|--------|------|---------|
-| 管理员 | admin | admin123 | ¥10,000 |
-| 普通用户 | testuser | test123 | ¥1,000 |
 
 ## 🤝 贡献
 

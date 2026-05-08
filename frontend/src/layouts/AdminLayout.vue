@@ -38,6 +38,8 @@
           <h1 class="page-title">{{ currentTitle }}</h1>
         </div>
         <div class="topbar-right">
+          <ThemeToggle />
+          <LangToggle />
           <el-button @click="goToUser" text>
             <el-icon><Back /></el-icon> 返回用户端
           </el-button>
@@ -78,6 +80,8 @@ import {
   DArrowLeft, DArrowRight, ArrowDown, Tickets, Back, CreditCard,
   Share, Setting
 } from '@element-plus/icons-vue'
+import ThemeToggle from '@/components/ThemeToggle.vue'
+import LangToggle from '@/components/LangToggle.vue'
 import logoSrc from '@/assets/image/logo.png'
 
 const route = useRoute()
