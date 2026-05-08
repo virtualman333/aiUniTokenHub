@@ -180,7 +180,15 @@ class ResponsesView(APIView):
             try:
                 response_data = response.json()
             except Exception:
-                response_data = {'raw_response': response.text}
+                # 尝试解码可能的压缩响应
+                try:
+                    import gzip
+                    decompressed = gzip.decompress(response.content)
+                    response_data = json.loads(decompressed.decode('utf-8'))
+                except Exception:
+                    # 降级为原始文本（截断以避免过大）
+                    raw_text = response.text[:2000] if response.text else '<empty response>'
+                    response_data = {'raw_response': raw_text}
 
             # 转换响应格式（Chat → Response）
             if response.status_code < 400:

@@ -438,8 +438,16 @@ class ChatCompletionsView(APIView):
             # 解析响应
             try:
                 response_data = response.json()
-            except:
-                response_data = {'raw_response': response.text}
+            except Exception:
+                # 尝试解码可能的压缩响应
+                try:
+                    import gzip
+                    decompressed = gzip.decompress(response.content)
+                    response_data = json.loads(decompressed.decode('utf-8'))
+                except Exception:
+                    # 降级为原始文本（截断以避免过大）
+                    raw_text = response.text[:2000] if response.text else '<empty response>'
+                    response_data = {'raw_response': raw_text}
             
             # 错误日志记录
             if response.status_code >= 400:
@@ -772,7 +780,7 @@ class ChatCompletionsView(APIView):
     def _build_headers(self, request) -> dict:
         """构建转发请求头"""
         headers = {}
-        skip_keys = ['host', 'content-length', 'authorization']
+        skip_keys = ['host', 'content-length', 'authorization', 'accept-encoding']
         for key, value in request.headers.items():
             if key.lower() not in skip_keys:
                 headers[key] = value
