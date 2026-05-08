@@ -49,13 +49,13 @@ defineEmits<{
 }
 
 .quick-tags button:hover {
-  border-color: #409eff;
-  color: #409eff;
+  border-color: #607bfa;
+  color: #607bfa;
 }
 
 .quick-tags button.active {
-  background: #409eff;
-  border-color: #409eff;
+  background: #607bfa;
+  border-color: #607bfa;
   color: white;
 }
 </style>

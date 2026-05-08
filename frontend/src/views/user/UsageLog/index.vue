@@ -172,15 +172,15 @@ function getStatusType(status: number) {
   return 'info'
 }
 
-function getMethodType(method: string) {
-  const types: Record<string, string> = {
-    GET: '',
+function getMethodType(method: string): 'primary' | 'success' | 'warning' | 'danger' | 'info' {
+  const types: Record<string, 'primary' | 'success' | 'warning' | 'danger' | 'info'> = {
+    GET: 'primary',
     POST: 'success',
     PUT: 'warning',
     DELETE: 'danger',
     PATCH: 'info'
   }
-  return types[method] || ''
+  return types[method] || 'primary'
 }
 
 function getTimeClass(time: number) {

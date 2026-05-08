@@ -146,7 +146,7 @@
             <h3>Trae 接入方法</h3>
             <ol>
               <li>打开Trae设置 - 模型 - 添加模型</li>
-              <li><el-image :src="traeModel" alt="Trae添加模型" /></li>
+              <el-image :src="traeModel" alt="Trae添加模型" />
               <li>服务商选择openai</li>
               <li>模型选择自定义模型</li>
               <li>模型id输入您需要的模型名称(例如gpt-5.5)</li>
@@ -322,80 +322,118 @@ const geminiSettingsJson = computed(() => `{
 .tutorial-container {
   max-width: 1000px;
   margin: 0 auto;
-  padding: 24px;
+  padding: var(--space-6);
+  animation: fadeIn 0.5s ease-out;
 }
 
 .header {
   text-align: center;
-  margin-bottom: 32px;
+  margin-bottom: var(--space-8);
 }
 
 .header h1 {
-  font-size: 28px;
-  font-weight: 600;
-  color: #1a1a2e;
-  margin-bottom: 8px;
+  font-size: var(--text-3xl);
+  font-weight: var(--font-bold);
+  color: var(--text-primary);
+  margin-bottom: var(--space-3);
+  letter-spacing: -0.025em;
+  background: var(--gradient-primary);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .subtitle {
-  color: #666;
-  font-size: 16px;
+  color: var(--text-secondary);
+  font-size: var(--text-base);
+  font-weight: var(--font-normal);
 }
 
 .content-card {
   min-height: 500px;
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--border-light);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
 }
 
 .tutorial-tabs {
-  padding: 0 16px;
+  padding: 0 var(--space-4);
 }
 
 .tutorial-content {
-  padding: 16px 0;
-  line-height: 1.6;
-  color: #333;
+  padding: var(--space-4) 0;
+  line-height: var(--leading-relaxed);
+  color: var(--text-primary);
 }
 
 .tutorial-content h3 {
-  font-size: 20px;
-  margin: 24px 0 16px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid #ebeef5;
-  color: #1a1a2e;
+  font-size: var(--text-xl);
+  margin: var(--space-6) 0 var(--space-4);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--border-light);
+  color: var(--text-primary);
+  font-weight: var(--font-semibold);
 }
 
 .tutorial-content h4 {
-  font-size: 16px;
-  margin: 16px 0 12px;
-  color: #2c3e50;
+  font-size: var(--text-base);
+  margin: var(--space-4) 0 var(--space-3);
+  color: var(--text-secondary);
+  font-weight: var(--font-medium);
 }
 
 .tutorial-content p {
-  margin-bottom: 12px;
+  margin-bottom: var(--space-3);
+  color: var(--text-secondary);
 }
 
 .tutorial-content ul, .tutorial-content ol {
-  margin-bottom: 16px;
-  padding-left: 24px;
+  margin-bottom: var(--space-4);
+  padding-left: var(--space-6);
 }
 
 .tutorial-content li {
-  margin-bottom: 8px;
+  margin-bottom: var(--space-2);
+  color: var(--text-secondary);
 }
 
 .tutorial-content code {
-  background-color: #f4f4f5;
+  background-color: var(--neutral-100);
   padding: 2px 6px;
-  border-radius: 4px;
-  color: #f56c6c;
-  font-family: 'Consolas', 'Monaco', monospace;
-  font-size: 14px;
+  border-radius: var(--radius-xs);
+  color: var(--error-600);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  border: 1px solid var(--neutral-200);
 }
 
 .tip {
-  color: #909399;
-  font-size: 14px;
-  margin-top: 12px;
+  color: var(--text-tertiary);
+  font-size: var(--text-sm);
+  margin-top: var(--space-3);
   font-style: italic;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .tutorial-container {
+    padding: var(--space-4);
+  }
+  
+  .header h1 {
+    font-size: var(--text-2xl);
+  }
+  
+  .content-card {
+    min-height: auto;
+  }
+  
+  .tutorial-tabs {
+    padding: 0 var(--space-2);
+  }
 }
 </style>

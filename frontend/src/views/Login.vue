@@ -102,7 +102,7 @@ import { useUserStore } from '@/stores'
 import { ElMessage } from 'element-plus'
 import { User, Lock, Link, TrendCharts, Coin } from '@element-plus/icons-vue'
 import Cookies from 'js-cookie'
-import logoSrc from '@/assets/image/logo.jpeg'
+import logoSrc from '@/assets/image/logo.png'
 
 const router = useRouter()
 const userStore = useUserStore()

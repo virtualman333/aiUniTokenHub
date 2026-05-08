@@ -74,7 +74,7 @@ import {
   HomeFilled, Document, Box, List, Setting, Wallet, Key, 
   ArrowDown, SwitchButton, Tickets, ChatRound
 } from '@element-plus/icons-vue'
-import logoSrc from '@/assets/image/logo.jpeg'
+import logoSrc from '@/assets/image/logo.png'
 
 const route = useRoute()
 const router = useRouter()
@@ -123,20 +123,23 @@ const goToAdmin = () => {
 <style scoped>
 .user-layout {
   min-height: 100vh;
-  background: #f8fafc;
+  background: var(--bg-secondary);
 }
 
 /* 顶部导航 */
 .topbar {
-  height: 64px;
-  background: #fff;
-  border-bottom: 1px solid #e5e7eb;
+  height: var(--header-height);
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border-light);
   display: flex;
   align-items: center;
-  padding: 0 24px;
+  padding: 0 var(--space-6);
   position: sticky;
   top: 0;
-  z-index: 100;
+  z-index: var(--z-sticky);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  background: rgba(255, 255, 255, 0.9);
 }
 
 .topbar-left {
@@ -146,57 +149,84 @@ const goToAdmin = () => {
 .logo {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-3);
   text-decoration: none;
-}
-
-.logo svg {
-  width: 36px;
-  height: 36px;
+  transition: transform var(--transition-fast);
+  
+  &:hover {
+    transform: scale(1.02);
+  }
 }
 
 .logo-img {
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-lg);
   object-fit: cover;
+  box-shadow: var(--shadow-sm);
 }
 
 .logo-text {
-  font-size: 18px;
-  font-weight: 700;
-  color: #1f2937;
+  font-size: var(--text-xl);
+  font-weight: var(--font-bold);
+  background: var(--gradient-primary);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 /* 导航菜单 */
 .nav-menu {
   display: flex;
   align-items: center;
-  gap: 4px;
-  margin-left: 48px;
+  gap: var(--space-1);
+  margin-left: var(--space-12);
 }
 
 .nav-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  border-radius: 8px;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-lg);
   text-decoration: none;
-  color: #6b7280;
-  font-size: 14px;
-  font-weight: 500;
-  transition: all 0.2s;
-}
-
-.nav-item:hover {
-  background: #f3f4f6;
-  color: #1f2937;
-}
-
-.nav-item.active {
-  background: #ecfdf5;
-  color: #059669;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  transition: all var(--transition-fast);
+  position: relative;
+  
+  &::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 2px;
+    background: var(--primary-500);
+    border-radius: var(--radius-full);
+    transition: width var(--transition-fast);
+  }
+  
+  &:hover {
+    background: var(--primary-50);
+    color: var(--primary-700);
+    
+    &::after {
+      width: 60%;
+    }
+  }
+  
+  &.active {
+    background: var(--primary-50);
+    color: var(--primary-700);
+    font-weight: var(--font-semibold);
+    
+    &::after {
+      width: 80%;
+    }
+  }
 }
 
 .nav-item .el-icon {
@@ -208,34 +238,37 @@ const goToAdmin = () => {
   margin-left: auto;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-3);
 }
 
 .user-info {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 6px 12px;
-  border-radius: 8px;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-lg);
   cursor: pointer;
-  transition: background 0.2s;
-}
-
-.user-info:hover {
-  background: #f3f4f6;
+  transition: all var(--transition-fast);
+  border: 1px solid transparent;
+  
+  &:hover {
+    background: var(--neutral-50);
+    border-color: var(--border-light);
+  }
 }
 
 .avatar {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: #fff;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-full);
+  background: var(--gradient-primary);
+  color: var(--text-inverse);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 600;
-  font-size: 14px;
+  font-weight: var(--font-semibold);
+  font-size: var(--text-sm);
+  box-shadow: var(--shadow-sm);
 }
 
 .user-detail {
@@ -244,33 +277,39 @@ const goToAdmin = () => {
 }
 
 .username {
-  font-size: 14px;
-  font-weight: 500;
-  color: #1f2937;
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  color: var(--text-primary);
 }
 
 .balance {
-  font-size: 12px;
-  color: #059669;
-  font-weight: 600;
+  font-size: var(--text-xs);
+  color: var(--success-600);
+  font-weight: var(--font-semibold);
 }
 
 /* 主内容区 */
 .main-wrapper {
   max-width: 1400px;
   margin: 0 auto;
-  padding: 24px;
+  padding: var(--space-6);
+  animation: fadeIn 0.3s ease-out;
 }
 
 /* 过渡动画 */
 .fade-enter-active,
 .fade-leave-active {
-  transition: opacity 0.2s ease;
+  transition: opacity var(--transition-base), transform var(--transition-base);
 }
 
-.fade-enter-from,
+.fade-enter-from {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
 .fade-leave-to {
   opacity: 0;
+  transform: translateY(-10px);
 }
 
 @media (max-width: 768px) {
@@ -280,6 +319,14 @@ const goToAdmin = () => {
   
   .user-detail {
     display: none;
+  }
+  
+  .topbar {
+    padding: 0 var(--space-4);
+  }
+  
+  .main-wrapper {
+    padding: var(--space-4);
   }
 }
 </style>

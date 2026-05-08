@@ -5,7 +5,7 @@
       <h1>模型广场</h1>
       <p class="subtitle">
         探索、对比、接入优质AI模型
-        <el-button type="primary" link @click="$router.push('/tutorial')" style="margin-left: 12px;">
+        <el-button type="primary" @click="$router.push('/tutorial')" style="margin-left: 12px;">
           快速接入教程 <el-icon class="el-icon--right"><ArrowRight /></el-icon>
         </el-button>
       </p>
@@ -141,37 +141,60 @@ function useModel() {
 
 <style scoped>
 .model-square {
-  padding: 24px;
+  padding: var(--space-6);
   max-width: 1400px;
   margin: 0 auto;
+  animation: fadeIn 0.5s ease-out;
 }
 
 .header {
   text-align: center;
-  margin-bottom: 32px;
+  margin-bottom: var(--space-8);
 }
 
 .header h1 {
-  font-size: 32px;
-  font-weight: 600;
-  color: #1a1a2e;
-  margin-bottom: 8px;
+  font-size: var(--text-4xl);
+  font-weight: var(--font-bold);
+  color: #000000;
+  margin-bottom: var(--space-3);
+  letter-spacing: -0.025em;
 }
 
 .subtitle {
-  color: #666;
-  font-size: 16px;
+  color: var(--text-secondary);
+  font-size: var(--text-base);
+  font-weight: var(--font-normal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
 }
 
 .model-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: var(--space-6);
   min-height: 200px;
 }
 
 .empty-state {
   text-align: center;
-  padding: 60px 0;
+  padding: var(--space-16) 0;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .model-square {
+    padding: var(--space-4);
+  }
+  
+  .header h1 {
+    font-size: var(--text-3xl);
+  }
+  
+  .model-grid {
+    grid-template-columns: 1fr;
+    gap: var(--space-4);
+  }
 }
 </style>

@@ -798,7 +798,7 @@ async function copyText(text) {
 }
 
 .tip a {
-  color: #409eff;
+  color: #607bfa;
   text-decoration: none;
 }
 

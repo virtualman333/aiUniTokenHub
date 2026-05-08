@@ -114,7 +114,7 @@ import { ElMessage } from 'element-plus'
 import { User, Message, Lock, Link, Key } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores'
 import api from '@/stores'
-import logoSrc from '@/assets/image/logo.jpeg'
+import logoSrc from '@/assets/image/logo.png'
 
 const router = useRouter()
 const route = useRoute()

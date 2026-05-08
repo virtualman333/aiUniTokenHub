@@ -78,7 +78,7 @@ import {
   DArrowLeft, DArrowRight, ArrowDown, Tickets, Back, CreditCard,
   Share, Setting
 } from '@element-plus/icons-vue'
-import logoSrc from '@/assets/image/logo.jpeg'
+import logoSrc from '@/assets/image/logo.png'
 
 const route = useRoute()
 const router = useRouter()
