@@ -155,6 +155,7 @@ const handleLogin = async () => {
 <style scoped>
 .login-page {
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -170,6 +171,7 @@ const handleLogin = async () => {
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
   max-width: 1000px;
   width: 100%;
+  min-width: 0;
 }
 
 /* 深色主题适配 */
@@ -210,6 +212,7 @@ html.dark .login-container {
 }
 
 .brand-title {
+  color: #fff;
   font-size: 36px;
   font-weight: 700;
   margin: 0 0 8px;
@@ -217,7 +220,8 @@ html.dark .login-container {
 
 .brand-subtitle {
   font-size: 18px;
-  opacity: 0.8;
+  color: #fff;
+  opacity: 0.7;
   margin: 0 0 48px;
 }
 
@@ -330,12 +334,33 @@ html.dark .login-container {
 }
 
 @media (max-width: 768px) {
+  .login-page {
+    align-items: flex-start;
+    padding: 16px;
+  }
+
   .login-container {
     flex-direction: column;
+    border-radius: 18px;
   }
   
   .brand-section {
-    padding: 32px;
+    padding: 28px;
+  }
+
+  .logo {
+    width: 56px;
+    height: 56px;
+    margin-bottom: 16px;
+  }
+
+  .brand-title {
+    font-size: 28px;
+  }
+
+  .brand-subtitle {
+    font-size: 15px;
+    margin-bottom: 0;
   }
   
   .features {
@@ -343,7 +368,32 @@ html.dark .login-container {
   }
   
   .form-section {
-    padding: 32px;
+    padding: 28px;
+  }
+
+  .form-header {
+    margin-bottom: 24px;
+  }
+
+  .form-header h2 {
+    font-size: 24px;
+  }
+}
+
+@media (max-width: 420px) {
+  .login-page {
+    padding: 10px;
+  }
+
+  .brand-section,
+  .form-section {
+    padding: 22px 18px;
+  }
+
+  .form-options {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
   }
 }
 </style>

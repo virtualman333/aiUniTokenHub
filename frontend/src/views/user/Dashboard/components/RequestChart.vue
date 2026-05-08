@@ -15,9 +15,11 @@ let chart: echarts.ECharts | null = null
 
 onMounted(() => {
   initChart()
+  window.addEventListener('resize', resizeChart)
 })
 
 onUnmounted(() => {
+  window.removeEventListener('resize', resizeChart)
   chart?.dispose()
 })
 
@@ -59,11 +61,21 @@ function updateChart() {
     }]
   })
 }
+
+function resizeChart() {
+  chart?.resize()
+}
 </script>
 
 <style scoped>
 .chart-container {
   height: 300px;
   width: 100%;
+}
+
+@media (max-width: 640px) {
+  .chart-container {
+    height: 240px;
+  }
 }
 </style>

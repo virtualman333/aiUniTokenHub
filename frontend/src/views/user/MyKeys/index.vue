@@ -153,6 +153,7 @@ async function handleRevoke(row: any) {
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  min-width: 0;
 }
 
 .key-display code {
@@ -163,6 +164,8 @@ async function handleRevoke(row: any) {
   border-radius: var(--radius-sm);
   font-size: var(--text-sm);
   border: 1px solid var(--primary-100);
+  overflow-wrap: anywhere;
+  min-width: 0;
 }
 
 /* 响应式设计 */
@@ -174,6 +177,14 @@ async function handleRevoke(row: any) {
   
   .header-content h1 {
     font-size: var(--text-2xl);
+  }
+
+  .header > .el-button {
+    width: 100%;
+  }
+
+  .key-display {
+    gap: var(--space-1);
   }
 }
 </style>

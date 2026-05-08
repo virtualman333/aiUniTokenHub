@@ -114,4 +114,34 @@ defineEmits<{
   cursor: pointer;
   min-width: 140px;
 }
+
+@media (max-width: 768px) {
+  .filter-bar {
+    gap: 12px;
+  }
+
+  .search-box {
+    flex-basis: 100%;
+    min-width: 0;
+  }
+
+  .filter-group {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .filter-group select {
+    width: 100%;
+    min-width: 0;
+    padding-right: 24px;
+  }
+}
+
+@media (max-width: 480px) {
+  .filter-group {
+    grid-template-columns: 1fr;
+  }
+}
 </style>

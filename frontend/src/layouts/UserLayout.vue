@@ -144,6 +144,7 @@ const goToAdmin = () => {
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   background: rgba(255, 255, 255, 0.9);
+  min-width: 0;
 }
 
 .topbar-left {
@@ -185,6 +186,7 @@ const goToAdmin = () => {
   align-items: center;
   gap: var(--space-1);
   margin-left: var(--space-12);
+  min-width: 0;
 }
 
 .nav-item {
@@ -243,6 +245,7 @@ const goToAdmin = () => {
   display: flex;
   align-items: center;
   gap: var(--space-3);
+  min-width: 0;
 }
 
 .user-info {
@@ -298,6 +301,7 @@ const goToAdmin = () => {
   margin: 0 auto;
   padding: var(--space-6);
   animation: fadeIn 0.3s ease-out;
+  min-width: 0;
 }
 
 /* 过渡动画 */
@@ -316,9 +320,63 @@ const goToAdmin = () => {
   transform: translateY(-10px);
 }
 
+@media (max-width: 1200px) {
+  .nav-menu {
+    margin-left: var(--space-6);
+  }
+
+  .nav-item {
+    padding-inline: var(--space-3);
+  }
+
+  .topbar-right {
+    gap: var(--space-2);
+  }
+}
+
+@media (max-width: 980px) {
+  .logo-text {
+    display: none;
+  }
+
+  .nav-menu {
+    margin-left: var(--space-3);
+  }
+
+  .nav-item span {
+    display: none;
+  }
+
+  .nav-item {
+    width: 40px;
+    height: 40px;
+    justify-content: center;
+    padding: 0;
+  }
+}
+
 @media (max-width: 768px) {
   .nav-menu {
-    display: none;
+    position: fixed;
+    left: var(--space-3);
+    right: var(--space-3);
+    bottom: max(var(--space-3), env(safe-area-inset-bottom));
+    height: 58px;
+    margin: 0;
+    padding: var(--space-2);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-xl);
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: var(--shadow-lg);
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    z-index: var(--z-fixed);
+  }
+
+  .nav-item {
+    flex: 0 0 44px;
+    width: 44px;
+    height: 40px;
   }
   
   .user-detail {
@@ -326,11 +384,33 @@ const goToAdmin = () => {
   }
   
   .topbar {
-    padding: 0 var(--space-4);
+    padding: 0 var(--space-3);
+  }
+
+  .topbar-right > .el-button {
+    display: none;
+  }
+
+  .user-info {
+    padding: var(--space-1);
+    gap: var(--space-1);
+  }
+
+  .avatar {
+    width: 36px;
+    height: 36px;
   }
   
   .main-wrapper {
     padding: var(--space-4);
+    padding-bottom: calc(78px + env(safe-area-inset-bottom));
+  }
+}
+
+@media (max-width: 420px) {
+  .topbar :deep(.theme-toggle),
+  .topbar :deep(.lang-toggle) {
+    display: none;
   }
 }
 </style>
