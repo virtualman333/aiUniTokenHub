@@ -69,7 +69,7 @@
       <div class="endpoint-section">
         <div class="endpoint-header">
           <el-tag type="success">GET</el-tag>
-          <h3>/v1/models - 获取模型列表</h3>
+          <h3>/models - 获取模型列表</h3>
         </div>
         <p class="endpoint-desc">列出所有可用的模型</p>
         <div class="example-block">
@@ -93,7 +93,7 @@
       <div class="endpoint-section">
         <div class="endpoint-header">
           <el-tag type="success">POST</el-tag>
-          <h3>/v1/chat/completions - 聊天完成</h3>
+          <h3>/chat/completions - 聊天完成</h3>
         </div>
         <p class="endpoint-desc">创建聊天补全请求（支持流式输出）</p>
         
@@ -143,7 +143,7 @@
       <div class="endpoint-section">
         <div class="endpoint-header">
           <el-tag type="success">POST</el-tag>
-          <h3>/v1/completions - 文本完成</h3>
+          <h3>/completions - 文本完成</h3>
         </div>
         <p class="endpoint-desc">创建文本补全请求（兼容旧版 GPT-3 接口）</p>
         
@@ -165,7 +165,7 @@
       <div class="endpoint-section">
         <div class="endpoint-header">
           <el-tag type="success">POST</el-tag>
-          <h3>/v1/embeddings - 向量嵌入</h3>
+          <h3>/embeddings - 向量嵌入</h3>
         </div>
         <p class="endpoint-desc">获取文本的向量嵌入表示</p>
         
@@ -340,7 +340,7 @@ import Cookies from 'js-cookie'
 import { useUserStore } from '@/stores'
 import { copyToClipboard } from '@/utils/clipboard'
 
-const apiBaseUrl = ref(window.location.origin + '/api/proxy')
+const apiBaseUrl = ref(window.location.origin + '/api/proxy/v1')
 
 const availableModels = ref([])
 
@@ -359,12 +359,12 @@ const streamContent = ref('')
 
 const chatTestForm = reactive({
   apiKey: '',
-  model: 'gpt-3.5-turbo',
+  model: 'gpt-5.5',
   systemPrompt: '你是一个有帮助的AI助手',
   messages: '你好',
   temperature: 1.0,
   maxTokens: 2048,
-  stream: false
+  stream: true
 })
 
 const modelsTestForm = reactive({
@@ -391,7 +391,7 @@ const chatResponseExample = ref(`{
   "id": "chatcmpl-abc123",
   "object": "chat.completion",
   "created": 1677858242,
-  "model": "gpt-3.5-turbo",
+  "model": "gpt-5.5",
   "choices": [{
     "index": 0,
     "message": {
@@ -408,7 +408,7 @@ const chatResponseExample = ref(`{
 }`)
 
 const authHeaderCode = 'Authorization: Bearer YOUR_API_KEY'
-const modelsCurlCode = computed(() => `curl ${apiBaseUrl.value}/v1/models \\
+const modelsCurlCode = computed(() => `curl ${apiBaseUrl.value}/models \\
   -H "Authorization: Bearer YOUR_API_KEY"`)
 const modelsPythonCode = computed(() => `from openai import OpenAI
 
@@ -430,7 +430,7 @@ const client = new OpenAI({
 
 const models = await client.models.list();
 console.log(models.data);`)
-const chatCurlCode = computed(() => `curl ${apiBaseUrl.value}/v1/chat/completions \\
+const chatCurlCode = computed(() => `curl ${apiBaseUrl.value}/chat/completions \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -493,7 +493,7 @@ const stream = await client.chat.completions.create({
 for await (const chunk of stream) {
   process.stdout.write(chunk.choices[0].delta.content || '');
 }`)
-const completionsCurlCode = computed(() => `curl ${apiBaseUrl.value}/v1/completions \\
+const completionsCurlCode = computed(() => `curl ${apiBaseUrl.value}/completions \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -507,7 +507,7 @@ const completionsPythonCode = `completion = client.completions.create(
     max_tokens=50
 )
 print(completion.choices[0].text)`
-const embeddingsCurlCode = computed(() => `curl ${apiBaseUrl.value}/v1/embeddings \\
+const embeddingsCurlCode = computed(() => `curl ${apiBaseUrl.value}/embeddings \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -567,7 +567,7 @@ async function selectKey(key) {
 
 async function refreshModels(apiKey = null) {
   try {
-    const response = await axios.get(`${apiBaseUrl.value}/v1/models`, {
+    const response = await axios.get(`${apiBaseUrl.value}/models`, {
       headers: apiKey ? { 'Authorization': `Bearer ${apiKey}` } : {}
     })
     const res = response.data
@@ -613,7 +613,7 @@ async function testChat() {
     
     if (chatTestForm.stream) {
       // 流式响应
-      const response = await fetch(`${apiBaseUrl.value}/v1/chat/completions`, {
+      const response = await fetch(`${apiBaseUrl.value}/chat/completions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -657,7 +657,7 @@ async function testChat() {
       }
     } else {
       // 非流式响应
-      const response = await axios.post(`${apiBaseUrl.value}/v1/chat/completions`, requestData, {
+      const response = await axios.post(`${apiBaseUrl.value}/chat/completions`, requestData, {
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${chatTestForm.apiKey}`
@@ -684,7 +684,7 @@ async function testModels() {
   testError.value = ''
   
   try {
-    const response = await axios.get(`${apiBaseUrl.value}/v1/models`, {
+    const response = await axios.get(`${apiBaseUrl.value}/models`, {
       headers: {
         'Authorization': `Bearer ${modelsTestForm.apiKey}`
       }
