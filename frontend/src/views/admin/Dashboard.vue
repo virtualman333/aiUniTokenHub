@@ -121,12 +121,19 @@ onMounted(async () => {
   await loadDashboardData()
   await loadChartData()
   initCharts()
+  window.addEventListener('resize', resizeCharts)
 })
 
 onUnmounted(() => {
+  window.removeEventListener('resize', resizeCharts)
   trendChart?.dispose()
   pieChart?.dispose()
 })
+
+const resizeCharts = () => {
+  trendChart?.resize()
+  pieChart?.resize()
+}
 
 const loadDashboardData = async () => {
   try {
@@ -263,6 +270,7 @@ const getMethodType = (method) => {
 <style scoped>
 .admin-dashboard {
   padding: 0;
+  min-width: 0;
 }
 
 /* 统计卡片 */
@@ -302,6 +310,7 @@ const getMethodType = (method) => {
 
 .stat-info {
   flex: 1;
+  min-width: 0;
 }
 
 .stat-value {
@@ -309,6 +318,7 @@ const getMethodType = (method) => {
   font-weight: 700;
   color: #1f2937;
   line-height: 1.2;
+  overflow-wrap: anywhere;
 }
 
 .stat-title {
@@ -327,6 +337,7 @@ const getMethodType = (method) => {
 
 .chart-card {
   border-radius: 12px;
+  min-width: 0;
 }
 
 .card-header {
@@ -365,6 +376,43 @@ const getMethodType = (method) => {
   
   .charts-row {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .stats-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .stat-card {
+    padding: 16px;
+  }
+
+  .stat-icon {
+    width: 48px;
+    height: 48px;
+    font-size: 21px;
+  }
+
+  .stat-value {
+    font-size: 24px;
+  }
+
+  .charts-row {
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+
+  .card-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .chart-container {
+    height: 240px;
   }
 }
 </style>

@@ -240,6 +240,7 @@ onMounted(() => {
   max-width: 1400px;
   margin: 0 auto;
   animation: fadeIn 0.5s ease-out;
+  min-width: 0;
 }
 
 .header {
@@ -291,6 +292,7 @@ onMounted(() => {
   box-shadow: var(--shadow-sm);
   overflow: hidden;
   transition: box-shadow var(--transition-base);
+  min-width: 0;
   
   &:hover {
     box-shadow: var(--shadow-md);
@@ -528,6 +530,8 @@ onMounted(() => {
   font-size: var(--text-sm);
   color: var(--text-primary);
   font-weight: var(--font-semibold);
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .rewards-table {
@@ -558,13 +562,67 @@ onMounted(() => {
     flex-direction: column;
     gap: var(--space-4);
   }
+
+  .header-actions,
+  .header-actions .el-button {
+    width: 100%;
+  }
   
   .stat-grid {
     grid-template-columns: 1fr;
+    gap: var(--space-4);
   }
-  
+
+  .chart-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-3);
+    padding: var(--space-4);
+  }
+
+  .chart-actions {
+    overflow-x: auto;
+  }
+
+  .chart-content,
+  .api-list,
+  .invite-header,
+  .invite-stats,
+  .invite-details {
+    padding: var(--space-4);
+  }
+
   .invite-stats {
     grid-template-columns: 1fr;
+    gap: var(--space-4);
+  }
+
+  .invite-stat-item {
+    padding: var(--space-3);
+  }
+
+  .invite-stat-value {
+    font-size: var(--text-2xl);
+  }
+
+  .rule-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-1);
+  }
+}
+
+@media (max-width: 480px) {
+  .invite-input :deep(.el-input-group__append) {
+    padding: 0 var(--space-2);
+  }
+
+  .api-item {
+    align-items: flex-start;
+  }
+
+  .api-bar {
+    display: none;
   }
 }
 </style>

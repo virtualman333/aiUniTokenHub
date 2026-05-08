@@ -359,20 +359,24 @@ const handleRegister = async () => {
 }
 
 .register-container {
-  min-height: 100vh;
+  min-min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 20px;
   padding-top: 100px;
+  padding: 24px;
 }
 
 .register-box {
-  width: 420px;
+  width: min(420px, 100%);
   padding: 40px;
   background: #fff;
   border-radius: 12px;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  max-height: calc(100dvh - 48px);
+  overflow-y: auto;
 }
 
 .register-header {
@@ -434,6 +438,42 @@ const handleRegister = async () => {
     &:hover {
       text-decoration: underline;
     }
+  }
+}
+
+@media (max-width: 640px) {
+  .register-container {
+    align-items: flex-start;
+    padding: 16px;
+  }
+
+  .register-box {
+    padding: 28px 22px;
+    max-height: none;
+    border-radius: 14px;
+  }
+
+  .register-header {
+    margin-bottom: 22px;
+  }
+
+  .code-row {
+    flex-direction: column;
+  }
+
+  .code-btn {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 380px) {
+  .register-container {
+    padding: 10px;
+  }
+
+  .register-box {
+    padding: 22px 16px;
   }
 }
 </style>

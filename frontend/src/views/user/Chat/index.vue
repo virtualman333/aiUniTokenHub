@@ -520,6 +520,7 @@ function applyModelFromQuery(code: string) {
   height: calc(100vh - var(--header-height) - var(--space-12));
   min-height: 600px;
   animation: fadeIn 0.5s ease-out;
+  min-width: 0;
 }
 
 /* ============= 会话历史 ============= */
@@ -661,6 +662,7 @@ function applyModelFromQuery(code: string) {
   border-radius: var(--radius-xl);
   overflow: hidden;
   box-shadow: var(--shadow-sm);
+  min-width: 0;
 }
 
 .toolbar {
@@ -678,6 +680,7 @@ function applyModelFromQuery(code: string) {
   display: flex;
   gap: var(--space-2);
   align-items: center;
+  min-width: 0;
 }
 
 .sel-model {
@@ -1045,22 +1048,41 @@ function applyModelFromQuery(code: string) {
 
 @media (max-width: 768px) {
   .chat-page {
-    grid-template-columns: 1fr;
-    height: auto;
-    min-height: auto;
+    display: flex;
+    flex-direction: column;
+    height: calc(100dvh - var(--header-height) - 96px);
+    min-height: 620px;
   }
   
   .convo-pane {
-    max-height: 300px;
+    flex: 0 0 auto;
+    max-height: 220px;
+    border-radius: var(--radius-lg);
+  }
+
+  .convo-head {
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .convo-list {
+    max-height: 164px;
+  }
+
+  .chat-main {
+    min-height: 0;
+    flex: 1;
+    border-radius: var(--radius-lg);
   }
   
   .toolbar {
     flex-direction: column;
     align-items: stretch;
+    padding: var(--space-3);
   }
   
   .toolbar .left {
-    flex-wrap: wrap;
+    flex-direction: column;
+    align-items: stretch;
   }
   
   .sel-model,
@@ -1070,10 +1092,59 @@ function applyModelFromQuery(code: string) {
   
   .messages {
     padding: var(--space-4);
+    min-height: 0;
   }
   
-  .msg-bubble {
-    max-width: 85%;
+  .empty-icon {
+    width: 88px;
+    height: 88px;
+    margin-bottom: var(--space-4);
+  }
+
+  .empty h3 {
+    font-size: var(--text-lg);
+    text-align: center;
+  }
+
+  .empty p {
+    text-align: center;
+    padding-inline: var(--space-4);
+  }
+
+  .input-area {
+    padding: var(--space-3);
+  }
+
+  .input-actions {
+    align-items: flex-start;
+    gap: var(--space-2);
+  }
+
+  .input-actions .meta {
+    min-width: 0;
+    word-break: break-all;
+  }
+
+  .input-actions .actions {
+    flex-shrink: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .chat-page {
+    min-height: 560px;
+  }
+
+  .convo-pane {
+    max-height: 190px;
+  }
+
+  .convo-list {
+    max-height: 134px;
+  }
+
+  .toolbar .right {
+    display: none;
   }
 }
 </style>

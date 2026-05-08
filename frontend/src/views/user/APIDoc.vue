@@ -707,6 +707,7 @@ async function copyText(text) {
 .api-doc {
   max-width: 1000px;
   margin: 0 auto;
+  min-width: 0;
 }
 
 .header {
@@ -736,6 +737,7 @@ async function copyText(text) {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
 }
 
 .endpoint-section {
@@ -747,6 +749,7 @@ async function copyText(text) {
   align-items: center;
   gap: 12px;
   margin-bottom: 8px;
+  min-width: 0;
 }
 
 .endpoint-header h3 {
@@ -789,6 +792,7 @@ async function copyText(text) {
   font-size: 13px;
   line-height: 1.6;
   margin: 0;
+  max-width: 100%;
 }
 
 .tip {
@@ -914,5 +918,81 @@ async function copyText(text) {
   line-height: 1.6;
   white-space: pre-wrap;
   word-break: break-all;
+}
+
+@media (max-width: 768px) {
+  .header {
+    text-align: left;
+    margin-bottom: 24px;
+  }
+
+  .header h1 {
+    font-size: 24px;
+  }
+
+  .card-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .card-header .el-button {
+    width: 100%;
+  }
+
+  .endpoint-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .endpoint-header h3 {
+    line-height: 1.4;
+  }
+
+  .code-block,
+  .response-content,
+  .stream-content pre {
+    font-size: 12px;
+  }
+
+  .limit-item {
+    padding: 14px 0;
+  }
+
+  .test-form {
+    padding: 12px;
+  }
+
+  .test-form :deep(.el-form-item) {
+    display: block;
+  }
+
+  .test-form :deep(.el-form-item__label) {
+    width: auto !important;
+    justify-content: flex-start;
+  }
+
+  .test-form :deep(.el-form-item__content) {
+    margin-left: 0 !important;
+  }
+
+  .test-actions {
+    flex-direction: column;
+  }
+
+  .test-actions .el-button {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .quick-key-select {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .quick-key-select .label {
+    width: 100%;
+  }
 }
 </style>

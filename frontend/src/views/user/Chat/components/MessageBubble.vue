@@ -222,6 +222,7 @@ const cacheRead = computed(() => Number(props.msg.usage?.cache_read_input_tokens
   line-height: 1.7;
   font-size: 14px;
   word-break: break-word;
+  min-width: 0;
 }
 
 .msg-row.user .msg-bubble {
@@ -383,6 +384,7 @@ const cacheRead = computed(() => Number(props.msg.usage?.cache_read_input_tokens
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .token-hint {
@@ -526,5 +528,52 @@ const cacheRead = computed(() => Number(props.msg.usage?.cache_read_input_tokens
 @keyframes blink {
   0%, 49% { opacity: 1; }
   50%, 100% { opacity: 0; }
+}
+
+@media (max-width: 768px) {
+  .msg-row {
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+
+  .avatar {
+    width: 32px;
+    height: 32px;
+    font-size: 16px;
+  }
+
+  .msg-bubble {
+    max-width: calc(100% - 40px);
+    padding: 10px 12px;
+    font-size: 13px;
+  }
+
+  .reasoning-head {
+    padding: 8px 10px;
+  }
+
+  .reasoning-meta {
+    display: none;
+  }
+
+  .md-content :deep(pre),
+  .md-content :deep(table) {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  .token-hint {
+    margin-left: 0;
+  }
+}
+
+@media (max-width: 420px) {
+  .avatar {
+    display: none;
+  }
+
+  .msg-bubble {
+    max-width: 92%;
+  }
 }
 </style>

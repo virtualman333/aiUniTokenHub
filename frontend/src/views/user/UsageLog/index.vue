@@ -222,12 +222,14 @@ function getTimeClass(time: number) {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
 }
 
 .endpoint-text {
   font-family: monospace;
   font-size: 13px;
   color: #409EFF;
+  overflow-wrap: anywhere;
 }
 
 .text-muted {
@@ -267,4 +269,16 @@ function getTimeClass(time: number) {
 .text-success { color: #67C23A; }
 .text-warning { color: #E6A23C; }
 .text-danger { color: #F56C6C; }
+
+@media (max-width: 768px) {
+  .header {
+    text-align: left;
+  }
+
+  .path-cell,
+  .tokens-cell {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+}
 </style>
