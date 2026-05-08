@@ -48,6 +48,9 @@ export function useModels() {
     capabilities: [],
     pricing_types: []
   })
+  const currentPage = ref(1)
+  const pageSize = ref(20)
+  const total = ref(0)
 
   // 搜索防抖
   let searchTimer: ReturnType<typeof setTimeout> | null = null
@@ -70,8 +73,14 @@ export function useModels() {
   async function fetchModels(params: Record<string, string> = {}) {
     loading.value = true
     try {
-      const res: any = await api.get('/models/models/', { params })
+      const queryParams = {
+        ...params,
+        page: String(currentPage.value),
+        page_size: String(pageSize.value)
+      }
+      const res: any = await api.get('/models/models/', { params: queryParams })
       models.value = res.results || res || []
+      total.value = res.total ?? res.count ?? models.value.length
     } catch (e) {
       console.error('获取模型列表失败:', e)
     } finally {
@@ -111,6 +120,9 @@ export function useModels() {
     loading,
     models,
     filters,
+    currentPage,
+    pageSize,
+    total,
     fetchFilters,
     fetchModels,
     debounceSearch,

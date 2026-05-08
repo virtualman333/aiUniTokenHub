@@ -41,6 +41,19 @@
       />
     </div>
 
+    <!-- 分页 -->
+    <div v-if="total > 0" class="pagination">
+      <el-pagination
+        v-model:current-page="currentPage"
+        v-model:page-size="pageSize"
+        :total="total"
+        :page-sizes="[12, 20, 40, 60]"
+        layout="total, sizes, prev, pager, next"
+        @size-change="onPageChange"
+        @current-change="onPageChange"
+      />
+    </div>
+
     <!-- 空状态 -->
     <div v-if="!loading && models.length === 0" class="empty-state">
       <el-empty description="暂无模型" />
@@ -70,6 +83,9 @@ const {
   loading,
   models,
   filters,
+  currentPage,
+  pageSize,
+  total,
   fetchFilters,
   fetchModels
 } = useModels()
@@ -100,12 +116,22 @@ watch([searchQuery, selectedProvider, selectedCategory, featuredOnly], () => {
 })
 
 function debounceFetch() {
+  currentPage.value = 1
   const params: Record<string, string> = {}
   if (searchQuery.value) params.search = searchQuery.value
   if (selectedProvider.value) params.provider = selectedProvider.value
   if (selectedCategory.value) params.category = selectedCategory.value
   if (featuredOnly.value) params.featured = 'true'
   
+  fetchModels(params)
+}
+
+function onPageChange() {
+  const params: Record<string, string> = {}
+  if (searchQuery.value) params.search = searchQuery.value
+  if (selectedProvider.value) params.provider = selectedProvider.value
+  if (selectedCategory.value) params.category = selectedCategory.value
+  if (featuredOnly.value) params.featured = 'true'
   fetchModels(params)
 }
 
@@ -175,6 +201,12 @@ function useModel() {
   grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
   gap: var(--space-6);
   min-height: 200px;
+}
+
+.pagination {
+  margin-top: var(--space-8);
+  display: flex;
+  justify-content: center;
 }
 
 .empty-state {

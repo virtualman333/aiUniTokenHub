@@ -616,7 +616,7 @@ async function fetchModels() {
     // 后端已直接返回 has_accounts 和 account_count 字段
     const res = await api.get('/models/models/', { params })
     models.value = res.results || res
-    total.value = res.count || models.value.length
+    total.value = res.total ?? res.count ?? models.value.length
   } catch (e) {
     console.error('获取模型列表失败:', e)
   } finally {
