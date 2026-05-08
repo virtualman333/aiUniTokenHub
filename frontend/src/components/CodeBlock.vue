@@ -20,6 +20,8 @@ import bash from 'highlight.js/lib/languages/bash'
 import powershell from 'highlight.js/lib/languages/powershell'
 import plaintext from 'highlight.js/lib/languages/plaintext'
 import ini from 'highlight.js/lib/languages/ini'
+import python from 'highlight.js/lib/languages/python'
+import javascript from 'highlight.js/lib/languages/javascript'
 import { copyToClipboard } from '@/utils/clipboard'
 
 // 注册所需语言
@@ -28,6 +30,8 @@ hljs.registerLanguage('bash', bash)
 hljs.registerLanguage('powershell', powershell)
 hljs.registerLanguage('text', plaintext)
 hljs.registerLanguage('ini', ini)
+hljs.registerLanguage('python', python)
+hljs.registerLanguage('javascript', javascript)
 
 // 不引入全局 theme CSS，避免与 markdown.ts 的 github.css 冲突
 // 深色主题样式写在下方 scoped style 中

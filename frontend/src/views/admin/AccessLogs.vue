@@ -250,37 +250,23 @@
       </el-descriptions>
       
       <div v-if="currentLog?.request_body" class="detail-section">
-        <div class="section-header">
-          <h4>请求体</h4>
-          <el-button size="small" text @click="copyToClipboard(currentLog?.request_body)">
-            <CopyDocument /> 复制
-          </el-button>
-        </div>
-        <pre class="code-block">{{ formatJson(currentLog?.request_body) }}</pre>
+        <h4 class="section-title">请求体</h4>
+        <CodeBlock :code="formatJson(currentLog?.request_body)" language="json" />
       </div>
       
       <div v-if="currentLog?.response_body" class="detail-section">
-        <div class="section-header">
-          <h4>响应体</h4>
-          <el-button size="small" text @click="copyToClipboard(currentLog?.response_body)">
-            <CopyDocument /> 复制
-          </el-button>
-        </div>
-        <pre class="code-block">{{ formatJson(currentLog?.response_body) }}</pre>
+        <h4 class="section-title">响应体</h4>
+        <CodeBlock :code="formatJson(currentLog?.response_body)" language="json" />
       </div>
       
       <div v-if="currentLog?.error_message" class="detail-section">
-        <div class="section-header">
-          <h4>错误信息</h4>
-        </div>
-        <pre class="code-block error">{{ currentLog?.error_message }}</pre>
+        <h4 class="section-title">错误信息</h4>
+        <CodeBlock :code="currentLog?.error_message || ''" language="text" />
       </div>
 
       <div v-if="currentLog?.request_params && Object.keys(currentLog?.request_params || {}).length" class="detail-section">
-        <div class="section-header">
-          <h4>请求参数</h4>
-        </div>
-        <pre class="code-block">{{ JSON.stringify(currentLog?.request_params, null, 2) }}</pre>
+        <h4 class="section-title">请求参数</h4>
+        <CodeBlock :code="JSON.stringify(currentLog?.request_params, null, 2)" language="json" />
       </div>
     </el-dialog>
   </div>
@@ -289,10 +275,10 @@
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Search, RefreshLeft, Download, CopyDocument } from '@element-plus/icons-vue'
+import { Search, RefreshLeft, Download } from '@element-plus/icons-vue'
+import CodeBlock from '@/components/CodeBlock.vue'
 import api from '@/stores'
 import dayjs from 'dayjs'
-import { copyToClipboard as clipboardCopy } from '@/utils/clipboard'
 
 const logs = ref([])
 const loading = ref(false)
@@ -480,14 +466,7 @@ const formatJson = (str) => {
   }
 }
 
-const copyToClipboard = async (text) => {
-  const success = await clipboardCopy(text)
-  if (success) {
-    ElMessage.success('已复制到剪贴板')
-  } else {
-    ElMessage.error('复制失败')
-  }
-}
+
 </script>
 
 <style lang="scss" scoped>
@@ -590,34 +569,9 @@ const copyToClipboard = async (text) => {
   margin-top: 20px;
 }
 
-.section-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-  
-  h4 {
-    margin: 0;
-    font-size: 14px;
-    color: #606266;
-  }
-}
-
-.code-block {
-  background: #f5f7fa;
-  padding: 12px;
-  border-radius: 4px;
-  max-height: 300px;
-  overflow: auto;
-  font-family: monospace;
-  font-size: 13px;
-  line-height: 1.5;
-  white-space: pre-wrap;
-  word-break: break-all;
-  
-  &.error {
-    color: #F56C6C;
-    background: #fef0f0;
-  }
+.section-title {
+  margin: 0 0 8px;
+  font-size: 14px;
+  color: #606266;
 }
 </style>

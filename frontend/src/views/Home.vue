@@ -29,7 +29,7 @@
             <button class="btn btn-primary btn-large" @click="$router.push('/register')">
               {{ t('home.hero.getStarted') }}
             </button>
-            <button class="btn btn-outline btn-large" @click="scrollToDocs">
+            <button class="btn btn-outline btn-large" @click="scrollToDocs"  style="background: #fff; color: #6c6cd1;">
               {{ t('home.hero.viewDocs') }}
             </button>
           </div>
@@ -49,20 +49,7 @@
           </div>
         </div>
         <div class="hero-code">
-          <div class="code-header">
-            <span class="code-lang">bash</span>
-            <button class="copy-btn" @click="copyCode">
-              <el-icon><CopyDocument /></el-icon>
-              <span>{{ copied ? 'Copied!' : 'Copy' }}</span>
-            </button>
-          </div>
-          <pre class="code-block"><code class="language-bash">curl -X POST https://api.unitokenhub.com/v1/chat/completions \
-  -H "Authorization: Bearer YOUR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "gpt-4",
-    "messages": [{"role": "user", "content": "Hello"}]
-  }'</code></pre>
+          <CodeBlock :code="heroCode" language="bash" />
         </div>
       </div>
     </section>
@@ -234,29 +221,21 @@
 
 <script setup>
 import { useI18n } from '@/composables/useI18n'
-import { Link, TrendCharts, Wallet, Lock, Histogram, Setting, CopyDocument } from '@element-plus/icons-vue'
+import { Link, TrendCharts, Wallet, Lock, Histogram, Setting } from '@element-plus/icons-vue'
 import logoSrc from '@/assets/image/logo.png'
 import CookieConsent from '@/components/CookieConsent.vue'
+import CodeBlock from '@/components/CodeBlock.vue'
 
 const { t } = useI18n()
 import { ref } from 'vue'
 
-const copied = ref(false)
-
-const copyCode = async () => {
-  const code = `curl -X POST https://api.unitokenhub.com/v1/chat/completions \\
+const heroCode = `curl -X POST https://api.unitokenhub.com/v1/chat/completions \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
     "model": "gpt-4",
     "messages": [{"role": "user", "content": "Hello"}]
   }'`
-  await navigator.clipboard.writeText(code)
-  copied.value = true
-  setTimeout(() => {
-    copied.value = false
-  }, 2000)
-}
 
 const scrollToDocs = () => {
   const docsSection = document.getElementById('docs')
@@ -388,6 +367,7 @@ const scrollToDocs = () => {
 }
 
 .hero-title {
+  color: #fff;
   font-size: 48px;
   font-weight: 700;
   margin: 0 0 16px;
@@ -395,8 +375,9 @@ const scrollToDocs = () => {
 }
 
 .hero-subtitle {
+  color: #fff;
   font-size: 18px;
-  opacity: 0.9;
+  opacity: 0.8;
   margin: 0 0 32px;
   line-height: 1.6;
 }
@@ -427,64 +408,10 @@ const scrollToDocs = () => {
 }
 
 .hero-code {
-  background: rgba(0, 0, 0, 0.25);
-  border-radius: 16px;
+  /* border-radius: 16px; */
   overflow: hidden;
   backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.code-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
-  background: rgba(0, 0, 0, 0.2);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.code-lang {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.6);
-  font-weight: 500;
-}
-
-.copy-btn {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: rgba(255, 255, 255, 0.1);
-  border: none;
-  border-radius: 6px;
-  padding: 6px 12px;
-  color: rgba(255, 255, 255, 0.8);
-  font-size: 12px;
-  cursor: pointer;
-  transition: all 0.2s;
-  
-  &:hover {
-    background: rgba(255, 255, 255, 0.15);
-    color: #fff;
-  }
-  
-  .el-icon {
-    font-size: 14px;
-  }
-}
-
-.code-block {
-  margin: 0;
-  padding: 16px 24px;
-  overflow-x: auto;
-}
-
-.code-block code {
-  font-family: 'Fira Code', 'Monaco', 'Consolas', monospace;
-  font-size: 13px;
-  line-height: 1.7;
-  color: #fff;
-  opacity: 0.95;
-  white-space: pre;
+  /* border: 1px solid rgba(255, 255, 255, 0.1); */
 }
 
 /* 功能特性 */

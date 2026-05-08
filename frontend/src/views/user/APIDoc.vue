@@ -40,7 +40,7 @@
         </div>
       </template>
       <p>所有 API 请求都需要在 Header 中携带您的 API Key：</p>
-      <pre class="code-block">Authorization: Bearer YOUR_API_KEY</pre>
+      <CodeBlock :code="authHeaderCode" language="text" />
       <p class="tip">请在 <router-link to="/my-keys">我的密钥</router-link> 页面获取您的 API Key</p>
     </el-card>
 
@@ -75,32 +75,13 @@
         <div class="example-block">
           <el-tabs>
             <el-tab-pane label="cURL">
-              <pre class="code-block">curl {{ apiBaseUrl }}/v1/models \
-  -H "Authorization: Bearer YOUR_API_KEY"</pre>
+              <CodeBlock :code="modelsCurlCode" language="bash" />
             </el-tab-pane>
             <el-tab-pane label="Python">
-              <pre class="code-block">from openai import OpenAI
-
-client = OpenAI(
-    api_key="YOUR_API_KEY",
-    base_url="{{ apiBaseUrl }}"
-)
-
-# 获取模型列表
-models = client.models.list()
-for model in models.data:
-    print(model.id)</pre>
+              <CodeBlock :code="modelsPythonCode" language="python" />
             </el-tab-pane>
             <el-tab-pane label="JavaScript">
-              <pre class="code-block">import OpenAI from 'openai';
-
-const client = new OpenAI({
-  apiKey: 'YOUR_API_KEY',
-  baseURL: '{{ apiBaseUrl }}'
-});
-
-const models = await client.models.list();
-console.log(models.data);</pre>
+              <CodeBlock :code="modelsJsCode" language="javascript" />
             </el-tab-pane>
           </el-tabs>
         </div>
@@ -139,80 +120,20 @@ console.log(models.data);</pre>
         <div class="example-block">
           <el-tabs>
             <el-tab-pane label="cURL">
-              <pre class="code-block">curl {{ apiBaseUrl }}/v1/chat/completions \
-  -H "Authorization: Bearer YOUR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "gpt-3.5-turbo",
-    "messages": [
-      {"role": "system", "content": "你是我的助手"},
-      {"role": "user", "content": "你好"}
-    ],
-    "stream": false
-  }'</pre>
+              <CodeBlock :code="chatCurlCode" language="bash" />
             </el-tab-pane>
             <el-tab-pane label="Python">
-              <pre class="code-block">from openai import OpenAI
-
-client = OpenAI(
-    api_key="YOUR_API_KEY",
-    base_url="{{ apiBaseUrl }}"
-)
-
-# 非流式响应
-completion = client.chat.completions.create(
-    model="gpt-3.5-turbo",
-    messages=[
-        {"role": "system", "content": "你是我的助手"},
-        {"role": "user", "content": "你好"}
-    ]
-)
-print(completion.choices[0].message.content)
-
-# 流式响应
-stream = client.chat.completions.create(
-    model="gpt-3.5-turbo",
-    messages=[{"role": "user", "content": "讲个笑话"}],
-    stream=True
-)
-for chunk in stream:
-    if chunk.choices[0].delta.content:
-        print(chunk.choices[0].delta.content, end="")</pre>
+              <CodeBlock :code="chatPythonCode" language="python" />
             </el-tab-pane>
             <el-tab-pane label="JavaScript">
-              <pre class="code-block">import OpenAI from 'openai';
-
-const client = new OpenAI({
-  apiKey: 'YOUR_API_KEY',
-  baseURL: '{{ apiBaseUrl }}'
-});
-
-// 非流式响应
-const completion = await client.chat.completions.create({
-  model: 'gpt-3.5-turbo',
-  messages: [
-    { role: 'system', content: '你是我的助手' },
-    { role: 'user', content: '你好' }
-  ]
-});
-console.log(completion.choices[0].message.content);
-
-// 流式响应
-const stream = await client.chat.completions.create({
-  model: 'gpt-3.5-turbo',
-  messages: [{ role: 'user', content: '讲个笑话' }],
-  stream: true
-});
-for await (const chunk of stream) {
-  process.stdout.write(chunk.choices[0].delta.content || '');
-}</pre>
+              <CodeBlock :code="chatJsCode" language="javascript" />
             </el-tab-pane>
           </el-tabs>
         </div>
 
         <div class="response-example">
           <h4>响应示例</h4>
-          <pre class="code-block">{{ chatResponseExample }}</pre>
+          <CodeBlock :code="chatResponseExample" language="json" />
         </div>
       </div>
 
@@ -229,22 +150,10 @@ for await (const chunk of stream) {
         <div class="example-block">
           <el-tabs>
             <el-tab-pane label="cURL">
-              <pre class="code-block">curl {{ apiBaseUrl }}/v1/completions \
-  -H "Authorization: Bearer YOUR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "gpt-3.5-turbo-instruct",
-    "prompt": "The capital of France is",
-    "max_tokens": 50
-  }'</pre>
+              <CodeBlock :code="completionsCurlCode" language="bash" />
             </el-tab-pane>
             <el-tab-pane label="Python">
-              <pre class="code-block">completion = client.completions.create(
-    model="gpt-3.5-turbo-instruct",
-    prompt="The capital of France is",
-    max_tokens=50
-)
-print(completion.choices[0].text)</pre>
+              <CodeBlock :code="completionsPythonCode" language="python" />
             </el-tab-pane>
           </el-tabs>
         </div>
@@ -263,20 +172,10 @@ print(completion.choices[0].text)</pre>
         <div class="example-block">
           <el-tabs>
             <el-tab-pane label="cURL">
-              <pre class="code-block">curl {{ apiBaseUrl }}/v1/embeddings \
-  -H "Authorization: Bearer YOUR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "text-embedding-ada-002",
-    "input": "The food was delicious and the service"
-  }'</pre>
+              <CodeBlock :code="embeddingsCurlCode" language="bash" />
             </el-tab-pane>
             <el-tab-pane label="Python">
-              <pre class="code-block">embedding = client.embeddings.create(
-    model="text-embedding-ada-002",
-    input="The food was delicious and the service"
-)
-print(embedding.data[0].embedding)</pre>
+              <CodeBlock :code="embeddingsPythonCode" language="python" />
             </el-tab-pane>
           </el-tabs>
         </div>
@@ -434,6 +333,7 @@ print(embedding.data[0].embedding)</pre>
 import { ref, onMounted, reactive, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Timer, Document, Coin, VideoPlay, Loading, CircleClose, ArrowRight } from '@element-plus/icons-vue'
+import CodeBlock from '@/components/CodeBlock.vue'
 import api from '@/stores'
 import axios from 'axios'
 import Cookies from 'js-cookie'
@@ -506,6 +406,119 @@ const chatResponseExample = ref(`{
     "total_tokens": 50
   }
 }`)
+
+const authHeaderCode = 'Authorization: Bearer YOUR_API_KEY'
+const modelsCurlCode = computed(() => `curl ${apiBaseUrl.value}/v1/models \\
+  -H "Authorization: Bearer YOUR_API_KEY"`)
+const modelsPythonCode = computed(() => `from openai import OpenAI
+
+client = OpenAI(
+    api_key="YOUR_API_KEY",
+    base_url="${apiBaseUrl.value}"
+)
+
+# 获取模型列表
+models = client.models.list()
+for model in models.data:
+    print(model.id)`)
+const modelsJsCode = computed(() => `import OpenAI from 'openai';
+
+const client = new OpenAI({
+  apiKey: 'YOUR_API_KEY',
+  baseURL: '${apiBaseUrl.value}'
+});
+
+const models = await client.models.list();
+console.log(models.data);`)
+const chatCurlCode = computed(() => `curl ${apiBaseUrl.value}/v1/chat/completions \\
+  -H "Authorization: Bearer YOUR_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "model": "gpt-3.5-turbo",
+    "messages": [
+      {"role": "system", "content": "你是我的助手"},
+      {"role": "user", "content": "你好"}
+    ],
+    "stream": false
+  }'`)
+const chatPythonCode = computed(() => `from openai import OpenAI
+
+client = OpenAI(
+    api_key="YOUR_API_KEY",
+    base_url="${apiBaseUrl.value}"
+)
+
+# 非流式响应
+completion = client.chat.completions.create(
+    model="gpt-3.5-turbo",
+    messages=[
+        {"role": "system", "content": "你是我的助手"},
+        {"role": "user", "content": "你好"}
+    ]
+)
+print(completion.choices[0].message.content)
+
+# 流式响应
+stream = client.chat.completions.create(
+    model="gpt-3.5-turbo",
+    messages=[{"role": "user", "content": "讲个笑话"}],
+    stream=True
+)
+for chunk in stream:
+    if chunk.choices[0].delta.content:
+        print(chunk.choices[0].delta.content, end="")`)
+const chatJsCode = computed(() => `import OpenAI from 'openai';
+
+const client = new OpenAI({
+  apiKey: 'YOUR_API_KEY',
+  baseURL: '${apiBaseUrl.value}'
+});
+
+// 非流式响应
+const completion = await client.chat.completions.create({
+  model: 'gpt-3.5-turbo',
+  messages: [
+    { role: 'system', content: '你是我的助手' },
+    { role: 'user', content: '你好' }
+  ]
+});
+console.log(completion.choices[0].message.content);
+
+// 流式响应
+const stream = await client.chat.completions.create({
+  model: 'gpt-3.5-turbo',
+  messages: [{ role: 'user', content: '讲个笑话' }],
+  stream: true
+});
+for await (const chunk of stream) {
+  process.stdout.write(chunk.choices[0].delta.content || '');
+}`)
+const completionsCurlCode = computed(() => `curl ${apiBaseUrl.value}/v1/completions \\
+  -H "Authorization: Bearer YOUR_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "model": "gpt-3.5-turbo-instruct",
+    "prompt": "The capital of France is",
+    "max_tokens": 50
+  }'`)
+const completionsPythonCode = `completion = client.completions.create(
+    model="gpt-3.5-turbo-instruct",
+    prompt="The capital of France is",
+    max_tokens=50
+)
+print(completion.choices[0].text)`
+const embeddingsCurlCode = computed(() => `curl ${apiBaseUrl.value}/v1/embeddings \\
+  -H "Authorization: Bearer YOUR_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "model": "text-embedding-ada-002",
+    "input": "The food was delicious and the service"
+  }'`)
+const embeddingsPythonCode = `embedding = client.embeddings.create(
+    model="text-embedding-ada-002",
+    input="The food was delicious and the service"
+)
+print(embedding.data[0].embedding)`
 
 const errorCodes = ref([
   { code: '401', message: 'Invalid API Key', solution: '检查 API Key 是否正确' },
@@ -782,18 +795,7 @@ async function copyText(text) {
   font-size: 14px;
 }
 
-.code-block {
-  background: #1e1e1e;
-  color: #d4d4d4;
-  padding: 16px;
-  border-radius: 8px;
-  overflow-x: auto;
-  font-family: 'Consolas', 'Monaco', monospace;
-  font-size: 13px;
-  line-height: 1.6;
-  margin: 0;
-  max-width: 100%;
-}
+
 
 .tip {
   color: #666;
@@ -949,7 +951,6 @@ async function copyText(text) {
     line-height: 1.4;
   }
 
-  .code-block,
   .response-content,
   .stream-content pre {
     font-size: 12px;
