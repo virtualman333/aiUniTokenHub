@@ -1,20 +1,21 @@
 <template>
-  <Transition name="fade">
-    <div v-if="showConsent" class="cookie-consent-overlay" @click.self="handleReject">
-      <div class="cookie-consent-modal">
-        <div class="cookie-icon">
-          <el-icon><Sugar /></el-icon>
+  <Transition name="slide-up">
+    <div v-if="showConsent" class="cookie-banner">
+      <div class="cookie-container">
+        <div class="cookie-icon-wrapper">
+          <el-icon :size="24"><Sugar /></el-icon>
         </div>
-        <h3>{{ t('cookie.title') }}</h3>
-        <p>{{ t('cookie.description') }}</p>
-        <div class="cookie-links">
-          <router-link to="/privacy-policy" target="_blank">{{ t('cookie.privacy') }}</router-link>
-          <span class="divider">|</span>
-          <router-link to="/terms-of-service" target="_blank">{{ t('cookie.terms') }}</router-link>
+        <div class="cookie-content">
+          <p class="cookie-text">
+            {{ t('cookie.description') }}
+            <router-link to="/privacy-policy" target="_blank" class="cookie-link">{{ t('cookie.privacy') }}</router-link>
+            <span class="cookie-separator">·</span>
+            <router-link to="/terms-of-service" target="_blank" class="cookie-link">{{ t('cookie.terms') }}</router-link>
+          </p>
         </div>
         <div class="cookie-actions">
-          <button class="btn btn-outline" @click="handleReject">{{ t('cookie.reject') }}</button>
-          <button class="btn btn-primary" @click="handleAccept">{{ t('cookie.accept') }}</button>
+          <button class="btn-reject" @click="handleReject">{{ t('cookie.reject') }}</button>
+          <button class="btn-accept" @click="handleAccept">{{ t('cookie.accept') }}</button>
         </div>
       </div>
     </div>
@@ -53,122 +54,140 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.3s ease;
+.slide-up-enter-active,
+.slide-up-leave-active {
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.fade-enter-from,
-.fade-leave-to {
+.slide-up-enter-from,
+.slide-up-leave-to {
+  transform: translateY(100%);
   opacity: 0;
 }
 
-.cookie-consent-overlay {
+.cookie-banner {
   position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
   z-index: 9999;
-  padding: 24px;
-  background: rgba(0, 0, 0, 0.8);
-  backdrop-filter: blur(10px);
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 -4px 30px rgba(0, 0, 0, 0.08);
 }
 
-.cookie-consent-modal {
-  max-width: 500px;
+.cookie-container {
+  max-width: 1200px;
   margin: 0 auto;
-  background: #fff;
-  border-radius: 16px;
-  padding: 24px;
-  text-align: center;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 0;
 }
 
-.cookie-icon {
-  width: 56px;
-  height: 56px;
-  margin: 0 auto 16px;
+.cookie-icon-wrapper {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  
-  .el-icon {
-    font-size: 28px;
-    color: #fff;
-  }
+  color: white;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
 }
 
-.cookie-consent-modal h3 {
-  font-size: 18px;
-  font-weight: 600;
-  color: #1a1a2e;
-  margin: 0 0 12px;
+.cookie-content {
+  flex: 1;
+  min-width: 0;
 }
 
-.cookie-consent-modal p {
-  font-size: 14px;
-  color: #606266;
-  margin: 0 0 16px;
+.cookie-text {
+  margin: 0;
+  font-size: 13px;
   line-height: 1.6;
+  color: #4a5568;
 }
 
-.cookie-links {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  margin-bottom: 20px;
+.cookie-link {
+  color: #667eea;
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.2s;
   
-  a {
-    font-size: 13px;
-    color: #667eea;
-    text-decoration: none;
-    
-    &:hover {
-      text-decoration: underline;
-    }
+  &:hover {
+    color: #5568d3;
+    text-decoration: underline;
   }
-  
-  .divider {
-    color: #dcdfe6;
-  }
+}
+
+.cookie-separator {
+  margin: 0 6px;
+  color: #cbd5e0;
 }
 
 .cookie-actions {
+  flex-shrink: 0;
   display: flex;
-  gap: 12px;
-  justify-content: center;
+  gap: 8px;
+  align-items: center;
 }
 
-.btn {
-  padding: 10px 24px;
+.btn-reject,
+.btn-accept {
+  padding: 8px 20px;
   border-radius: 8px;
+  font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.3s;
+  transition: all 0.2s ease;
   border: none;
-  font-size: 14px;
+  white-space: nowrap;
 }
 
-.btn-outline {
+.btn-reject {
   background: transparent;
-  border: 1px solid #dcdfe6;
-  color: #606266;
+  color: #718096;
   
   &:hover {
-    border-color: #409eff;
-    color: #409eff;
+    background: #f7fafc;
+    color: #2d3748;
   }
 }
 
-.btn-primary {
+.btn-accept {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: #fff;
+  color: white;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
   
   &:hover {
-    transform: translateY(-2px);
+    transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  }
+  
+  &:active {
+    transform: translateY(0);
+  }
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .cookie-container {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  
+  .cookie-icon-wrapper {
+    display: none;
+  }
+  
+  .cookie-actions {
+    width: 100%;
+    justify-content: flex-end;
   }
 }
 </style>
