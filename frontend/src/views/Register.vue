@@ -106,6 +106,15 @@
           />
         </el-form-item>
         
+        <el-form-item prop="agreement">
+          <el-checkbox v-model="form.agreement">
+            {{ t('auth.agreeTerms') }}
+            <a href="/privacy-policy" target="_blank">{{ t('auth.privacyPolicy') }}</a>
+            {{ t('auth.and') }}
+            <a href="/terms-of-service" target="_blank">{{ t('auth.termsOfService') }}</a>
+          </el-checkbox>
+        </el-form-item>
+        
         <el-form-item>
           <el-button
             type="primary"
@@ -155,7 +164,8 @@ const form = reactive({
   email_code: '',
   password: '',
   password_confirm: '',
-  invite_code: ''
+  invite_code: '',
+  agreement: false
 })
 
 onMounted(() => {
@@ -197,6 +207,9 @@ const rules = {
   password_confirm: [
     { required: true, message: '请确认密码', trigger: 'blur' },
     { validator: validatePasswordConfirm, trigger: 'blur' }
+  ],
+  agreement: [
+    { required: true, message: '请同意隐私政策和用户协议', trigger: 'change' }
   ]
 }
 

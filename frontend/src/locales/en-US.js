@@ -167,7 +167,129 @@ export default {
     sendCodeFailed: 'Failed to send verification code',
     passwordResetSuccess: 'Password reset successful',
     resetFailed: 'Failed to reset password',
-    backToLogin: 'Back to Login'
+    backToLogin: 'Back to Login',
+    agreeTerms: 'I have read and agree to the',
+    privacyPolicy: 'Privacy Policy',
+    termsOfService: 'Terms of Service',
+    and: 'and'
+  },
+  cookie: {
+    title: 'Cookie Policy',
+    description: 'We use cookies to improve your browsing experience, analyze website traffic, and personalize content. Please read our Privacy Policy and Terms of Service for more information.',
+    privacy: 'Privacy Policy',
+    terms: 'Terms of Service',
+    accept: 'Accept',
+    reject: 'Reject'
+  },
+  privacy: {
+    title: 'Privacy Policy',
+    lastUpdated: 'Last Updated',
+    intro: {
+      title: 'Introduction',
+      desc: 'uniTokenHub values your privacy. This Privacy Policy explains how we collect, use, store, and protect your personal information.'
+    },
+    info: {
+      title: 'Information We Collect',
+      item1: 'Account information: username, email address, password (encrypted)',
+      item2: 'Usage data: API call records, request logs, usage statistics',
+      item3: 'Device information: IP address, browser type, operating system',
+      item4: 'Payment information: billing records, transaction details (processed by third-party payment)',
+      item5: 'Communication data: ticket records, customer support conversations'
+    },
+    use: {
+      title: 'Purpose of Use',
+      item1: 'Provide and maintain our services',
+      item2: 'Process your requests and transactions',
+      item3: 'Improve and optimize our services',
+      item4: 'Send important notifications and updates',
+      item5: 'Protect service security and prevent fraud'
+    },
+    share: {
+      title: 'Information Sharing',
+      item1: 'Third-party service providers (payment, email services)',
+      item2: 'Legal requirements or protecting our rights',
+      item3: 'Business partners (data analytics, security services)',
+      item4: 'Anonymous statistical data (no personally identifiable information)'
+    },
+    security: {
+      title: 'Security Measures',
+      desc: 'We use industry-standard security measures to protect your information, including encrypted transmission, secure storage, and access control. However, please note that no security measure is 100% secure.'
+    },
+    rights: {
+      title: 'Your Rights',
+      item1: 'Access, correct, or delete your personal information',
+      item2: 'Restrict or object to information processing',
+      item3: 'Data portability',
+      item4: 'Withdraw consent or delete account'
+    },
+    changes: {
+      title: 'Policy Changes',
+      desc: 'We may update this policy from time to time. Material changes will be notified to you via website notification or email.'
+    },
+    contact: {
+      title: 'Contact Us',
+      desc: 'If you have any questions about this Privacy Policy, please contact us through our ticketing system.'
+    }
+  },
+  terms: {
+    title: 'Terms of Service',
+    lastUpdated: 'Last Updated',
+    intro: {
+      title: 'Acceptance of Terms',
+      desc: 'By using uniTokenHub services, you agree to comply with these Terms of Service. If you do not agree, please do not use our services.'
+    },
+    account: {
+      title: 'Account Registration',
+      item1: 'You must provide accurate and complete registration information',
+      item2: 'You are responsible for maintaining the security of your account password',
+      item3: 'You are responsible for all activities under your account',
+      item4: 'You must be at least 18 years old or have legal capacity',
+      item5: 'We reserve the right to refuse or terminate accounts'
+    },
+    service: {
+      title: 'Service Terms',
+      item1: 'We provide API relay services and related features',
+      item2: 'Services may undergo maintenance or updates',
+      item3: 'We do not guarantee continuous availability of services',
+      item4: 'We reserve the right to modify or terminate services'
+    },
+    usage: {
+      title: 'Usage Rules',
+      item1: 'Do not abuse or attack our services',
+      item2: 'Do not use for illegal or infringing activities',
+      item3: 'Do not bypass security measures or restrictions',
+      item4: 'Must comply with all applicable laws and regulations',
+      item5: 'Do not resell or misuse API services'
+    },
+    payment: {
+      title: 'Payment Terms',
+      item1: 'Service fees are calculated by usage or subscription plan',
+      item2: 'Payment methods include credit card, Alipay, WeChat Pay, etc.',
+      item3: 'Fees may change and will be notified in advance',
+      item4: 'Non-payment may result in service suspension'
+    },
+    intellectual: {
+      title: 'Intellectual Property',
+      item1: 'Copyright of services and content belongs to uniTokenHub',
+      item2: 'You retain ownership of your data',
+      item3: 'You grant us a limited license to use your data'
+    },
+    termination: {
+      title: 'Termination',
+      desc: 'You may delete your account and terminate this agreement at any time. We may also terminate your account for violation of this agreement or other reasons. After termination, your data will be processed according to the Privacy Policy.'
+    },
+    disclaimer: {
+      title: 'Disclaimer',
+      desc: 'Services are provided "as is" without any express or implied warranties. We are not liable for any indirect, incidental, or consequential damages.'
+    },
+    changes: {
+      title: 'Agreement Changes',
+      desc: 'We may update this agreement from time to time. Material changes will be notified to you via website notification or email.'
+    },
+    contact: {
+      title: 'Contact Us',
+      desc: 'If you have any questions about this agreement, please contact us through our ticketing system.'
+    }
   },
   brand: {
     title: 'uniTokenHub',

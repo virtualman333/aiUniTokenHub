@@ -216,8 +216,8 @@
           </div>
           <div class="footer-column">
             <h4>{{ t('home.footer.legal') }}</h4>
-            <a href="#">{{ t('home.footer.privacy') }}</a>
-            <a href="#">{{ t('home.footer.terms') }}</a>
+            <a href="/privacy-policy">{{ t('home.footer.privacy') }}</a>
+            <a href="/terms-of-service">{{ t('home.footer.terms') }}</a>
             <a href="#">{{ t('home.footer.cookies') }}</a>
           </div>
         </div>
@@ -226,6 +226,9 @@
         </div>
       </div>
     </footer>
+    
+    <!-- Cookie 同意弹窗 -->
+    <CookieConsent />
   </div>
 </template>
 
@@ -233,6 +236,7 @@
 import { useI18n } from '@/composables/useI18n'
 import { Link, TrendCharts, Wallet, Lock, Histogram, Setting, CopyDocument } from '@element-plus/icons-vue'
 import logoSrc from '@/assets/image/logo.png'
+import CookieConsent from '@/components/CookieConsent.vue'
 
 const { t } = useI18n()
 import { ref } from 'vue'
