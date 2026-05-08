@@ -102,7 +102,7 @@ onMounted(() => {
 })
 
 const isActive = (path) => {
-  if (path === '/') return route.path === '/'
+  if (path === '/app') return route.path === '/app'
   return route.path.startsWith(path)
 }
 

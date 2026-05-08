@@ -8,7 +8,7 @@
           <span class="brand-name">uniTokenHub</span>
         </div>
         <div class="navbar-links">
-          <a href="/#features" class="nav-link">{{ t('home.nav.features') }}</a>
+          <a href="/#features" class="nav-link">官网介绍</a>
           <a href="/#pricing" class="nav-link">{{ t('home.nav.pricing') }}</a>
           <a href="/#docs" class="nav-link">{{ t('home.nav.docs') }}</a>
         </div>
@@ -469,9 +469,54 @@ html.dark .login-container {
 }
 
 @media (max-width: 768px) {
+  .navbar-container {
+    padding: 10px 14px;
+  }
+
+  .navbar-links {
+    display: flex;
+    gap: 12px;
+    flex-shrink: 0;
+  }
+
+  .navbar-links .nav-link:not(:first-child) {
+    display: none;
+  }
+
+  .nav-link {
+    font-size: 14px;
+    white-space: nowrap;
+  }
+
+  .navbar-brand {
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .navbar-brand .logo {
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+  }
+
+  .brand-name {
+    font-size: 18px;
+    white-space: nowrap;
+  }
+
+  .navbar-actions {
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  .btn {
+    min-height: 40px;
+    padding: 8px 14px;
+  }
+
   .login-page {
     align-items: flex-start;
-    padding: 16px;
+    padding: calc(64px + 16px + env(safe-area-inset-top)) 16px 16px;
   }
 
   .login-container {
@@ -517,7 +562,19 @@ html.dark .login-container {
 
 @media (max-width: 420px) {
   .login-page {
+    padding: calc(64px + 10px + env(safe-area-inset-top)) 10px 10px;
+  }
+
+  .navbar-container {
     padding: 10px;
+  }
+
+  .brand-name {
+    font-size: 17px;
+  }
+
+  .btn {
+    padding: 7px 12px;
   }
 
   .brand-section,

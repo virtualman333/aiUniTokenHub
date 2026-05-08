@@ -41,7 +41,7 @@
       </template>
       <p>所有 API 请求都需要在 Header 中携带您的 API Key：</p>
       <CodeBlock :code="authHeaderCode" language="text" />
-      <p class="tip">请在 <router-link to="/my-keys">我的密钥</router-link> 页面获取您的 API Key</p>
+      <p class="tip">请在 <router-link to="/app/my-keys">我的密钥</router-link> 页面获取您的 API Key</p>
     </el-card>
 
     <!-- 在线测试 -->
