@@ -3,7 +3,7 @@
     <div v-if="showConsent" class="cookie-consent-overlay" @click.self="handleReject">
       <div class="cookie-consent-modal">
         <div class="cookie-icon">
-          <el-icon><Cookie /></el-icon>
+          <el-icon><Sugar /></el-icon>
         </div>
         <h3>{{ t('cookie.title') }}</h3>
         <p>{{ t('cookie.description') }}</p>
@@ -23,7 +23,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { Cookie } from '@element-plus/icons-vue'
+import { Sugar } from '@element-plus/icons-vue'
 import { useI18n } from '@/composables/useI18n'
 
 const { t } = useI18n()
