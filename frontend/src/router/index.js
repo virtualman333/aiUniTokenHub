@@ -27,6 +27,18 @@ const routes = [
     component: () => import('@/views/ForgotPassword.vue'),
     meta: { title: '忘记密码', guest: true }
   },
+  {
+    path: '/privacy-policy',
+    name: 'PrivacyPolicy',
+    component: () => import('@/views/PrivacyPolicy.vue'),
+    meta: { title: '隐私政策', guest: true }
+  },
+  {
+    path: '/terms-of-service',
+    name: 'TermsOfService',
+    component: () => import('@/views/TermsOfService.vue'),
+    meta: { title: '用户协议', guest: true }
+  },
   
   // 用户端布局
   {

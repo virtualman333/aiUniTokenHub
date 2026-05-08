@@ -108,6 +108,12 @@
             <span>{{ t('auth.noAccount') }}</span>
             <el-link type="primary" @click="$router.push('/register')">{{ t('auth.signUpNow') }}</el-link>
           </div>
+          
+          <div class="form-terms">
+            <a href="/privacy-policy" target="_blank">{{ t('auth.privacyPolicy') }}</a>
+            <span class="divider">|</span>
+            <a href="/terms-of-service" target="_blank">{{ t('auth.termsOfService') }}</a>
+          </div>
         </div>
       </div>
     </div>
@@ -437,7 +443,30 @@ html.dark .login-container {
 .form-footer {
   text-align: center;
   color: var(--text-secondary);
-  margin-bottom: 24px;
+  margin-bottom: 16px;
+}
+
+.form-terms {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  font-size: 13px;
+  
+  a {
+    color: var(--text-secondary);
+    text-decoration: none;
+    
+    &:hover {
+      color: #409eff;
+      text-decoration: underline;
+    }
+  }
+  
+  .divider {
+    color: var(--text-secondary);
+    opacity: 0.5;
+  }
 }
 
 @media (max-width: 768px) {
