@@ -186,7 +186,7 @@ const updateCharts = () => {
       }]
     })
   }
-  
+
   // 更新饼图
   if (pieChart) {
     const colors = ['#4ade80', '#f59e0b', '#667eea', '#f5576c', '#06b6d4', '#84cc16', '#a855f7', '#ec4899']

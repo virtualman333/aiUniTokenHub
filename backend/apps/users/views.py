@@ -253,6 +253,41 @@ class BillingViewSet(viewsets.GenericViewSet):
         serializer = BillSerializer(bills, many=True)
         return APIResponse.paginated(serializer.data, total, page, page_size)
 
+    @action(detail=False, methods=['get'], url_path='admin-bills')
+    def admin_bills(self, request):
+        """管理员查看所有用户账单"""
+        # 检查管理员权限
+        if not request.user or not request.user.is_staff:
+            return APIResponse.error('无权限访问', 403)
+        
+        queryset = Bill.objects.all().select_related('user')
+
+        # 过滤条件
+        user_id = request.query_params.get('user')
+        bill_type = request.query_params.get('type')
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date')
+
+        if user_id:
+            queryset = queryset.filter(user_id=user_id)
+        if bill_type:
+            queryset = queryset.filter(type=bill_type)
+        if start_date:
+            queryset = queryset.filter(created_at__gte=start_date)
+        if end_date:
+            queryset = queryset.filter(created_at__lte=end_date)
+
+        # 分页
+        page = int(request.query_params.get('page', 1))
+        page_size = int(request.query_params.get('page_size', 20))
+        total = queryset.count()
+        start = (page - 1) * page_size
+        end = start + page_size
+        bills = queryset[start:end]
+
+        serializer = BillSerializer(bills, many=True)
+        return APIResponse.paginated(serializer.data, total, page, page_size)
+
     @action(detail=False, methods=['post'])
     def recharge(self, request):
         """账户充值（直接充值，无需支付网关）"""

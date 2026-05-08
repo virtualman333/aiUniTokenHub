@@ -181,6 +181,12 @@ const routes = [
         component: () => import('@/views/admin/InviteManagement.vue'),
         meta: { title: '邀请返利' }
       },
+      {
+        path: 'billing-management',
+        name: 'BillingManagement',
+        component: () => import('@/views/admin/BillingManagement.vue'),
+        meta: { title: '账单管理' }
+      },
     ]
   },
   
