@@ -183,7 +183,7 @@ const handleLogin = async () => {
 .navbar-container {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 12px 24px;
+  padding: 16px 24px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -196,20 +196,20 @@ const handleLogin = async () => {
 }
 
 .navbar-brand .logo {
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   border-radius: 8px;
 }
 
 .brand-name {
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 700;
   color: #1a1a2e;
 }
 
 .navbar-links {
   display: flex;
-  gap: 28px;
+  gap: 32px;
 }
 
 .nav-link {
@@ -229,7 +229,7 @@ const handleLogin = async () => {
 }
 
 .btn {
-  padding: 7px 18px;
+  padding: 8px 20px;
   border-radius: 8px;
   font-weight: 500;
   cursor: pointer;
@@ -307,7 +307,6 @@ html.dark .login-container {
 .logo {
   width: 72px;
   height: 72px;
-  margin-bottom: 24px;
 }
 
 .logo-img {
