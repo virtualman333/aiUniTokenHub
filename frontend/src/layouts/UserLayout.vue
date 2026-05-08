@@ -335,12 +335,33 @@ const goToAdmin = () => {
 }
 
 @media (max-width: 980px) {
+  .topbar {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
   .logo-text {
     display: none;
   }
 
   .nav-menu {
-    margin-left: var(--space-3);
+    position: fixed;
+    left: 50%;
+    right: auto;
+    bottom: max(var(--space-3), env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    width: min(calc(100vw - 24px), 520px);
+    height: 64px;
+    margin: 0;
+    padding: var(--space-2);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-xl);
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: var(--shadow-lg);
+    justify-content: space-evenly;
+    gap: 0;
+    overflow: hidden;
+    z-index: var(--z-fixed);
   }
 
   .nav-item span {
@@ -348,35 +369,50 @@ const goToAdmin = () => {
   }
 
   .nav-item {
-    width: 40px;
-    height: 40px;
+    flex: 1 1 0;
+    width: auto;
+    min-width: 48px;
+    max-width: 64px;
+    height: 48px;
     justify-content: center;
     padding: 0;
+  }
+
+  .nav-item .el-icon {
+    font-size: 22px;
+  }
+
+  .main-wrapper {
+    padding-bottom: calc(88px + env(safe-area-inset-bottom));
   }
 }
 
 @media (max-width: 768px) {
   .nav-menu {
-    position: fixed;
-    left: var(--space-3);
-    right: var(--space-3);
+    left: 50%;
+    right: auto;
     bottom: max(var(--space-3), env(safe-area-inset-bottom));
-    height: 58px;
+    transform: translateX(-50%);
+    width: min(calc(100vw - 24px), 520px);
+    height: 64px;
     margin: 0;
     padding: var(--space-2);
     border: 1px solid var(--border-light);
     border-radius: var(--radius-xl);
     background: rgba(255, 255, 255, 0.96);
     box-shadow: var(--shadow-lg);
-    overflow-x: auto;
-    overscroll-behavior-x: contain;
+    justify-content: space-evenly;
+    gap: 0;
+    overflow: hidden;
     z-index: var(--z-fixed);
   }
 
   .nav-item {
-    flex: 0 0 44px;
-    width: 44px;
-    height: 40px;
+    flex: 1 1 0;
+    width: auto;
+    min-width: 48px;
+    max-width: 64px;
+    height: 48px;
   }
   
   .user-detail {
@@ -388,7 +424,18 @@ const goToAdmin = () => {
   }
 
   .topbar-right > .el-button {
-    display: none;
+    display: inline-flex;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    font-size: 0;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .topbar-right > .el-button .el-icon {
+    margin: 0;
+    font-size: 18px;
   }
 
   .user-info {
@@ -403,7 +450,7 @@ const goToAdmin = () => {
   
   .main-wrapper {
     padding: var(--space-4);
-    padding-bottom: calc(78px + env(safe-area-inset-bottom));
+    padding-bottom: calc(88px + env(safe-area-inset-bottom));
   }
 }
 

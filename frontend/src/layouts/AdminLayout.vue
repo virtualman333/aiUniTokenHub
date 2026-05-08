@@ -260,6 +260,8 @@ onMounted(() => {
 /* 顶部栏 */
 .topbar {
   height: 64px;
+  width: 100%;
+  box-sizing: border-box;
   background: #fff;
   border-bottom: 1px solid #e4e7ed;
   display: flex;
@@ -345,10 +347,10 @@ onMounted(() => {
     display: none;
   }
 
-  .sidebar:not(.collapsed) + .main-wrapper,
+  /* .sidebar:not(.collapsed) + .main-wrapper,
   .main-wrapper {
     margin-left: 72px;
-  }
+  } */
 
   .logo,
   .sidebar-footer {
@@ -424,6 +426,7 @@ onMounted(() => {
 
   .topbar {
     height: var(--header-height);
+    width: 100vw;
     padding-inline: var(--space-3);
   }
 
@@ -440,7 +443,18 @@ onMounted(() => {
   }
 
   .topbar-right > .el-button {
-    display: none;
+    display: inline-flex;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    font-size: 0;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .topbar-right > .el-button .el-icon {
+    margin: 0;
+    font-size: 18px;
   }
 
   .username {
