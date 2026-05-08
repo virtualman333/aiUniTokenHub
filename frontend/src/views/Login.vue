@@ -1,5 +1,24 @@
 <template>
   <div class="login-page">
+    <!-- 导航栏 -->
+    <nav class="navbar">
+      <div class="navbar-container">
+        <div class="navbar-brand">
+          <img :src="logoSrc" alt="uniTokenHub" class="logo" />
+          <span class="brand-name">uniTokenHub</span>
+        </div>
+        <div class="navbar-links">
+          <a href="/#features" class="nav-link">{{ t('home.nav.features') }}</a>
+          <a href="/#pricing" class="nav-link">{{ t('home.nav.pricing') }}</a>
+          <a href="/#docs" class="nav-link">{{ t('home.nav.docs') }}</a>
+        </div>
+        <div class="navbar-actions">
+          <button class="btn btn-outline" @click="$router.push('/login')">{{ t('auth.login') }}</button>
+          <button class="btn btn-primary" @click="$router.push('/register')">{{ t('auth.register') }}</button>
+        </div>
+      </div>
+    </nav>
+    
     <div class="login-container">
       <!-- 左侧品牌区域 -->
       <div class="brand-section">
@@ -71,7 +90,7 @@
 
             <div class="form-options">
               <el-checkbox v-model="rememberMe">{{ t('auth.rememberMe') }}</el-checkbox>
-              <el-link type="primary">{{ t('auth.forgotPassword') }}</el-link>
+              <router-link to="/forgot-password" class="forgot-link">{{ t('auth.forgotPassword') }}</router-link>
             </div>
 
             <el-button 
@@ -140,10 +159,7 @@ const handleLogin = async () => {
   try {
     await userStore.login(loginForm.username, loginForm.password)
     ElMessage.success(t('auth.loginSuccess'))
-    
-    // 根据角色跳转
-    const role = Cookies.get('userRole')
-    router.push(role === 'admin' ? '/admin' : '/')
+    router.push('/app')
   } catch (error) {
     ElMessage.error(error.message || t('auth.loginFailed'))
   } finally {
@@ -153,6 +169,96 @@ const handleLogin = async () => {
 </script>
 
 <style scoped>
+.navbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.navbar-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 12px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.navbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.navbar-brand .logo {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+}
+
+.brand-name {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1a1a2e;
+}
+
+.navbar-links {
+  display: flex;
+  gap: 28px;
+}
+
+.nav-link {
+  text-decoration: none;
+  color: #606266;
+  font-weight: 500;
+  transition: color 0.3s;
+  
+  &:hover {
+    color: #409eff;
+  }
+}
+
+.navbar-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.btn {
+  padding: 7px 18px;
+  border-radius: 8px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s;
+  border: none;
+  font-size: 14px;
+}
+
+.btn-outline {
+  background: transparent;
+  border: 1px solid #dcdfe6;
+  color: #606266;
+  
+  &:hover {
+    border-color: #409eff;
+    color: #409eff;
+  }
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+  
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  }
+}
+
 .login-page {
   min-height: 100vh;
   display: flex;
@@ -160,6 +266,7 @@ const handleLogin = async () => {
   justify-content: center;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   padding: 20px;
+  padding-top: 80px;
 }
 
 .login-container {

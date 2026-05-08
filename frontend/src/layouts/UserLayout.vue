@@ -87,12 +87,12 @@ const userStore = useUserStore()
 const isAdmin = computed(() => userStore.user?.role === 'admin')
 
 const navItems = [
-  { path: '/', label: '控制台', icon: markRaw(HomeFilled) },
-  { path: '/api-doc', label: '接口文档', icon: markRaw(Document) },
-  { path: '/model-square', label: '模型广场', icon: markRaw(Box) },
-  { path: '/chat', label: 'AI 对话', icon: markRaw(ChatRound) },
-  { path: '/usage-log', label: '使用记录', icon: markRaw(List) },
-  { path: '/tickets', label: '工单中心', icon: markRaw(Tickets) },
+  { path: '/app', label: '控制台', icon: markRaw(HomeFilled) },
+  { path: '/app/api-doc', label: '接口文档', icon: markRaw(Document) },
+  { path: '/app/model-square', label: '模型广场', icon: markRaw(Box) },
+  { path: '/app/chat', label: 'AI 对话', icon: markRaw(ChatRound) },
+  { path: '/app/usage-log', label: '使用记录', icon: markRaw(List) },
+  { path: '/app/tickets', label: '工单中心', icon: markRaw(Tickets) },
 ]
 
 onMounted(() => {
@@ -111,11 +111,11 @@ const handleCommand = (command) => {
     userStore.logout()
     router.push('/login')
   } else if (command === 'settings') {
-    router.push('/settings')
+    router.push('/app/settings')
   } else if (command === 'billing') {
-    router.push('/billing')
+    router.push('/app/billing')
   } else if (command === 'keys') {
-    router.push('/my-keys')
+    router.push('/app/my-keys')
   }
 }
 

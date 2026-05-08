@@ -1,4 +1,101 @@
 export default {
+  home: {
+    nav: {
+      features: 'Features',
+      pricing: 'Pricing',
+      docs: 'Docs'
+    },
+    hero: {
+      title: 'Unified Token Hub Service',
+      subtitle: 'Aggregate multiple AI service providers, provide unified API access, intelligent load balancing, and transparent billing management. Focus on business innovation without worrying about underlying API complexity.',
+      getStarted: 'Get Started Free',
+      viewDocs: 'View Docs',
+      stats: {
+        requests: 'Monthly Requests',
+        uptime: 'Uptime',
+        latency: 'Avg Latency'
+      }
+    },
+    features: {
+      title: 'Why Choose Us',
+      subtitle: 'Professional API relay service for your business',
+      multiChannel: {
+        title: 'Multi-channel Aggregation',
+        desc: 'One-click access to multiple AI providers, automatic optimal routing, ensuring service stability and reliability.'
+      },
+      loadBalance: {
+        title: 'Intelligent Load Balancing',
+        desc: 'Smart routing algorithms automatically distribute requests based on real-time performance, maximizing resource utilization.'
+      },
+      transparent: {
+        title: 'Transparent Billing',
+        desc: 'Detailed usage statistics and billing breakdowns, every penny accounted for.'
+      },
+      security: {
+        title: 'Secure & Reliable',
+        desc: 'End-to-end encryption, comprehensive API key management, multiple security layers.'
+      },
+      analytics: {
+        title: 'Data Analytics',
+        desc: 'Real-time API usage monitoring, rich statistical reports to optimize costs.'
+      },
+      customize: {
+        title: 'Flexible Customization',
+        desc: 'Support custom domains, IP whitelist, rate limiting, and other advanced configurations.'
+      }
+    },
+    pricing: {
+      title: 'Simple Transparent Pricing',
+      subtitle: 'Pay as you go, no hidden fees',
+      popular: 'Most Popular',
+      start: 'Get Started',
+      contact: 'Contact Us',
+      free: {
+        title: 'Free',
+        feature1: '1000 API calls/month',
+        feature2: 'Basic model access',
+        feature3: 'Email support',
+        feature4: 'Advanced analytics',
+        feature5: 'Dedicated account manager'
+      },
+      pro: {
+        title: 'Pro',
+        feature1: '100,000 API calls/month',
+        feature2: 'All models access',
+        feature3: 'Priority support',
+        feature4: 'Advanced analytics',
+        feature5: 'Dedicated account manager'
+      },
+      enterprise: {
+        title: 'Enterprise',
+        feature1: 'Unlimited API calls',
+        feature2: 'All models access',
+        feature3: '7x24 dedicated support',
+        feature4: 'Custom reports',
+        feature5: 'Dedicated account manager'
+      }
+    },
+    docs: {
+      title: 'Quick Start',
+      subtitle: 'Comprehensive API documentation and SDK support, integrate in 5 minutes',
+      getStarted: 'View Documentation'
+    },
+    footer: {
+      product: 'Product',
+      company: 'Company',
+      legal: 'Legal',
+      features: 'Features',
+      pricing: 'Pricing',
+      docs: 'Docs',
+      about: 'About Us',
+      contact: 'Contact',
+      blog: 'Blog',
+      privacy: 'Privacy Policy',
+      terms: 'Terms of Service',
+      cookies: 'Cookie Settings',
+      allRights: 'All rights reserved'
+    }
+  },
   common: {
     confirm: 'Confirm',
     cancel: 'Cancel',
@@ -49,7 +146,28 @@ export default {
     noAccount: "Don't have an account?",
     signUpNow: 'Sign Up Now',
     welcomeBack: 'Welcome Back',
-    loginToAccount: 'Login to your account'
+    loginToAccount: 'Login to your account',
+    createAccount: 'Create Account',
+    joinUs: 'Join uniTokenHub',
+    forgotPasswordDesc: 'Enter your email and we will send a verification code to your email',
+    emailCode: 'Email Code',
+    newPassword: 'New Password',
+    enterEmail: 'Please enter email',
+    invalidEmail: 'Please enter a valid email format',
+    enterCode: 'Please enter verification code',
+    codeLength: 'Verification code is 6 digits',
+    enterPassword: 'Please enter password',
+    passwordLength: 'Password must be at least 6 characters',
+    passwordNotMatch: 'Passwords do not match',
+    sendCode: 'Send Code',
+    getCode: 'Get Code',
+    resend: 'resend',
+    resetPassword: 'Reset Password',
+    codeSent: 'Verification code sent, please check your email',
+    sendCodeFailed: 'Failed to send verification code',
+    passwordResetSuccess: 'Password reset successful',
+    resetFailed: 'Failed to reset password',
+    backToLogin: 'Back to Login'
   },
   brand: {
     title: 'uniTokenHub',

@@ -23,7 +23,7 @@
           </div>
           <div class="convo-meta">
             <div class="convo-title">
-              <el-icon v-if="c.is_pinned" class="pin"><Top /></el-icon>
+              <el-icon v-if="c.is_pinned" class="pin"><ArrowUp /></el-icon>
               <span :title="c.title">{{ c.title }}</span>
             </div>
             <div class="convo-sub">{{ c.last_message || '暂无消息' }}</div>
@@ -38,7 +38,7 @@
                   <el-icon><Edit /></el-icon> 重命名
                 </el-dropdown-item>
                 <el-dropdown-item @click="handlePin(c)">
-                  <el-icon><Top /></el-icon>
+                  <el-icon><ArrowUp /></el-icon>
                   {{ c.is_pinned ? '取消置顶' : '置顶' }}
                 </el-dropdown-item>
                 <el-dropdown-item @click="handleClear(c)">
@@ -205,7 +205,7 @@ import {
   Plus,
   MoreFilled,
   Edit,
-  Top,
+  ArrowUp,
   Brush,
 } from '@element-plus/icons-vue'
 import { useChat } from './composables/useChat'

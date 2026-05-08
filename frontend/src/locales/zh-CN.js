@@ -1,4 +1,101 @@
 export default {
+  home: {
+    nav: {
+      features: '功能特性',
+      pricing: '定价方案',
+      docs: '文档'
+    },
+    hero: {
+      title: '统一Token中转服务',
+      subtitle: '聚合多渠道AI服务，提供统一API入口，智能负载均衡，透明计费管理。让您专注于业务创新，无需关注底层复杂的API调用细节。',
+      getStarted: '免费开始',
+      viewDocs: '查看文档',
+      stats: {
+        requests: '月请求量',
+        uptime: '服务可用性',
+        latency: '平均延迟'
+      }
+    },
+    features: {
+      title: '为什么选择我们',
+      subtitle: '专业的API中转服务，为您的业务保驾护航',
+      multiChannel: {
+        title: '多渠道聚合',
+        desc: '一键接入多家AI服务商，自动切换最优线路，保障服务稳定可靠。'
+      },
+      loadBalance: {
+        title: '智能负载均衡',
+        desc: '智能路由算法，根据实时性能自动分配请求，最大化资源利用率。'
+      },
+      transparent: {
+        title: '透明计费',
+        desc: '详细的使用统计和账单明细，每一分钱都花得明明白白。'
+      },
+      security: {
+        title: '安全可靠',
+        desc: '端到端加密传输，完善的API密钥管理，多重安全防护。'
+      },
+      analytics: {
+        title: '数据分析',
+        desc: '实时监控API使用情况，丰富的统计报表助您优化成本。'
+      },
+      customize: {
+        title: '灵活定制',
+        desc: '支持自定义域名、白名单IP、速率限制等高级配置。'
+      }
+    },
+    pricing: {
+      title: '简单透明的定价',
+      subtitle: '按需付费，无隐藏费用',
+      popular: '最受欢迎',
+      start: '开始使用',
+      contact: '联系我们',
+      free: {
+        title: '免费版',
+        feature1: '每月 1000 次 API 调用',
+        feature2: '基础模型访问',
+        feature3: '邮件技术支持',
+        feature4: '高级分析报表',
+        feature5: '专属客户经理'
+      },
+      pro: {
+        title: '专业版',
+        feature1: '每月 100000 次 API 调用',
+        feature2: '全部模型访问',
+        feature3: '优先技术支持',
+        feature4: '高级分析报表',
+        feature5: '专属客户经理'
+      },
+      enterprise: {
+        title: '企业版',
+        feature1: '无限 API 调用',
+        feature2: '全部模型访问',
+        feature3: '7x24 专属支持',
+        feature4: '定制化报表',
+        feature5: '专属客户经理'
+      }
+    },
+    docs: {
+      title: '快速接入',
+      subtitle: '完善的API文档和SDK支持，5分钟完成集成',
+      getStarted: '查看文档'
+    },
+    footer: {
+      product: '产品',
+      company: '公司',
+      legal: '法律',
+      features: '功能特性',
+      pricing: '定价',
+      docs: '文档',
+      about: '关于我们',
+      contact: '联系我们',
+      blog: '博客',
+      privacy: '隐私政策',
+      terms: '服务条款',
+      cookies: 'Cookie设置',
+      allRights: '保留所有权利'
+    }
+  },
   common: {
     confirm: '确认',
     cancel: '取消',
@@ -49,7 +146,28 @@ export default {
     noAccount: '还没有账户？',
     signUpNow: '立即注册',
     welcomeBack: '欢迎回来',
-    loginToAccount: '登录到您的账户'
+    loginToAccount: '登录到您的账户',
+    createAccount: '创建账号',
+    joinUs: '加入 uniTokenHub',
+    forgotPasswordDesc: '输入您的邮箱，我们将发送验证码到您的邮箱',
+    emailCode: '邮箱验证码',
+    newPassword: '新密码',
+    enterEmail: '请输入邮箱',
+    invalidEmail: '请输入正确的邮箱格式',
+    enterCode: '请输入验证码',
+    codeLength: '验证码为 6 位数字',
+    enterPassword: '请输入密码',
+    passwordLength: '密码长度至少为6位',
+    passwordNotMatch: '两次输入的密码不一致',
+    sendCode: '发送验证码',
+    getCode: '获取验证码',
+    resend: '后重试',
+    resetPassword: '重置密码',
+    codeSent: '验证码已发送，请查收邮箱',
+    sendCodeFailed: '发送验证码失败',
+    passwordResetSuccess: '密码重置成功',
+    resetFailed: '重置密码失败',
+    backToLogin: '返回登录'
   },
   brand: {
     title: 'uniTokenHub',

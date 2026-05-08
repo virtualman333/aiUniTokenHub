@@ -91,7 +91,7 @@ import * as echarts from 'echarts'
 import api from '@/stores'
 import dayjs from 'dayjs'
 import {
-  User, Money, Connection, TrendCharts, Document, Top, Warning
+  User, Wallet, Connection, TrendCharts, Document, ArrowUp, Warning
 } from '@element-plus/icons-vue'
 
 const router = useRouter()
@@ -110,7 +110,7 @@ const stats = reactive([
   { title: '总用户数', value: '0', icon: markRaw(User), bgColor: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' },
   { title: '总API数', value: '0', icon: markRaw(Connection), bgColor: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' },
   { title: '总请求数', value: '0', icon: markRaw(TrendCharts), bgColor: 'linear-gradient(135deg, #4ade80 0%, #22c55e 100%)' },
-  { title: '本月消费', value: '¥0', icon: markRaw(Money), bgColor: 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)' },
+  { title: '本月消费', value: '¥0', icon: markRaw(Wallet), bgColor: 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)' },
 ])
 
 const recentLogs = ref([])

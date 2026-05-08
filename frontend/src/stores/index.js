@@ -76,6 +76,7 @@ export const useUserStore = defineStore('user', {
       Cookies.set('userRole', res.user.role)
       this.user = res.user
       this.token = res.token
+      window.location.href = '/app'
       return res
     },
     
@@ -111,6 +112,18 @@ export const useUserStore = defineStore('user', {
       return await api.post('/users/auth/change_password/', {
         old_password: oldPassword,
         new_password: newPassword
+      })
+    },
+    
+    async sendResetCode(email) {
+      return await api.post('/users/auth/send_reset_code/', { email })
+    },
+    
+    async resetPassword(email, code, password) {
+      return await api.post('/users/auth/reset_password/', {
+        email,
+        code,
+        password
       })
     },
     

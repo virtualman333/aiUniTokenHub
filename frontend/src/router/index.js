@@ -2,7 +2,13 @@ import { createRouter, createWebHistory } from 'vue-router'
 import Cookies from 'js-cookie'
 
 const routes = [
-  // 公共路由
+  // 公共路由 - 首页（未登录可访问）
+  {
+    path: '/',
+    name: 'Home',
+    component: () => import('@/views/Home.vue'),
+    meta: { title: 'uniTokenHub - 统一Token中转服务', guest: true }
+  },
   {
     path: '/login',
     name: 'Login',
@@ -15,10 +21,16 @@ const routes = [
     component: () => import('@/views/Register.vue'),
     meta: { title: '注册', guest: true }
   },
+  {
+    path: '/forgot-password',
+    name: 'ForgotPassword',
+    component: () => import('@/views/ForgotPassword.vue'),
+    meta: { title: '忘记密码', guest: true }
+  },
   
   // 用户端布局
   {
-    path: '/',
+    path: '/app',
     component: () => import('@/layouts/UserLayout.vue'),
     meta: { requiresAuth: true },
     children: [
@@ -184,9 +196,11 @@ router.beforeEach((to, from, next) => {
   if (to.meta.requiresAuth && !token) {
     next('/login')
   } else if (to.meta.guest && token) {
-    next('/')
+    // 已登录用户访问 guest 路由，都跳转到用户端
+    next('/app')
   } else if (to.meta.requiresAdmin && userRole !== 'admin') {
-    next('/')
+    // 非管理员访问管理员路由，跳转到用户端
+    next('/app')
   } else {
     next()
   }
