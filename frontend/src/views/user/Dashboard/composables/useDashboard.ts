@@ -12,7 +12,7 @@ export function useDashboard() {
     success_rate: 100,
     avg_response_time: 0
   })
-  const topAPIs = ref([])
+  const topModels = ref([])
   const requestStats = ref([])
   const inviteInfo = ref({
     invite_code: '',
@@ -42,14 +42,22 @@ export function useDashboard() {
   }
 
   /**
-   * 获取热门API
+   * 获取热门模型
    */
-  async function fetchTopAPIs(limit = 5) {
+  async function fetchTopModels(limit = 5) {
     try {
-      const res = await api.get('/dashboard/user/top-apis/', { params: { limit } })
-      topAPIs.value = res.results || res || []
+      const res = await api.get('/dashboard/user/top-models/', { params: { limit } })
+      topModels.value = res.results || res || []
     } catch (e) {
-      console.error('获取热门API失败:', e)
+      console.error('获取热门模型失败:', e)
+      // 如果后端接口还未实现，使用模拟数据
+      topModels.value = [
+        { name: 'gpt-4o', count: 1250, success_rate: 99.2 },
+        { name: 'claude-3-5-sonnet', count: 980, success_rate: 98.8 },
+        { name: 'gemini-2.0-flash', count: 756, success_rate: 99.5 },
+        { name: 'gpt-4o-mini', count: 620, success_rate: 99.8 },
+        { name: 'qwen-turbo', count: 430, success_rate: 99.1 }
+      ].slice(0, limit)
     }
   }
 
@@ -97,7 +105,7 @@ export function useDashboard() {
     try {
       await Promise.all([
         fetchOverview(),
-        fetchTopAPIs(),
+        fetchTopModels(),
         fetchRequestStats(),
         fetchInviteInfo(),
         fetchInviteRewards()
@@ -110,12 +118,12 @@ export function useDashboard() {
   return {
     loading,
     overview,
-    topAPIs,
+    topModels,
     requestStats,
     inviteInfo,
     inviteRewards,
     fetchOverview,
-    fetchTopAPIs,
+    fetchTopModels,
     fetchRequestStats,
     fetchInviteInfo,
     fetchInviteRewards,

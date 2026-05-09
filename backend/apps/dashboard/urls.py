@@ -77,6 +77,11 @@ urlpatterns = [
         name="user-top-apis",
     ),
     path(
+        "user/top-models/",
+        UserDashboardViewSet.as_view({"get": "top_models"}),
+        name="user-top-models",
+    ),
+    path(
         "user/request-stats/",
         UserDashboardViewSet.as_view({"get": "request_stats"}),
         name="user-request-stats",

@@ -264,6 +264,39 @@ class UserDashboardViewSet(viewsets.GenericViewSet):
         return APIResponse.success(result, "获取成功")
 
     @action(detail=False, methods=["get"])
+    def top_models(self, request):
+        """热门模型 - 用户最常用的模型统计"""
+        limit = int(request.query_params.get("limit", 5))
+
+        # 按模型统计调用次数和成功率
+        top_models_data = (
+            APIAccessLog.objects.filter(user=request.user, model__isnull=False)
+            .values("model__code", "model__name")
+            .annotate(
+                count=Count("id"),
+                success_count=Count("id", filter=Q(response_status__gte=200, response_status__lt=300))
+            )
+            .order_by("-count")[:limit]
+        )
+
+        result = []
+        for item in top_models_data:
+            model_name = item["model__name"] or item["model__code"]
+            count = item["count"]
+            success_count = item["success_count"]
+            success_rate = round(success_count / count * 100, 1) if count > 0 else 0
+
+            result.append({
+                "name": model_name,
+                "model_code": item["model__code"],
+                "count": count,
+                "success_rate": success_rate,
+            })
+
+        # 如果没有数据，返回空列表（前端有模拟数据兜底）
+        return APIResponse.success(result, "获取成功")
+
+    @action(detail=False, methods=["get"])
     def request_stats(self, request):
         """请求统计（趋势）"""
         days = int(request.query_params.get("days", 7))
