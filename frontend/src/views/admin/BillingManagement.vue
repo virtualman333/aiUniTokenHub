@@ -203,8 +203,8 @@ const loadBills = async () => {
 
     const res = await api.get('/users/billing/admin-bills/', { params })
     // API 拦截器已处理统一响应格式，res 直接是 data 部分
-    if (res && res.list) {
-      bills.value = res.list || []
+    if (res && res.results) {
+      bills.value = res.results || []
       pagination.total = res.total || 0
       
       // 计算统计数据
@@ -249,8 +249,8 @@ const searchUsers = async (query) => {
       params: { search: query, page: 1, page_size: 10 }
     })
     // API 拦截器已处理，res 直接是 data 部分
-    if (res && res.list) {
-      userOptions.value = res.list || []
+    if (res && res.results) {
+      userOptions.value = res.results || []
     }
   } catch (error) {
     console.error('搜索用户失败:', error)
