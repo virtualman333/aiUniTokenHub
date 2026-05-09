@@ -53,6 +53,7 @@ declare module 'vue' {
     LangToggle: typeof import('./components/LangToggle.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    SeoMeta: typeof import('./components/SeoMeta.vue')['default']
     ThemeToggle: typeof import('./components/ThemeToggle.vue')['default']
   }
   export interface ComponentCustomProperties {

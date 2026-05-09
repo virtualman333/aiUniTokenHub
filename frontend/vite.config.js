@@ -5,6 +5,9 @@ import Components from 'unplugin-vue-components/vite'
 import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
 import { resolve } from 'path'
 
+// 预渲染插件（可选，需要时需要先运行：pnpm approve-builds @parcel/watcher esbuild puppeteer vue-demi）
+// import prerender from 'vite-plugin-prerender'
+
 // 获取环境变量
 const env = process.NODE_ENV || 'development'
 const isProduction = env === 'production'
@@ -21,6 +24,30 @@ export default defineConfig({
       resolvers: [ElementPlusResolver()],
       dts: 'src/components.d.ts',
     }),
+    // 预渲染配置 - 暂时禁用，需要配置 puppeteer 后再启用
+    // 要为公共页面生成静态 HTML 以提升 SEO，请先运行：
+    // pnpm approve-builds @parcel/watcher esbuild puppeteer vue-demi
+    // 然后取消下面的注释
+    // isProduction && prerender({
+    //   staticDir: resolve(__dirname, 'dist'),
+    //   routes: [
+    //     '/',
+    //     '/login',
+    //     '/register',
+    //     '/forgot-password',
+    //     '/privacy-policy',
+    //     '/terms-of-service',
+    //   ],
+    //   renderer: '@prerenderer/renderer-puppeteer',
+    //   rendererOptions: {
+    //     maxConcurrentRoutes: 4,
+    //     renderAfterDocumentEvent: 'rendered',
+    //   },
+    //   postProcess: (context) => {
+    //     context.html = context.html.replace(/(\n|\r|\s\s)+/g, ' ')
+    //     return context
+    //   },
+    // }),
   ],
   resolve: {
     alias: {
