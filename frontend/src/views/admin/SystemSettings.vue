@@ -298,16 +298,132 @@
         </el-button>
       </template>
     </el-dialog>
+
+    <!-- 告警配置卡片 -->
+    <div class="config-card" v-loading="loading" style="margin-top: 24px;">
+      <div class="card-head">
+        <div class="head-left">
+          <div class="head-icon head-icon-alert">
+            <el-icon :size="22"><Bell /></el-icon>
+          </div>
+          <div class="head-meta">
+            <div class="head-title">接口异常告警</div>
+            <div class="head-desc">当 API 调用返回非 200 状态码时，自动发送告警邮件通知管理员</div>
+          </div>
+        </div>
+        <div class="head-right">
+          <div class="status-pill" :class="{ on: form.alert_enabled, off: !form.alert_enabled }">
+            <span class="dot" />
+            {{ form.alert_enabled ? '已启用' : '未启用' }}
+          </div>
+          <el-switch v-model="form.alert_enabled" size="large" />
+        </div>
+      </div>
+
+      <!-- 告警未启用提示 -->
+      <transition name="slide-fade">
+        <div v-if="!form.alert_enabled && (!form.is_enabled || !form.alert_emails)" class="banner banner-warn">
+          <el-icon><Warning /></el-icon>
+          <span>告警功能未开启或未配置收件人，异常时不会发送通知邮件</span>
+        </div>
+      </transition>
+
+      <div class="form-body" style="padding-bottom: 0;">
+        <section class="section">
+          <header class="section-head">
+            <div>
+              <div class="section-title">告警收件人</div>
+              <div class="section-desc">配置接收告警邮件的邮箱地址，支持多个</div>
+            </div>
+          </header>
+
+          <div class="alert-emails-area">
+            <label class="field-label">告警邮箱列表 <span class="req">*</span></label>
+            <el-input
+              v-model="form.alert_emails"
+              type="textarea"
+              :rows="3"
+              placeholder="请输入告警收件邮箱，多个邮箱用英文逗号分隔&#10;例如: admin@example.com, ops@example.com"
+              :disabled="!form.is_enabled"
+            />
+            <div class="hint">多个邮箱使用英文逗号（,）分隔，每个请求周期内同类型告警仅发送一次以避免轰炸</div>
+
+            <!-- 邮件预览标签 -->
+            <div v-if="parsedAlertEmails.length" class="email-tags">
+              <span
+                v-for="(email, idx) in parsedAlertEmails"
+                :key="idx"
+                class="email-tag"
+              >
+                {{ email }}
+              </span>
+              <span class="tag-count">{{ parsedAlertEmails.length }} 个收件人</span>
+            </div>
+            <div v-else-if="form.alert_emails" class="email-tags">
+              <span class="tag-invalid">邮箱格式无效，请检查输入</span>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="card-foot">
+        <div class="foot-left"></div>
+        <div class="foot-right">
+          <el-button
+            :disabled="!form.alert_enabled || !form.is_enabled || !form.smtp_password_set"
+            @click="openAlertDialog"
+          >
+            <el-icon><Promotion /></el-icon>
+            发送告警测试
+          </el-button>
+          <el-button type="primary" :loading="saving" @click="handleSave">
+            <el-icon><Check /></el-icon>
+            保存配置
+          </el-button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 告警测试对话框 -->
+    <el-dialog
+      v-model="alertTestVisible"
+      title="发送告警测试邮件"
+      width="440px"
+      :close-on-click-modal="false"
+    >
+      <div class="dialog-body">
+        <div class="dialog-tip dialog-tip-warn">
+          将向<strong>告警配置中的所有收件人</strong>发送一封模拟告警邮件（HTTP 500）
+        </div>
+        <label class="field-label" style="margin-top: 12px">也可指定单个收件人测试（可选）</label>
+        <el-input
+          v-model="alertTestEmail"
+          placeholder="留空则发送给所有已配置的告警收件人"
+          size="large"
+        >
+          <template #prefix>
+            <el-icon><Message /></el-icon>
+          </template>
+        </el-input>
+      </div>
+      <template #footer>
+        <el-button @click="alertTestVisible = false">取消</el-button>
+        <el-button type="warning" :loading="alertTesting" @click="handleAlertTest">
+          <el-icon><Promotion /></el-icon>
+          发送测试
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, onMounted, watch } from 'vue'
+import { reactive, ref, onMounted, watch, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
   Message, Check, Promotion, Warning, Connection,
   User, Lock, Postcard, Timer, Refresh, Histogram,
-  Lightning, ArrowDown,
+  Lightning, ArrowDown, Bell,
 } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
 import api from '@/stores'
@@ -326,6 +442,8 @@ interface EmailConfigForm {
   code_expire_minutes: number | string
   code_resend_seconds: number | string
   daily_limit_per_email: number | string
+  alert_enabled: boolean
+  alert_emails: string
   updated_at_text?: string
 }
 
@@ -349,7 +467,21 @@ const form = reactive<EmailConfigForm>({
   code_expire_minutes: 5,
   code_resend_seconds: 60,
   daily_limit_per_email: 10,
+  alert_enabled: false,
+  alert_emails: '',
   updated_at_text: '',
+})
+
+// 告警相关
+const alertTestVisible = ref(false)
+const alertTesting = ref(false)
+const alertTestEmail = ref('')
+
+const parsedAlertEmails = computed(() => {
+  return form.alert_emails
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => s && /.+@.+\..+/.test(s))
 })
 
 // 加密
@@ -408,6 +540,8 @@ function applyConfig(data: any) {
   form.code_expire_minutes = Number(data.code_expire_minutes) || 5
   form.code_resend_seconds = Number(data.code_resend_seconds) || 60
   form.daily_limit_per_email = Number(data.daily_limit_per_email) || 10
+  form.alert_enabled = !!data.alert_enabled
+  form.alert_emails = data.alert_emails || ''
   form.updated_at_text = data.updated_at ? dayjs(data.updated_at).format('YYYY-MM-DD HH:mm:ss') : ''
   encryption.value = form.use_ssl ? 'ssl' : (form.use_tls ? 'tls' : 'none')
 }
@@ -454,6 +588,8 @@ async function handleSave() {
       code_expire_minutes: Number(form.code_expire_minutes) || 5,
       code_resend_seconds: Number(form.code_resend_seconds) || 60,
       daily_limit_per_email: Number(form.daily_limit_per_email) || 10,
+      alert_enabled: form.alert_enabled,
+      alert_emails: form.alert_emails,
     }
     if (form.smtp_password) {
       payload.smtp_password = form.smtp_password
@@ -490,6 +626,28 @@ async function handleTest() {
     ElMessage.error(e?.message || '发送失败')
   } finally {
     testing.value = false
+  }
+}
+
+function openAlertDialog() {
+  alertTestEmail.value = ''
+  alertTestVisible.value = true
+}
+
+async function handleAlertTest() {
+  alertTesting.value = true
+  try {
+    const payload: any = {}
+    if (alertTestEmail.value && /.+@.+\..+/.test(alertTestEmail.value)) {
+      payload.to_email = alertTestEmail.value
+    }
+    await api.post('/users/admin/system/alert/test/', payload)
+    ElMessage.success('告警测试邮件已发送')
+    alertTestVisible.value = false
+  } catch (e: any) {
+    ElMessage.error(e?.message || '发送失败')
+  } finally {
+    alertTesting.value = false
   }
 }
 
@@ -901,6 +1059,51 @@ onMounted(loadConfig)
 
   strong {
     color: #047857;
+  }
+}
+
+.dialog-tip-warn {
+  border-left-color: #f59e0b;
+  strong {
+    color: #d97706;
+  }
+}
+
+/* ========== 告警配置 ========== */
+.head-icon-alert {
+  background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
+  color: #ea580c;
+}
+
+.alert-emails-area {
+  .email-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+  }
+
+  .email-tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 10px;
+    background: #ecfdf5;
+    color: #047857;
+    border-radius: 6px;
+    font-size: 12px;
+    font-family: ui-monospace, monospace;
+  }
+
+  .tag-count {
+    font-size: 12px;
+    color: #94a3b8;
+    align-self: center;
+    margin-left: 4px;
+  }
+
+  .tag-invalid {
+    font-size: 12px;
+    color: #ef4444;
   }
 }
 

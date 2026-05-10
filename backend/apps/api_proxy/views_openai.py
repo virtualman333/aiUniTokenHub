@@ -1018,11 +1018,28 @@ class CompletionsView(APIView):
         try:
             with httpx.Client(timeout=120) as client:
                 response = client.post(url, headers=headers, json=request.data)
-            
+
             update_upstream_usage(account, success=response.status_code < 400)
+            if response.status_code >= 400:
+                try:
+                    send_alert_email(
+                        status_code=response.status_code, model=model_name,
+                        error_msg=f'Completions upstream error {response.status_code}',
+                        account_name=account.name, user_id=user.id,
+                    )
+                except Exception:
+                    pass
             return Response(response.json(), status=response.status_code)
         except Exception as e:
             update_upstream_usage(account, success=False)
+            try:
+                send_alert_email(
+                    status_code=502, model=model_name,
+                    error_msg=str(e)[:500],
+                    account_name=account.name, user_id=user.id,
+                )
+            except Exception:
+                pass
             return Response({
                 'error': {
                     'message': str(e),
@@ -1077,9 +1094,26 @@ class EmbeddingsView(APIView):
                 response = client.post(url, headers=headers, json=request.data)
             
             update_upstream_usage(account, success=response.status_code < 400)
+            if response.status_code >= 400:
+                try:
+                    send_alert_email(
+                        status_code=response.status_code, model=model_name,
+                        error_msg=f'Embeddings upstream error {response.status_code}',
+                        account_name=account.name, user_id=user.id,
+                    )
+                except Exception:
+                    pass
             return Response(response.json(), status=response.status_code)
         except Exception as e:
             update_upstream_usage(account, success=False)
+            try:
+                send_alert_email(
+                    status_code=502, model=model_name,
+                    error_msg=str(e)[:500],
+                    account_name=account.name, user_id=user.id,
+                )
+            except Exception:
+                pass
             return Response({
                 'error': {
                     'message': str(e),

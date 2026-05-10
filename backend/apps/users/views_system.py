@@ -112,25 +112,33 @@ class SystemSettingsViewSet(viewsets.GenericViewSet):
     def alert_test(self, request):
         """发送告警测试邮件"""
         to_email = (request.data.get('to_email') or '').strip()
-        if not to_email or '@' not in to_email:
-            return APIResponse.error('请填写有效的收件邮箱', 400)
 
         cfg = EmailConfig.get_config()
         if not cfg.is_enabled:
             return APIResponse.error('请先启用邮箱服务', 400)
 
+        # 如果指定了单个收件人则校验格式
+        if to_email and '@' not in to_email:
+            return APIResponse.error('请填写有效的收件邮箱', 400)
+        # 如果未指定收件人，检查是否配置了告警邮箱列表
+        if not to_email and not cfg.alert_enabled:
+            return APIResponse.error('请先启用告警配置或指定收件人', 400)
+
         try:
             from .mailer import send_alert_email
-            send_alert_email(
+            kwargs = dict(
                 status_code=500,
                 model='test-model',
                 error_msg='这是一封告警测试邮件，如果您收到此邮件说明告警配置正常。',
                 account_name='测试账号',
                 user_id=0,
                 ip='127.0.0.1',
-                override_emails=to_email,
             )
+            if to_email:
+                kwargs['override_emails'] = to_email
+            send_alert_email(**kwargs)
         except Exception as e:
             return APIResponse.error(f'发送失败：{e}', 500)
 
-        return APIResponse.success(None, f'已发送告警测试邮件到 {to_email}')
+        target = to_email or '所有已配置的告警收件人'
+        return APIResponse.success(None, f'已发送告警测试邮件到 {target}')
