@@ -338,17 +338,13 @@ const adjustBalance = (user) => {
 
 const saveBalance = async () => {
   try {
-    const res = await api.patch(`/dashboard/admin/users/${currentUser.value.id}/balance/`, {
+    const data = await api.patch(`/dashboard/admin/users/${currentUser.value.id}/balance/`, {
       amount: balanceAmount.value,
       note: balanceNote.value
     })
-    if (res.code === 200) {
-      ElMessage.success(res.msg || '余额调整成功')
-      showBalanceDialog.value = false
-      loadUsers()
-    } else {
-      ElMessage.error(res.msg || '调整失败')
-    }
+    ElMessage.success(data?.message || '余额调整成功')
+    showBalanceDialog.value = false
+    loadUsers()
   } catch (error) {
     ElMessage.error('调整失败')
   }

@@ -3,10 +3,13 @@ from __future__ import annotations
 
 import logging
 import smtplib
+import threading
 from email.header import Header
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.utils import formataddr
+
+from django.core.cache import cache
 
 from .models import EmailConfig
 
@@ -98,3 +101,129 @@ def render_verify_code_email(code: str, expire_minutes: int, purpose: str = 'reg
   </div>
 </body></html>"""
     return subject, html, text
+
+
+def _parse_alert_emails(emails_str: str) -> list[str]:
+    """解析告警邮箱列表，返回有效的邮箱列表"""
+    if not emails_str:
+        return []
+    return [e.strip() for e in emails_str.split(',') if e.strip() and '@' in e.strip()]
+
+
+def render_alert_email(status_code: int, model: str, error_msg: str,
+                       account_name: str = '', user_id: int = 0,
+                       ip: str = '') -> tuple[str, str, str]:
+    """渲染告警邮件，返回 (subject, html, text)"""
+    subject = f'【uniTokenHub告警】接口异常 - HTTP {status_code}'
+
+    # 状态码颜色映射
+    color_map = {
+        4: ('#f59e0b', '#fff'),   # 4xx - 黄色警告
+        5: ('#ef4444', '#fff'),   # 5xx - 红色严重
+    }
+    prefix = str(status_code)[0]
+    bg_color, text_color = color_map.get(prefix, ('#6b7280', '#fff'))
+    level_text = '客户端错误' if prefix == '4' else ('服务器错误' if prefix == '5' else '异常')
+
+    text = (
+        f'[uniTokenHub 接口异常告警]\n\n'
+        f'状态码: HTTP {status_code}\n'
+        f'模型: {model or "-"}\n'
+        f'上游账号: {account_name or "-"}\n'
+        f'用户ID: {user_id or "-"}\n'
+        f'客户端IP: {ip or "-"}\n'
+        f'错误信息: {error_msg}\n\n'
+        f'请及时检查系统状态。\n'
+    )
+
+    html = f"""<!doctype html>
+<html><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f3f4f6;padding:24px;">
+<div style="max-width:560px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 16px rgba(0,0,0,.06);">
+  <div style="padding:24px 28px;background:{bg_color};color:{text_color};">
+    <h2 style="margin:0;font-size:20px;">uniTokenHub 告警</h2>
+    <p style="margin:6px 0 0;font-size:13px;opacity:.85;">API 接口调用异常通知</p>
+  </div>
+  <div style="padding:28px;">
+    <p style="margin:0 0 16px;color:#374151;font-size:14px;">检测到接口调用出现 <strong>{level_text}</strong>，详情如下：</p>
+
+    <table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:20px;">
+      <tr><td style="padding:8px 12px;background:#f9fafb;color:#6b728b;border-bottom:1px solid #f1f5f9;width:120px;">状态码</td>
+          <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-weight:600;color:{bg_color};font-size:18px;">HTTP {status_code}</td></tr>
+      <tr><td style="padding:8px 12px;background:#f9fafb;color:#6b728b;border-bottom:1px solid #f1f5f9;">模型</td>
+          <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;"><code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;">{model or '-'}</code></td></tr>
+      <tr><td style="padding:8px 12px;background:#f9fafb;color:#6b728b;border-bottom:1px solid #f1f5f9;">上游账号</td>
+          <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;">{account_name or '-'}</td></tr>
+      <tr><td style="padding:8px 12px;background:#f9fafb;color:#6b728b;border-bottom:1px solid #f1f5f9;">用户 ID</td>
+          <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;">{user_id or '-'}</td></tr>
+      <tr><td style="padding:8px 12px;background:#f9fafb;color:#6b728b;border-bottom:1px solid #f1f5f9;">客户端 IP</td>
+          <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;"><code>{ip or '-'}</code></td></tr>
+      <tr><td style="padding:8px 12px;background:#f9fafb;color:#6b728b;vertical-align:top;">错误信息</td>
+          <td style="padding:8px 12px;color:#dc2626;word-break:break-all;">{error_msg}</td></tr>
+    </table>
+
+    <p style="margin:0;color:#9ca3af;font-size:12px;">此邮件由系统自动发送，请及时检查服务状态。</p>
+  </div>
+</div>
+</body></html>"""
+    return subject, html, text
+
+
+def send_alert_email(status_code: int, model: str = '', error_msg: str = '',
+                     account_name: str = '', user_id: int = 0,
+                     ip: str = '', override_emails: str | None = None):
+    """
+    发送告警邮件（带频率限制，异步发送不阻塞主线程）。
+    
+    Args:
+        override_emails: 测试用，强制指定收件人（跳过配置检查）
+    """
+    cfg = EmailConfig.get_config()
+
+    if not override_emails:
+        # 检查是否启用告警
+        if not cfg.alert_enabled:
+            return
+        # 检查邮箱服务是否可用
+        if not cfg.is_enabled:
+            logger.warning('[send_alert] 邮箱服务未启用，无法发送告警')
+            return
+        # 解析收件人列表
+        recipients = _parse_alert_emails(cfg.alert_emails)
+        if not recipients:
+            logger.warning('[send_alert] 未配置告警收件人')
+            return
+    else:
+        recipients = [override_emails] if isinstance(override_emails, str) else list(override_emails)
+
+    # 频率限制：同一状态码 + 同一模型，60秒内最多发1次
+    cache_key = f'alert_rate:{status_code}:{model}'
+    if cache.get(cache_key):
+        logger.info(f'[send_alert] 频率限制跳过: key={cache_key}')
+        return
+    cache.set(cache_key, 1, timeout=60)
+
+    # 渲染邮件内容
+    try:
+        subject, html_body, text_body = render_alert_email(
+            status_code=status_code,
+            model=model,
+            error_msg=error_msg[:500],  # 截断过长信息
+            account_name=account_name,
+            user_id=user_id,
+            ip=ip,
+        )
+    except Exception as e:
+        logger.error(f'[send_alert] 渲染邮件失败: {e}')
+        return
+
+    def _do_send():
+        """在子线程中逐个发送"""
+        for recipient in recipients:
+            try:
+                send_email(recipient, subject, html_body, text_body)
+                logger.info(f'[send_alert] 已发送告警邮件到 {recipient}')
+            except Exception as e:
+                logger.error(f'[send_alert] 发送失败 ({recipient}): {e}')
+
+    t = threading.Thread(target=_do_send, daemon=True)
+    t.start()

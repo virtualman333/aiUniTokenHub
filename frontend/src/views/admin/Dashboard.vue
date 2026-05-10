@@ -146,33 +146,23 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onUnmounted, onActivated, watch, markRaw } from 'vue'
+import { ref, reactive, onMounted, onUnmounted, watch, markRaw } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
 import * as echarts from 'echarts'
 import api from '@/stores'
 import dayjs from 'dayjs'
 import {
-  User, Wallet, Connection, TrendCharts, Document, ArrowUp, Warning, DataLine, Timer, PieChart
+  User, Wallet, Connection, TrendCharts, Document, ArrowUp, Warning
 } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const chartDays = ref('7')
 const trendChartRef = ref()
 const pieChartRef = ref()
+const errorChartRef = ref()
 let trendChart = null
 let pieChart = null
-
-// 查看余额
-const checkBalance = async () => {
-  try {
-    const res = await api.get('/users/me/')
-    const balance = res.data?.balance || res.balance || 0
-    ElMessage.info(`当前余额：¥${Number(balance).toFixed(4)}`)
-  } catch (e) {
-    ElMessage.error('获取余额失败')
-  }
-}
+let errorChart = null
 
 // 监听图表天数变化
 watch(chartDays, () => {

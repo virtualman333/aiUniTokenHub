@@ -293,6 +293,12 @@ class EmailConfig(models.Model):
     code_resend_seconds = models.IntegerField('验证码重发间隔（秒）', default=60)
     daily_limit_per_email = models.IntegerField('单邮箱每日发送上限', default=10)
 
+    # 告警配置
+    alert_enabled = models.BooleanField('启用接口异常告警', default=False,
+                                        help_text='启用后当API调用返回非200状态码时发送告警邮件')
+    alert_emails = models.TextField('告警邮箱列表', blank=True, default='',
+                                    help_text='多个邮箱用英文逗号分隔')
+
     updated_at = models.DateTimeField('更新时间', auto_now=True)
 
     class Meta:

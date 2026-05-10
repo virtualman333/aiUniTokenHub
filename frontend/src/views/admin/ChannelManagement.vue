@@ -338,10 +338,12 @@ const showDialog = (type, row = null) => {
     form.value = { ...defaultForm() }
   } else {
     isEdit.value = true
+    // 兼容两种格式: provider 可能是对象或纯ID
+    const providerVal = typeof row.provider === 'object' ? row.provider.id : row.provider
     form.value = {
       id: row.id,
       name: row.name,
-      provider: row.provider?.id || row.provider_id,
+      provider: providerVal || row.provider_id || null,
       protocol: row.protocol || 'openai',
       base_url: row.base_url,
       api_key: row.api_key || '',

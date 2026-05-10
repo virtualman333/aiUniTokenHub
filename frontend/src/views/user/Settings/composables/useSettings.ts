@@ -63,7 +63,7 @@ export function useSettings() {
     
     saving.value = true
     try {
-      await api.post('/users/auth/change-password/', {
+      await api.post('/users/auth/change_password/', {
         old_password: passwordForm.old_password,
         new_password: passwordForm.new_password
       })

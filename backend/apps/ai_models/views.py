@@ -157,14 +157,17 @@ class AIModelViewSet(viewsets.ModelViewSet):
         
         # 筛选参数
         provider = self.request.query_params.get('provider')
+        provider_id = self.request.query_params.get('provider_id')
         category = self.request.query_params.get('category')
         status = self.request.query_params.get('status')
         search = self.request.query_params.get('search')
         featured = self.request.query_params.get('featured')
         has_accounts = self.request.query_params.get('has_accounts')
-        
+
         if provider:
             queryset = queryset.filter(provider__code=provider)
+        elif provider_id:
+            queryset = queryset.filter(provider=provider_id)
         if category:
             queryset = queryset.filter(category__code=category)
         if status:

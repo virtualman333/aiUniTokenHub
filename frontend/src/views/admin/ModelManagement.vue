@@ -442,7 +442,7 @@ const total = ref(0)
 const searchQuery = ref('')
 const filterStatus = ref('')
 const filterProvider = ref('')
-const filterHasAccounts = ref('true') // 默认只显示已配置账号的模型
+const filterHasAccounts = ref('')
 const selectedModels = ref([])
 
 const defaultFormData = () => ({
@@ -515,7 +515,9 @@ async function fetchModels() {
     if (searchQuery.value) params.search = searchQuery.value
     if (filterStatus.value) params.status = filterStatus.value
     if (filterProvider.value) params.provider_id = filterProvider.value
-    if (filterHasAccounts.value) params.has_accounts = filterHasAccounts.value
+    if (filterHasAccounts.value !== '' && filterHasAccounts.value != null) {
+      params.has_accounts = String(filterHasAccounts.value)
+    }
     
     // 后端已直接返回 has_accounts 和 account_count 字段
     const res = await api.get('/models/models/', { params })

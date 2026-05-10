@@ -26,6 +26,8 @@ def _serialize_email_config(cfg: EmailConfig, mask_password: bool = True) -> dic
         'code_expire_minutes': cfg.code_expire_minutes,
         'code_resend_seconds': cfg.code_resend_seconds,
         'daily_limit_per_email': cfg.daily_limit_per_email,
+        'alert_enabled': cfg.alert_enabled,
+        'alert_emails': cfg.alert_emails or '',
         'updated_at': cfg.updated_at.isoformat() if cfg.updated_at else None,
     }
 
@@ -44,8 +46,8 @@ class SystemSettingsViewSet(viewsets.GenericViewSet):
         # PUT
         data = request.data or {}
         # 字段白名单
-        bool_fields = ['is_enabled', 'use_ssl', 'use_tls']
-        str_fields = ['smtp_host', 'smtp_user', 'from_email', 'from_name']
+        bool_fields = ['is_enabled', 'use_ssl', 'use_tls', 'alert_enabled']
+        str_fields = ['smtp_host', 'smtp_user', 'from_email', 'from_name', 'alert_emails']
         int_fields = ['smtp_port', 'code_expire_minutes', 'code_resend_seconds', 'daily_limit_per_email']
 
         for f in bool_fields:
@@ -105,3 +107,30 @@ class SystemSettingsViewSet(viewsets.GenericViewSet):
             return APIResponse.error(f'发送失败：{e}', 500)
 
         return APIResponse.success(None, f'已发送测试邮件到 {to_email}')
+
+    @action(detail=False, methods=['post'], url_path='alert/test')
+    def alert_test(self, request):
+        """发送告警测试邮件"""
+        to_email = (request.data.get('to_email') or '').strip()
+        if not to_email or '@' not in to_email:
+            return APIResponse.error('请填写有效的收件邮箱', 400)
+
+        cfg = EmailConfig.get_config()
+        if not cfg.is_enabled:
+            return APIResponse.error('请先启用邮箱服务', 400)
+
+        try:
+            from .mailer import send_alert_email
+            send_alert_email(
+                status_code=500,
+                model='test-model',
+                error_msg='这是一封告警测试邮件，如果您收到此邮件说明告警配置正常。',
+                account_name='测试账号',
+                user_id=0,
+                ip='127.0.0.1',
+                override_emails=to_email,
+            )
+        except Exception as e:
+            return APIResponse.error(f'发送失败：{e}', 500)
+
+        return APIResponse.success(None, f'已发送告警测试邮件到 {to_email}')

@@ -2,7 +2,7 @@
 
 ## 环境要求
 - Python 3.10+
-- PostgreSQL 14+
+- MySQL 8+
 - Redis 6+
 
 ## 安装

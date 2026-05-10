@@ -22,6 +22,7 @@ from django.http import StreamingHttpResponse
 from django.core.cache import cache
 
 from apps.users.models import APIKey, UsageLog, Bill
+from apps.users.mailer import send_alert_email
 from apps.ai_models.models import AIModel
 from apps.ai_models.upstream_models import UpstreamAccount, ModelUpstreamAccount
 from .models import APIAccessLog
@@ -475,6 +476,19 @@ class ChatCompletionsView(APIView):
                     f"[ChatCompletions-Error] user_id={user.id}, account={account.name}, "
                     f"status={response.status_code}, response={response_data}"
                 )
+                # 触发告警邮件
+                try:
+                    err_info = response_data.get('error', {}) if isinstance(response_data, dict) else {}
+                    send_alert_email(
+                        status_code=response.status_code,
+                        model=model_name,
+                        error_msg=err_info.get('message', str(response_data)[:500]),
+                        account_name=account.name,
+                        user_id=user.id,
+                        ip=get_client_ip(request),
+                    )
+                except Exception as alert_err:
+                    logger.warning(f'[send_alert] 发送告警失败: {alert_err}')
             else:
                 logger.info(f"[ChatCompletions-Normal] Success, status={response.status_code}")
 
@@ -526,6 +540,16 @@ class ChatCompletionsView(APIView):
                     response_time, get_client_ip(request),
                     model=model_obj, upstream_account=account,
                 )
+                # 触发告警邮件
+                try:
+                    send_alert_email(
+                        status_code=504, model=model_name,
+                        error_msg='Request timeout. Please try again.',
+                        account_name=account.name, user_id=user.id,
+                        ip=get_client_ip(request),
+                    )
+                except Exception:
+                    pass
             except Exception:
                 pass
             return Response({
@@ -546,6 +570,16 @@ class ChatCompletionsView(APIView):
                     response_time, get_client_ip(request),
                     model=model_obj, upstream_account=account,
                 )
+                # 触发告警邮件
+                try:
+                    send_alert_email(
+                        status_code=502, model=model_name,
+                        error_msg=f'Internal server error: {str(e)[:500]}',
+                        account_name=account.name, user_id=user.id,
+                        ip=get_client_ip(request),
+                    )
+                except Exception:
+                    pass
             except Exception:
                 pass
             return Response({
@@ -636,6 +670,16 @@ class ChatCompletionsView(APIView):
                                 f"[ChatCompletions-Stream-Error] user_id={user.id}, account={account.name}, "
                                 f"status={response.status_code}, response={error_data}"
                             )
+                            # 触发告警邮件
+                            try:
+                                send_alert_email(
+                                    status_code=response.status_code, model=model_name,
+                                    error_msg=str(final_error_msg)[:500],
+                                    account_name=account.name, user_id=user.id,
+                                    ip=client_ip,
+                                )
+                            except Exception:
+                                pass
                             yield (
                                 'data: '
                                 + json.dumps({
@@ -696,6 +740,16 @@ class ChatCompletionsView(APIView):
                     final_status = 504
                     final_error_msg = 'Request timeout'
                     logger.error(f"[ChatCompletions-Stream-Timeout] user_id={user.id}, account={account.name}")
+                    # 触发告警邮件
+                    try:
+                        send_alert_email(
+                            status_code=504, model=model_name,
+                            error_msg='Request timeout.',
+                            account_name=account.name, user_id=user.id,
+                            ip=client_ip,
+                        )
+                    except Exception:
+                        pass
                     yield (
                         'data: '
                         + json.dumps({
@@ -714,6 +768,16 @@ class ChatCompletionsView(APIView):
                     logger.error(
                         f"[ChatCompletions-Stream-Exception] user_id={user.id}, account={account.name}, error={str(e)}"
                     )
+                    # 触发告警邮件
+                    try:
+                        send_alert_email(
+                            status_code=502, model=model_name,
+                            error_msg=str(e)[:500],
+                            account_name=account.name, user_id=user.id,
+                            ip=client_ip,
+                        )
+                    except Exception:
+                        pass
                     yield (
                         'data: '
                         + json.dumps({
