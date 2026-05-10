@@ -1,347 +1,201 @@
 <template>
   <div class="traffic-analysis">
     <!-- 统计卡片 -->
-    <div class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-icon" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%)">
-          <el-icon><DataLine /></el-icon>
+    <div class="stats-row">
+      <el-card shadow="hover" class="stat-card">
+        <div class="stat-icon" style="background: linear-gradient(135deg, #667eea, #764ba2)">
+          <el-icon :size="24"><Document /></el-icon>
         </div>
         <div class="stat-info">
-          <div class="stat-value">{{ stats.totalRequests }}</div>
-          <div class="stat-title">总请求数</div>
+          <div class="stat-value">{{ stats.total_pv }}</div>
+          <div class="stat-label">总 PV</div>
         </div>
-      </div>
-      
-      <div class="stat-card">
-        <div class="stat-icon" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%)">
-          <el-icon><Check /></el-icon>
-        </div>
-        <div class="stat-info">
-          <div class="stat-value">{{ stats.successRate }}%</div>
-          <div class="stat-title">成功率</div>
-        </div>
-      </div>
-      
-      <div class="stat-card">
-        <div class="stat-icon" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)">
-          <el-icon><Timer /></el-icon>
-        </div>
-        <div class="stat-info">
-          <div class="stat-value">{{ stats.avgResponseTime }}ms</div>
-          <div class="stat-title">平均响应时间</div>
-        </div>
-      </div>
-      
-      <div class="stat-card">
-        <div class="stat-icon" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)">
-          <el-icon><User /></el-icon>
-        </div>
-        <div class="stat-info">
-          <div class="stat-value">{{ stats.activeUsers }}</div>
-          <div class="stat-title">活跃用户</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 时间范围选择 -->
-    <div class="time-range-bar">
-      <el-radio-group v-model="timeRange" @change="loadData">
-        <el-radio-button label="today">今天</el-radio-button>
-        <el-radio-button label="yesterday">昨天</el-radio-button>
-        <el-radio-button label="7days">近7天</el-radio-button>
-        <el-radio-button label="30days">近30天</el-radio-button>
-        <el-radio-button label="custom">自定义</el-radio-button>
-      </el-radio-group>
-      
-      <el-date-picker
-        v-if="timeRange === 'custom'"
-        v-model="customDateRange"
-        type="daterange"
-        range-separator="至"
-        start-placeholder="开始日期"
-        end-placeholder="结束日期"
-        @change="loadData"
-        style="margin-left: 16px"
-      />
-    </div>
-
-    <!-- 图表区域 -->
-    <div class="charts-row">
-      <el-card class="chart-card">
-        <template #header>
-          <div class="card-header">
-            <span>请求趋势</span>
-          </div>
-        </template>
-        <div class="chart-container" ref="trendChartRef"></div>
       </el-card>
-
-      <el-card class="chart-card">
-        <template #header>
-          <span>状态码分布</span>
-        </template>
-        <div class="chart-container" ref="statusChartRef"></div>
+      <el-card shadow="hover" class="stat-card">
+        <div class="stat-icon" style="background: linear-gradient(135deg, #43e97b, #38f9d7)">
+          <el-icon :size="24"><User /></el-icon>
+        </div>
+        <div class="stat-info">
+          <div class="stat-value">{{ stats.total_uv }}</div>
+          <div class="stat-label">总 UV</div>
+        </div>
+      </el-card>
+      <el-card shadow="hover" class="stat-card">
+        <div class="stat-icon" style="background: linear-gradient(135deg, #f093fb, #f5576c)">
+          <el-icon :size="24"><Location /></el-icon>
+        </div>
+        <div class="stat-info">
+          <div class="stat-value">{{ stats.total_ips }}</div>
+          <div class="stat-label">独立 IP</div>
+        </div>
       </el-card>
     </div>
 
-    <div class="charts-row">
-      <el-card class="chart-card">
-        <template #header>
-          <span>模型调用分布</span>
-        </template>
-        <div class="chart-container" ref="modelChartRef"></div>
-      </el-card>
+    <!-- 筛选栏 -->
+    <el-card style="margin-top: 20px">
+      <template #header>
+        <span>筛选条件</span>
+      </template>
+      <el-form :inline="true" :model="filters" @submit.prevent="handleSearch">
+        <el-form-item label="网页路径">
+          <el-input
+            v-model="filters.path"
+            placeholder="请输入路径，如 /admin/dashboard"
+            clearable
+            style="width: 240px"
+          />
+        </el-form-item>
+        <el-form-item label="IP 地址">
+          <el-input
+            v-model="filters.ip_address"
+            placeholder="请输入 IP 地址"
+            clearable
+            style="width: 180px"
+          />
+        </el-form-item>
+        <el-form-item label="访问时间">
+          <el-date-picker
+            v-model="filters.dateRange"
+            type="daterange"
+            range-separator="至"
+            start-placeholder="开始日期"
+            end-placeholder="结束日期"
+            value-format="YYYY-MM-DD"
+          />
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" @click="handleSearch">
+            <el-icon><Search /></el-icon>查询
+          </el-button>
+          <el-button @click="handleReset">
+            <el-icon><RefreshRight /></el-icon>重置
+          </el-button>
+        </el-form-item>
+      </el-form>
+    </el-card>
 
-      <el-card class="chart-card">
-        <template #header>
-          <span>响应时间分布</span>
-        </template>
-        <div class="chart-container" ref="responseTimeChartRef"></div>
-      </el-card>
-    </div>
-
-    <!-- 表格区域 -->
-    <el-row :gutter="20" style="margin-top: 20px">
-      <el-col :span="12">
-        <el-card>
-          <template #header>
-            <span>热门模型 TOP10</span>
+    <!-- 记录表格 -->
+    <el-card style="margin-top: 20px">
+      <template #header>
+        <div class="table-header">
+          <span>访问记录</span>
+          <span class="record-count">共 {{ total }} 条</span>
+        </div>
+      </template>
+      <el-table :data="records" stripe v-loading="loading" style="width: 100%">
+        <el-table-column prop="id" label="ID" width="70" align="center" />
+        <el-table-column prop="path" label="访问路径" min-width="220" show-overflow-tooltip />
+        <el-table-column prop="ip_address" label="IP 地址" width="150" align="center" />
+        <el-table-column prop="username" label="用户" width="120" align="center">
+          <template #default="{ row }">
+            <el-tag :type="row.username === '匿名' ? 'info' : 'success'" size="small">
+              {{ row.username }}
+            </el-tag>
           </template>
-          <el-table :data="topModels" stripe size="small">
-            <el-table-column prop="model_name" label="模型名称" min-width="150" />
-            <el-table-column prop="request_count" label="请求数" width="100" align="center" />
-            <el-table-column prop="avg_response_time" label="平均响应时间" width="120" align="center">
-              <template #default="{ row }">
-                {{ row.avg_response_time }}ms
-              </template>
-            </el-table-column>
-          </el-table>
-        </el-card>
-      </el-col>
-      
-      <el-col :span="12">
-        <el-card>
-          <template #header>
-            <span>活跃用户 TOP10</span>
+        </el-table-column>
+        <el-table-column prop="referer" label="来源页" min-width="200" show-overflow-tooltip>
+          <template #default="{ row }">
+            <span v-if="row.referer">{{ row.referer }}</span>
+            <span v-else class="text-muted">-</span>
           </template>
-          <el-table :data="topUsers" stripe size="small">
-            <el-table-column prop="username" label="用户名" min-width="120" />
-            <el-table-column prop="request_count" label="请求数" width="100" align="center" />
-            <el-table-column prop="total_tokens" label="总Token消耗" width="120" align="center">
-              <template #default="{ row }">
-                {{ formatNumber(row.total_tokens) }}
-              </template>
-            </el-table-column>
-          </el-table>
-        </el-card>
-      </el-col>
-    </el-row>
+        </el-table-column>
+        <el-table-column prop="created_at" label="访问时间" width="180" align="center" />
+      </el-table>
+
+      <div class="pagination" style="margin-top: 20px; display: flex; justify-content: center">
+        <el-pagination
+          v-model:current-page="page"
+          v-model:page-size="pageSize"
+          :total="total"
+          :page-sizes="[10, 20, 50, 100]"
+          layout="total, sizes, prev, pager, next, jumper"
+          @size-change="fetchRecords"
+          @current-change="fetchRecords"
+        />
+      </div>
+    </el-card>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, markRaw } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import * as echarts from 'echarts'
+import { Search, RefreshRight, Document, User, Location } from '@element-plus/icons-vue'
 import api from '@/stores'
-import { 
-  DataLine, Check, Timer, User 
-} from '@element-plus/icons-vue'
 
 // 统计数据
 const stats = ref({
-  totalRequests: 0,
-  successRate: 0,
-  avgResponseTime: 0,
-  activeUsers: 0
+  total_pv: 0,
+  total_uv: 0,
+  total_ips: 0,
 })
 
-// 时间范围
-const timeRange = ref('today')
-const customDateRange = ref([])
-
-// 图表引用
-const trendChartRef = ref(null)
-const statusChartRef = ref(null)
-const modelChartRef = ref(null)
-const responseTimeChartRef = ref(null)
-
-// 图表实例
-let trendChart = null
-let statusChart = null
-let modelChart = null
-let responseTimeChart = null
+// 筛选条件
+const filters = reactive({
+  path: '',
+  ip_address: '',
+  dateRange: null,
+})
 
 // 表格数据
-const topModels = ref([])
-const topUsers = ref([])
-
-// 加载数据
-async function loadData() {
-  try {
-    const params = buildQueryParams()
-    
-    // 获取统计数据
-    const statsRes = await api.get('/api/traffic/stats/', { params })
-    stats.value = statsRes
-    
-    // 获取趋势数据
-    const trendRes = await api.get('/api/traffic/trend/', { params })
-    renderTrendChart(trendRes)
-    
-    // 获取状态码分布
-    const statusRes = await api.get('/api/traffic/status-distribution/', { params })
-    renderStatusChart(statusRes)
-    
-    // 获取模型分布
-    const modelRes = await api.get('/api/traffic/model-distribution/', { params })
-    renderModelChart(modelRes)
-    
-    // 获取响应时间分布
-    const responseTimeRes = await api.get('/api/traffic/response-time-distribution/', { params })
-    renderResponseTimeChart(responseTimeRes)
-    
-    // 获取TOP数据
-    const topRes = await api.get('/api/traffic/top/', { params })
-    topModels.value = topRes.models || []
-    topUsers.value = topRes.users || []
-  } catch (error) {
-    ElMessage.error('加载数据失败')
-    console.error(error)
-  }
-}
+const records = ref([])
+const loading = ref(false)
+const page = ref(1)
+const pageSize = ref(20)
+const total = ref(0)
 
 // 构建查询参数
-function buildQueryParams() {
-  const params = {}
-  
-  if (timeRange.value === 'custom' && customDateRange.value.length === 2) {
-    params.start_date = customDateRange.value[0].toISOString().split('T')[0]
-    params.end_date = customDateRange.value[1].toISOString().split('T')[0]
-  } else {
-    params.time_range = timeRange.value
+function buildParams() {
+  const params = {
+    page: page.value,
+    page_size: pageSize.value,
   }
-  
+  if (filters.path) params.path = filters.path
+  if (filters.ip_address) params.ip_address = filters.ip_address
+  if (filters.dateRange && filters.dateRange.length === 2) {
+    params.start_date = filters.dateRange[0]
+    params.end_date = filters.dateRange[1]
+  }
   return params
 }
 
-// 渲染趋势图
-function renderTrendChart(data) {
-  if (!trendChart) {
-    trendChart = echarts.init(trendChartRef.value)
+// 获取记录数据
+async function fetchRecords() {
+  loading.value = true
+  try {
+    const res = await api.get('/api/admin/analytics/records/', {
+      params: buildParams(),
+    })
+    records.value = res.data || []
+    stats.value.total_pv = res.total_pv || 0
+    stats.value.total_uv = res.total_uv || 0
+    stats.value.total_ips = res.total_ips || 0
+    total.value = res.total || 0
+  } catch (error) {
+    ElMessage.error('获取访问记录失败')
+    console.error(error)
+  } finally {
+    loading.value = false
   }
-  
-  const option = {
-    tooltip: { trigger: 'axis' },
-    legend: { data: ['总请求', '成功请求', '失败请求'] },
-    grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
-    xAxis: { type: 'category', data: data.labels || [] },
-    yAxis: { type: 'value' },
-    series: [
-      { name: '总请求', type: 'line', data: data.total || [], smooth: true },
-      { name: '成功请求', type: 'line', data: data.success || [], smooth: true },
-      { name: '失败请求', type: 'line', data: data.failed || [], smooth: true }
-    ]
-  }
-  
-  trendChart.setOption(option)
 }
 
-// 渲染状态码分布图
-function renderStatusChart(data) {
-  if (!statusChart) {
-    statusChart = echarts.init(statusChartRef.value)
-  }
-  
-  const option = {
-    tooltip: { trigger: 'item', formatter: '{a} <br/>{b}: {c} ({d}%)' },
-    legend: { orient: 'vertical', left: 'left' },
-    series: [{
-      name: '状态码',
-      type: 'pie',
-      radius: '50%',
-      data: data || [],
-      emphasis: {
-        itemStyle: { shadowBlur: 10, shadowOffsetX: 0, shadowColor: 'rgba(0, 0, 0, 0.5)' }
-      }
-    }]
-  }
-  
-  statusChart.setOption(option)
+// 搜索
+function handleSearch() {
+  page.value = 1
+  fetchRecords()
 }
 
-// 渲染模型分布图
-function renderModelChart(data) {
-  if (!modelChart) {
-    modelChart = echarts.init(modelChartRef.value)
-  }
-  
-  const option = {
-    tooltip: { trigger: 'item', formatter: '{a} <br/>{b}: {c} ({d}%)' },
-    legend: { orient: 'vertical', left: 'left' },
-    series: [{
-      name: '模型调用',
-      type: 'pie',
-      radius: ['40%', '70%'],
-      data: data || [],
-      emphasis: {
-        itemStyle: { shadowBlur: 10, shadowOffsetX: 0, shadowColor: 'rgba(0, 0, 0, 0.5)' }
-      }
-    }]
-  }
-  
-  modelChart.setOption(option)
-}
-
-// 渲染响应时间分布图
-function renderResponseTimeChart(data) {
-  if (!responseTimeChart) {
-    responseTimeChart = echarts.init(responseTimeChartRef.value)
-  }
-  
-  const option = {
-    tooltip: { trigger: 'axis' },
-    grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
-    xAxis: { type: 'category', data: data.labels || [] },
-    yAxis: { type: 'value' },
-    series: [{
-      name: '响应时间',
-      type: 'bar',
-      data: data.data || []
-    }]
-  }
-  
-  responseTimeChart.setOption(option)
-}
-
-// 格式化数字
-function formatNumber(num) {
-  if (!num) return '0'
-  if (num >= 10000) {
-    return (num / 10000).toFixed(1) + 'w'
-  }
-  return num.toString()
-}
-
-// 监听窗口大小变化
-function handleResize() {
-  trendChart?.resize()
-  statusChart?.resize()
-  modelChart?.resize()
-  responseTimeChart?.resize()
+// 重置筛选
+function handleReset() {
+  filters.path = ''
+  filters.ip_address = ''
+  filters.dateRange = null
+  page.value = 1
+  fetchRecords()
 }
 
 onMounted(() => {
-  loadData()
-  window.addEventListener('resize', handleResize)
-})
-
-onUnmounted(() => {
-  window.removeEventListener('resize', handleResize)
-  trendChart?.dispose()
-  statusChart?.dispose()
-  modelChart?.dispose()
-  responseTimeChart?.dispose()
+  fetchRecords()
 })
 </script>
 
@@ -350,37 +204,32 @@ onUnmounted(() => {
   padding: 20px;
 }
 
-.stats-grid {
+.stats-row {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(3, 1fr);
   gap: 20px;
-  margin-bottom: 20px;
 }
 
 .stat-card {
-  background: white;
   border-radius: 12px;
-  padding: 20px;
+}
+
+.stat-card :deep(.el-card__body) {
   display: flex;
   align-items: center;
   gap: 16px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
-  transition: transform 0.2s;
-}
-
-.stat-card:hover {
-  transform: translateY(-2px);
+  padding: 20px;
 }
 
 .stat-icon {
-  width: 56px;
-  height: 56px;
+  width: 48px;
+  height: 48px;
   border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
-  font-size: 24px;
+  color: #fff;
+  flex-shrink: 0;
 }
 
 .stat-info {
@@ -388,48 +237,37 @@ onUnmounted(() => {
 }
 
 .stat-value {
-  font-size: 28px;
-  font-weight: 600;
+  font-size: 24px;
+  font-weight: 700;
   color: #1f2937;
   line-height: 1.2;
 }
 
-.stat-title {
-  font-size: 14px;
+.stat-label {
+  font-size: 13px;
   color: #6b7280;
   margin-top: 4px;
 }
 
-.time-range-bar {
-  margin-bottom: 20px;
-  display: flex;
-  align-items: center;
-}
-
-.charts-row {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 20px;
-  margin-bottom: 20px;
-}
-
-.chart-card {
-  border-radius: 12px;
-}
-
-.chart-container {
-  height: 300px;
-}
-
-.card-header {
+.table-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   font-weight: 600;
 }
 
-@media (max-width: 1024px) {
-  .charts-row {
+.record-count {
+  font-size: 13px;
+  color: #909399;
+  font-weight: 400;
+}
+
+.text-muted {
+  color: #c0c4cc;
+}
+
+@media (max-width: 768px) {
+  .stats-row {
     grid-template-columns: 1fr;
   }
 }
