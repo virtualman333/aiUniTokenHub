@@ -142,24 +142,24 @@
             <div class="pricing-header">
               <h3>{{ t('home.pricing.payg.title') }}</h3>
               <div class="pricing-price">
-                <span class="amount-lg">1</span>
-                <span class="unit">Token = ¥0.001</span>
+                <span class="avg-label">AVG</span>
+                <span class="amount-lg">¥{{ avgPrice.toFixed(2) }}</span>
+                <span class="unit">{{ t('home.pricing.payg.unit') }}</span>
               </div>
+              <p class="pricing-tip">{{ t('home.pricing.payg.tip') }}</p>
               <p class="pricing-desc">{{ t('home.pricing.payg.desc') }}</p>
             </div>
             <ul class="pricing-features token-list">
               <template v-if="pricingModels.length > 0">
-                <li v-for="m in pricingModels.slice(0, 5)" :key="m.id">
+                <li v-for="m in pricingModels.slice(0, 3)" :key="m.id">
                   <span class="token-pack"><strong>{{ m.name }}</strong> {{ m.price_display }}</span>
                 </li>
               </template>
-              <template v-if="pricingModels.length < 3" v-for="n in (3 - pricingModels.length)" :key="'placeholder-'+n">
-                <li><span class="token-pack"><strong>...</strong> 加载中</span></li>
+              <template v-else>
+                <li v-for="n in 3" :key="'placeholder-'+n"><span class="token-pack">...</span></li>
               </template>
-              <template v-if="pricingModels.length >= 0">
-                <li>{{ t('home.pricing.payg.feature4') }}</li>
-                <li>{{ t('home.pricing.payg.feature5') }}</li>
-              </template>
+              <li>{{ t('home.pricing.payg.feature4') }}</li>
+              <li>{{ t('home.pricing.payg.feature5') }}</li>
             </ul>
             <button class="btn btn-primary" @click="$router.push('/register')">{{ t('home.pricing.recharge') }}</button>
           </div>
@@ -239,7 +239,7 @@ import CookieConsent from '@/components/CookieConsent.vue'
 import CodeBlock from '@/components/CodeBlock.vue'
 
 const { t } = useI18n()
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 
 const heroCode = `curl -X POST https://api.unitokenhub.com/v1/chat/completions \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
@@ -251,6 +251,13 @@ const heroCode = `curl -X POST https://api.unitokenhub.com/v1/chat/completions \
 
 // ─── 定价数据（从接口获取）───
 const pricingModels = ref([])
+
+// 平均价格：所有模型 input_price 的均值
+const avgPrice = computed(() => {
+  if (!pricingModels.value.length) return 0
+  const total = pricingModels.value.reduce((s, m) => s + (m.input_price || 0), 0)
+  return total / pricingModels.value.length
+})
 
 async function fetchPricing() {
   try {
@@ -619,6 +626,24 @@ const scrollToDocs = () => {
   margin: 8px 0 0;
   font-size: 13px;
   color: #909399;
+}
+
+.avg-label {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  color: #667eea;
+  background: #f0eeff;
+  padding: 2px 6px;
+  border-radius: 4px;
+  vertical-align: top;
+  margin-top: 8px;
+}
+
+.pricing-tip {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: #e6a23c;
 }
 
 .pricing-features {

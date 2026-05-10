@@ -62,6 +62,8 @@ export default {
       },
       payg: {
         title: 'Pay As You Go',
+        unit: '¥/1M tokens',
+        tip: 'Actual price depends on the model used',
         desc: 'Buy tokens upfront, billed by actual usage. Balance never expires.',
         feature1: 'GPT-4 / Claude and more models supported',
         feature2: 'Real-time usage statistics & billing details',

@@ -126,7 +126,7 @@ class AIModelViewSet(viewsets.ModelViewSet):
         return AIModelListSerializer
     
     def get_permissions(self):
-        if self.action in ['list', 'retrieve', 'search', 'filters']:
+        if self.action in ['list', 'retrieve', 'search', 'filters', 'public_pricing']:
             return [AllowAny()]
         return [IsAdminUser()]
     
@@ -316,23 +316,27 @@ class AIModelViewSet(viewsets.ModelViewSet):
         优先返回 is_featured=True 的已上架模型，不足则补充按使用量排序的活跃模型。
         """
         from decimal import Decimal
+        from django.db.models import F
 
         limit = min(int(request.query_params.get('limit', 6)), 20)
 
+        base_qs = (
+            AIModel.objects.filter(status='active', input_price__gt=0)
+            .select_related('provider')
+            .annotate(
+                provider_name=F('provider__name'),
+                provider_code=F('provider__code'),
+            )
+        )
+
         # 1. 推荐模型
         featured = list(
-            AIModel.objects.filter(
-                status='active',
-                is_featured=True,
-                input_price__gt=0,
-            )
-            .select_related('provider')
+            base_qs.filter(is_featured=True)
             .order_by('-usage_count')[:limit]
             .values(
                 'id', 'name', 'code',
                 'input_price', 'output_price', 'cached_input_price',
-                provider_name='provider__name',
-                provider_code='provider__code',
+                'provider_name', 'provider_code',
             )
         )
 
@@ -342,18 +346,12 @@ class AIModelViewSet(viewsets.ModelViewSet):
         if remaining > 0:
             featured_ids = [m['id'] for m in featured]
             extra = list(
-                AIModel.objects.filter(
-                    status='active',
-                    input_price__gt=0,
-                )
-                .exclude(id__in=featured_ids)
-                .select_related('provider')
+                base_qs.exclude(id__in=featured_ids)
                 .order_by('-usage_count')[:remaining]
                 .values(
                     'id', 'name', 'code',
                     'input_price', 'output_price', 'cached_input_price',
-                    provider_name='provider__name',
-                    provider_code='provider__code',
+                    'provider_name', 'provider_code',
                 )
             )
 

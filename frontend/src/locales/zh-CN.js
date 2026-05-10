@@ -62,6 +62,8 @@ export default {
       },
       payg: {
         title: '按量付费',
+        unit: '元/百万tokens',
+        tip: '以实际使用模型价格为准',
         desc: '充值购买 Tokens，按实际使用量计费，余额永不过期',
         feature1: '支持 GPT-4 / Claude 等主流模型',
         feature2: '实时用量统计与账单明细',
