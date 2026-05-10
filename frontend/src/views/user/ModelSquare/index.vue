@@ -2,61 +2,70 @@
   <div class="model-square">
     <!-- 头部 -->
     <div class="header">
-      <h1>模型广场</h1>
-      <p class="subtitle">
-        探索、对比、接入优质AI模型
-        <el-button type="primary" @click="$router.push('/app/tutorial')" style="margin-left: 12px;">
-          快速接入教程 <el-icon class="el-icon--right"><ArrowRight /></el-icon>
-        </el-button>
-      </p>
+      <div class="header-content">
+        <h1>模型广场</h1>
+        <p class="subtitle">
+          探索、对比、接入优质AI模型
+          <el-button type="primary" @click="$router.push('/app/tutorial')" style="margin-left: 12px;">
+            快速接入教程 <el-icon class="el-icon--right"><ArrowRight /></el-icon>
+          </el-button>
+        </p>
+      </div>
     </div>
 
-    <!-- 筛选栏 -->
-    <FilterBar
-      v-model:search-query="searchQuery"
-      v-model:selected-provider="selectedProvider"
-      v-model:selected-category="selectedCategory"
-      v-model:selected-capability="selectedCapability"
-      :providers="filters.providers"
-      :categories="filters.categories"
-      :capabilities="filters.capabilities"
-    />
-
-    <!-- 快速标签 -->
-    <QuickTags
-      :tags="commonTags"
-      :selected-tags="selectedTags"
-      :featured-only="featuredOnly"
-      @toggle-featured="toggleFeatured"
-      @toggle-tag="toggleTag"
-    />
-
-    <!-- 模型列表 -->
-    <div class="model-grid" v-loading="loading">
-      <ModelCard
-        v-for="model in models"
-        :key="model.id"
-        :model="model"
-        @click="showModelDetail"
+    <!-- 主体内容：左侧供应商 + 右侧模型列表 -->
+    <div class="main-content">
+      <!-- 左侧供应商侧边栏 -->
+      <ProviderSidebar
+        :providers="filters.providers"
+        :selected-provider="selectedProvider"
+        :total-models="total"
+        @update:selected-provider="selectedProvider = $event"
       />
-    </div>
 
-    <!-- 分页 -->
-    <div v-if="total > 0" class="pagination">
-      <el-pagination
-        v-model:current-page="currentPage"
-        v-model:page-size="pageSize"
-        :total="total"
-        :page-sizes="[12, 20, 40, 60]"
-        layout="total, sizes, prev, pager, next"
-        @size-change="onPageChange"
-        @current-change="onPageChange"
-      />
-    </div>
+      <!-- 右侧内容 -->
+      <div class="content-area">
+        <!-- 筛选栏 -->
+        <FilterBar
+          v-model:search-query="searchQuery"
+          v-model:selected-provider="selectedProvider"
+          v-model:selected-category="selectedCategory"
+          v-model:selected-capability="selectedCapability"
+          :providers="filters.providers"
+          :categories="filters.categories"
+          :capabilities="filters.capabilities"
+        />
 
-    <!-- 空状态 -->
-    <div v-if="!loading && models.length === 0" class="empty-state">
-      <el-empty description="暂无模型" />
+        <!-- 模型列表 -->
+
+        <!-- 模型列表 -->
+        <div class="model-grid" v-loading="loading">
+          <ModelCard
+            v-for="model in models"
+            :key="model.id"
+            :model="model"
+            @click="showModelDetail"
+          />
+        </div>
+
+        <!-- 分页 -->
+        <div v-if="total > 0" class="pagination">
+          <el-pagination
+            v-model:current-page="currentPage"
+            v-model:page-size="pageSize"
+            :total="total"
+            :page-sizes="[12, 20, 40, 60]"
+            layout="total, sizes, prev, pager, next"
+            @size-change="onPageChange"
+            @current-change="onPageChange"
+          />
+        </div>
+
+        <!-- 空状态 -->
+        <div v-if="!loading && models.length === 0" class="empty-state">
+          <el-empty description="暂无模型" />
+        </div>
+      </div>
     </div>
 
     <!-- 模型详情弹窗 -->
@@ -73,7 +82,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowRight } from '@element-plus/icons-vue'
 import FilterBar from './components/FilterBar.vue'
-import QuickTags from './components/QuickTags.vue'
+import ProviderSidebar from './components/ProviderSidebar.vue'
 import ModelCard from './components/ModelCard.vue'
 import ModelDetail from './components/ModelDetail.vue'
 import { useModels } from './composables/useModels'
@@ -95,9 +104,8 @@ const searchQuery = ref('')
 const selectedProvider = ref('')
 const selectedCategory = ref('')
 const selectedCapability = ref('')
-const featuredOnly = ref(false)
 const selectedTags = ref<string[]>([])
-const commonTags = ['免费', 'GPT-4', 'Claude', '国产', '开源']
+const commonTags = ref<string[]>([])
 
 // 详情弹窗
 const detailVisible = ref(false)
@@ -111,7 +119,7 @@ onMounted(() => {
 // 监听筛选变化
 import { watch } from 'vue'
 
-watch([searchQuery, selectedProvider, selectedCategory, featuredOnly], () => {
+watch([searchQuery, selectedProvider, selectedCategory], () => {
   debounceFetch()
 })
 
@@ -121,7 +129,6 @@ function debounceFetch() {
   if (searchQuery.value) params.search = searchQuery.value
   if (selectedProvider.value) params.provider = selectedProvider.value
   if (selectedCategory.value) params.category = selectedCategory.value
-  if (featuredOnly.value) params.featured = 'true'
   
   fetchModels(params)
 }
@@ -131,13 +138,7 @@ function onPageChange() {
   if (searchQuery.value) params.search = searchQuery.value
   if (selectedProvider.value) params.provider = selectedProvider.value
   if (selectedCategory.value) params.category = selectedCategory.value
-  if (featuredOnly.value) params.featured = 'true'
   fetchModels(params)
-}
-
-function toggleFeatured() {
-  featuredOnly.value = !featuredOnly.value
-  debounceFetch()
 }
 
 function toggleTag(tag: string) {
@@ -168,7 +169,7 @@ function useModel() {
 <style scoped>
 .model-square {
   padding: var(--space-6);
-  max-width: 1400px;
+  max-width: 1600px;
   margin: 0 auto;
   animation: fadeIn 0.5s ease-out;
 }
@@ -178,7 +179,7 @@ function useModel() {
   margin-bottom: var(--space-8);
 }
 
-.header h1 {
+.header-content h1 {
   font-size: var(--text-4xl);
   font-weight: var(--font-bold);
   color: #000000;
@@ -196,11 +197,24 @@ function useModel() {
   gap: var(--space-3);
 }
 
+/* 主体内容布局 */
+.main-content {
+  display: flex;
+  gap: var(--space-6);
+  align-items: flex-start;
+}
+
+.content-area {
+  flex: 1;
+  min-width: 0;
+}
+
 .model-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
   gap: var(--space-6);
   min-height: 200px;
+  margin-top: var(--space-6);
 }
 
 .pagination {
@@ -215,17 +229,31 @@ function useModel() {
 }
 
 /* 响应式设计 */
+@media (max-width: 1024px) {
+  .main-content {
+    flex-direction: column;
+  }
+  
+  .model-grid {
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  }
+}
+
 @media (max-width: 768px) {
   .model-square {
     padding: var(--space-4);
   }
   
-  .header h1 {
+  .header-content h1 {
     font-size: var(--text-3xl);
   }
   
   .model-grid {
     grid-template-columns: 1fr;
+    gap: var(--space-4);
+  }
+  
+  .main-content {
     gap: var(--space-4);
   }
 }

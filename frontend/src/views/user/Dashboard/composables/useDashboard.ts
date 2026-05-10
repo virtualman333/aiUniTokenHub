@@ -10,7 +10,9 @@ export function useDashboard() {
     total_requests: 0,
     today_requests: 0,
     success_rate: 100,
-    avg_response_time: 0
+    total_input_tokens: 0,
+    total_output_tokens: 0,
+    total_tokens: 0
   })
   const topModels = ref([])
   const requestStats = ref([])

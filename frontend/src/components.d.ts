@@ -52,6 +52,7 @@ declare module 'vue' {
     ElUpload: typeof import('element-plus/es')['ElUpload']
     ImageUpload: typeof import('./components/ImageUpload.vue')['default']
     LangToggle: typeof import('./components/LangToggle.vue')['default']
+    RechargeDialog: typeof import('./components/RechargeDialog.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     SeoMeta: typeof import('./components/SeoMeta.vue')['default']

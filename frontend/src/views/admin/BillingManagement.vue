@@ -93,11 +93,11 @@
       <el-table :data="bills" v-loading="loading" stripe style="width: 100%">
         <el-table-column prop="id" label="ID" width="80" />
         
-        <el-table-column prop="user.username" label="用户" width="120">
+        <el-table-column prop="username" label="用户" width="120">
           <template #default="{ row }">
             <div class="user-cell">
-              <div class="user-avatar">{{ row.user?.username?.[0]?.toUpperCase() || '?' }}</div>
-              <span>{{ row.user?.username || '未知' }}</span>
+              <div class="user-avatar">{{ row.username?.[0]?.toUpperCase() || '?' }}</div>
+              <span>{{ row.username || '未知' }}</span>
             </div>
           </template>
         </el-table-column>

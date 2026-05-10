@@ -115,13 +115,14 @@ class ChangePasswordSerializer(serializers.Serializer):
 class BillSerializer(serializers.ModelSerializer):
     """账单记录"""
     type_display = serializers.CharField(source='get_type_display', read_only=True)
+    username = serializers.CharField(source='user.username', read_only=True, default='未知')
     amount = serializers.FloatField()
     balance = serializers.FloatField()
 
     class Meta:
         model = Bill
-        fields = ['id', 'type', 'type_display', 'amount', 'balance', 'description', 'created_at']
-        read_only_fields = ['id', 'type', 'amount', 'balance', 'description', 'created_at']
+        fields = ['id', 'username', 'type', 'type_display', 'amount', 'balance', 'description', 'created_at']
+        read_only_fields = ['id', 'username', 'type', 'amount', 'balance', 'description', 'created_at']
 
 
 class CardPasswordSerializer(serializers.ModelSerializer):

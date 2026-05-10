@@ -6,10 +6,6 @@
         <el-icon><Wallet /></el-icon>
         充值管理
       </el-button>
-      <el-button type="success" @click="checkBalance">
-        <el-icon><TrendCharts /></el-icon>
-        查看余额
-      </el-button>
     </div>
 
     <!-- 统计卡片 -->

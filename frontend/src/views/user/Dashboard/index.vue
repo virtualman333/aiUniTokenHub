@@ -5,8 +5,20 @@
       <div class="header-content">
         <h1>控制台</h1>
         <p class="subtitle">查看您的 API 使用概览</p>
+        <!-- 余额显示 -->
+        <div class="balance-display" v-loading="balanceLoading">
+          <span class="balance-label">账户余额：</span>
+          <span class="balance-value">¥{{ Number(balance).toFixed(4) }}</span>
+          <el-button type="primary" link size="small" @click="handleRefreshBalance">
+            <el-icon><Refresh /></el-icon>
+          </el-button>
+        </div>
       </div>
       <div class="header-actions">
+        <el-button type="primary" @click="showRecharge = true">
+          <el-icon><Wallet /></el-icon>
+          账户充值
+        </el-button>
         <el-button type="primary" @click="$router.push('/app/api-doc')">
           <el-icon><Document /></el-icon>
           查看文档
@@ -41,12 +53,12 @@
         :trend-up="true"
       />
       <StatCard
-        :value="`${overview.avg_response_time || 0}ms`"
-        label="平均响应时间"
+        :value="formatTokenCount(overview.total_tokens)"
+        label="Token消耗"
         gradient="linear-gradient(135deg, #868e96 0%, #adb5bd 100%)"
-        :icon="Timer"
-        trend="-15ms"
-        :trend-up="false"
+        :icon="Coin"
+        trend=""
+        :trend-up="true"
       />
     </div>
     
@@ -167,23 +179,30 @@
         </div>
       </div>
     </div>
+
+    <!-- 充值对话框 -->
+    <RechargeDialog v-model="showRecharge" @success="handleRechargeSuccess" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { 
   DataLine, 
   TrendCharts, 
   CircleCheck, 
-  Timer, 
   Document, 
   Share, 
-  DocumentCopy 
+  DocumentCopy,
+  Refresh,
+  Wallet,
+  Coin
 } from '@element-plus/icons-vue'
 import StatCard from './components/StatCard.vue'
+import RechargeDialog from '@/components/RechargeDialog.vue'
 import { useDashboard } from './composables/useDashboard'
+import { useBilling } from '@/views/user/Billing/composables/useBilling'
 import { copyToClipboard } from '@/utils/clipboard'
 
 const {
@@ -195,6 +214,11 @@ const {
   inviteRewards,
   loadData
 } = useDashboard()
+
+// 余额相关
+const { balance, loadBalance } = useBilling()
+const balanceLoading = ref(false)
+const showRecharge = ref(false)
 
 const inviteLink = computed(() => {
   const code = inviteInfo.value.invite_code
@@ -212,8 +236,38 @@ async function copyInviteLink() {
   }
 }
 
+// 刷新余额
+async function handleRefreshBalance() {
+  balanceLoading.value = true
+  try {
+    await loadBalance()
+  } finally {
+    balanceLoading.value = false
+  }
+}
+
+// 充值成功回调
+function handleRechargeSuccess() {
+  loadBalance()
+}
+
+// 格式化Token数量
+function formatTokenCount(count: number): string {
+  if (count >= 1000000000) {
+    return (count / 1000000000).toFixed(1) + 'B'
+  }
+  if (count >= 1000000) {
+    return (count / 1000000).toFixed(1) + 'M'
+  }
+  if (count >= 1000) {
+    return (count / 1000).toFixed(1) + 'K'
+  }
+  return count.toString()
+}
+
 onMounted(() => {
   loadData()
+  loadBalance()
 })
 </script>
 
@@ -244,6 +298,32 @@ onMounted(() => {
   color: var(--text-secondary);
   font-size: var(--text-base);
   font-weight: var(--font-normal);
+  margin-bottom: var(--space-2);
+}
+
+/* 余额显示 */
+.balance-display {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  background: linear-gradient(135deg, var(--primary-50) 0%, var(--accent-50) 100%);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-light);
+  margin-top: var(--space-3);
+  width: fit-content;
+}
+
+.balance-label {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  font-weight: var(--font-medium);
+}
+
+.balance-value {
+  font-size: var(--text-xl);
+  font-weight: var(--font-bold);
+  color: var(--primary-600);
 }
 
 .header-actions {

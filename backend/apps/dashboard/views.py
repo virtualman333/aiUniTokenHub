@@ -231,17 +231,23 @@ class UserDashboardViewSet(viewsets.GenericViewSet):
             else 100
         )
 
-        # 计算平均响应时间
-        avg_response = user_logs.filter(response_time__gt=0).aggregate(
-            avg=Avg("response_time")
-        )["avg"]
-        avg_response_time = round(avg_response) if avg_response else 0
+        # 计算Token消耗
+        token_stats = user_logs.aggregate(
+            total_input_tokens=Sum("input_tokens"),
+            total_output_tokens=Sum("output_tokens"),
+            total_tokens=Sum("total_tokens")
+        )
+        total_input_tokens = token_stats["total_input_tokens"] or 0
+        total_output_tokens = token_stats["total_output_tokens"] or 0
+        total_tokens_consumed = token_stats["total_tokens"] or 0
 
         data = {
             "total_requests": total_requests,
             "today_requests": today_requests,
             "success_rate": success_rate,
-            "avg_response_time": avg_response_time,
+            "total_input_tokens": total_input_tokens,
+            "total_output_tokens": total_output_tokens,
+            "total_tokens": total_tokens_consumed,
         }
 
         return APIResponse.success(data, "获取成功")
@@ -265,12 +271,20 @@ class UserDashboardViewSet(viewsets.GenericViewSet):
 
     @action(detail=False, methods=["get"])
     def top_models(self, request):
-        """热门模型 - 用户最常用的模型统计"""
+        """热门模型 - 所有用户最常用的模型统计（Redis缓存30分钟）"""
+        from django.core.cache import cache
+        
         limit = int(request.query_params.get("limit", 5))
+        cache_key = f"top_models_{limit}"
+        
+        # 尝试从缓存获取
+        cached_data = cache.get(cache_key)
+        if cached_data:
+            return APIResponse.success(cached_data, "获取成功")
 
-        # 按模型统计调用次数和成功率
+        # 按模型统计调用次数和成功率（所有用户）
         top_models_data = (
-            APIAccessLog.objects.filter(user=request.user, model__isnull=False)
+            APIAccessLog.objects.filter(model__isnull=False)
             .values("model__code", "model__name")
             .annotate(
                 count=Count("id"),
@@ -292,6 +306,9 @@ class UserDashboardViewSet(viewsets.GenericViewSet):
                 "count": count,
                 "success_rate": success_rate,
             })
+
+        # 缓存30分钟（1800秒）
+        cache.set(cache_key, result, 1800)
 
         # 如果没有数据，返回空列表（前端有模拟数据兜底）
         return APIResponse.success(result, "获取成功")
