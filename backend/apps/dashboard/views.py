@@ -60,7 +60,7 @@ class AdminDashboardViewSet(viewsets.GenericViewSet, AnalyticsViewSet):
 
     @action(detail=False, methods=["get"])
     def trend(self, request):
-        """请求趋势"""
+        """请求趋势 — 基于 APIAccessLog"""
         days = int(request.query_params.get("days", 7))
 
         stats = []
@@ -73,7 +73,7 @@ class AdminDashboardViewSet(viewsets.GenericViewSet, AnalyticsViewSet):
                 timezone.datetime.combine(date, timezone.datetime.max.time())
             )
 
-            count = UsageLog.objects.filter(
+            count = APIAccessLog.objects.filter(
                 created_at__gte=start, created_at__lte=end
             ).count()
             stats.append({"date": date.strftime("%m-%d"), "count": count})

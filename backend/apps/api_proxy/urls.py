@@ -26,17 +26,7 @@ conversation_clear = ConversationViewSet.as_view({'post': 'clear'})
 conversation_messages = ConversationViewSet.as_view({'get': 'messages', 'post': 'messages'})
 conversation_message_delete = ConversationViewSet.as_view({'delete': 'delete_message'})
 
-from .views_traffic import TrafficAnalysisViewSet
 from .views_redis import RedisManagementViewSet
-
-traffic_viewset = TrafficAnalysisViewSet.as_view({
-    'get': 'stats',
-    'get': 'trend',
-    'get': 'status_distribution',
-    'get': 'model_distribution',
-    'get': 'response_time_distribution',
-    'get': 'top',
-})
 
 redis_viewset = RedisManagementViewSet.as_view({
     'get': 'info',
@@ -47,14 +37,6 @@ redis_viewset = RedisManagementViewSet.as_view({
 })
 
 urlpatterns = [
-    # 流量分析相关路由
-    path('traffic/stats/', TrafficAnalysisViewSet.as_view({'get': 'stats'}), name='traffic-stats'),
-    path('traffic/trend/', TrafficAnalysisViewSet.as_view({'get': 'trend'}), name='traffic-trend'),
-    path('traffic/status-distribution/', TrafficAnalysisViewSet.as_view({'get': 'status_distribution'}), name='traffic-status-distribution'),
-    path('traffic/model-distribution/', TrafficAnalysisViewSet.as_view({'get': 'model_distribution'}), name='traffic-model-distribution'),
-    path('traffic/response-time-distribution/', TrafficAnalysisViewSet.as_view({'get': 'response_time_distribution'}), name='traffic-response-time-distribution'),
-    path('traffic/top/', TrafficAnalysisViewSet.as_view({'get': 'top'}), name='traffic-top'),
-    
     # Redis管理相关路由
     path('redis/info/', RedisManagementViewSet.as_view({'get': 'info'}), name='redis-info'),
     path('redis/keys/', RedisManagementViewSet.as_view({'get': 'keys'}), name='redis-keys'),

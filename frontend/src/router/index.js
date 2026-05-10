@@ -263,12 +263,7 @@ const routes = [
         component: () => import('@/views/admin/RechargeManagement.vue'),
         meta: { title: '充值管理', noIndex: true }
       },
-      {
-        path: 'traffic-analysis',
-        name: 'TrafficAnalysis',
-        component: () => import('@/views/admin/TrafficAnalysis.vue'),
-        meta: { title: '流量分析', noIndex: true }
-      },
+      
       {
         path: 'redis-management',
         name: 'RedisManagement',
