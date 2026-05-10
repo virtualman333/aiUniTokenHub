@@ -333,7 +333,7 @@ const renameForm = ref({ oldKey: '', newKey: '' })
 // ---------- 加载 Redis 信息 ----------
 async function loadRedisInfo() {
   try {
-    const res = await api.get('/api/redis/info/')
+    const res = await api.get('/proxy/redis/info/')
     redisInfo.value = res
   } catch (error) {
     ElMessage.error('加载 Redis 信息失败')
@@ -345,7 +345,7 @@ async function loadRedisInfo() {
 async function loadKeys() {
   loading.value = true
   try {
-    const res = await api.get('/api/redis/keys/', {
+    const res = await api.get('/proxy/redis/keys/', {
       params: {
         pattern: searchPattern.value || '*',
         cursor: (currentPage.value - 1) * pageSize.value,
@@ -365,7 +365,7 @@ async function loadKeys() {
 // ---------- 查看键详情 ----------
 async function viewKeyDetail(key) {
   try {
-    const res = await api.get('/api/redis/key-detail/', { params: { key } })
+    const res = await api.get('/proxy/redis/key-detail/', { params: { key } })
     keyDetail.value = res
     detailDialogVisible.value = true
   } catch (error) {
@@ -408,7 +408,7 @@ function handleSaveKey() {
             return
           }
         }
-        await api.post('/api/redis/set-key/', {
+        await api.post('/proxy/redis/set-key/', {
           key: editForm.value.key.trim(),
           value,
           type: editForm.value.type,
@@ -434,7 +434,7 @@ function showSetTTLDialog(key, currentTTL) {
 
 async function handleSetTTL() {
   try {
-    await api.post('/api/redis/set-ttl/', ttlForm.value)
+    await api.post('/proxy/redis/set-ttl/', ttlForm.value)
     ElMessage.success('设置 TTL 成功')
     ttlDialogVisible.value = false
     loadKeys()
@@ -456,7 +456,7 @@ async function handleRename() {
     return
   }
   try {
-    await api.post('/api/redis/rename-key/', renameForm.value)
+    await api.post('/proxy/redis/rename-key/', renameForm.value)
     ElMessage.success('重命名成功')
     renameDialogVisible.value = false
     loadKeys()
@@ -475,7 +475,7 @@ function confirmDeleteKey(key) {
   })
     .then(async () => {
       try {
-        await api.post('/api/redis/delete-key/', { key })
+        await api.post('/proxy/redis/delete-key/', { key })
         ElMessage.success('删除成功')
         loadKeys()
         loadRedisInfo()
@@ -496,7 +496,7 @@ async function confirmBatchDelete() {
   )
     .then(async () => {
       try {
-        const res = await api.post('/api/redis/batch-delete/', {
+        const res = await api.post('/proxy/redis/batch-delete/', {
           keys: selectedKeys.value,
         })
         ElMessage.success(`成功删除 ${res.deleted_count || selectedKeys.value.length} 个键`)
@@ -519,7 +519,7 @@ function confirmFlushDB() {
   })
     .then(async () => {
       try {
-        await api.post('/api/redis/flush-db/')
+        await api.post('/proxy/redis/flush-db/')
         ElMessage.success('清空成功')
         loadRedisInfo()
         loadKeys()

@@ -340,3 +340,31 @@ class EmailVerifyCode(models.Model):
     @property
     def is_valid(self):
         return (not self.is_used) and (not self.is_expired)
+
+
+class PageView(models.Model):
+    """页面访问记录（PV/UV统计）- 批量入库用"""
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='page_views',
+        verbose_name='用户',
+    )
+    session_key = models.CharField('会话标识', max_length=128, blank=True, default='')
+    ip_address = models.GenericIPAddressField('IP地址', null=True, blank=True)
+    path = models.CharField('访问路径', max_length=500, db_index=True)
+    referer = models.URLField('来源页', blank=True, default='')
+    user_agent = models.TextField('UA信息', blank=True, default='')
+    created_at = models.DateTimeField('访问时间', db_index=True)
+
+    class Meta:
+        db_table = 'page_views'
+        verbose_name = '页面访问记录'
+        verbose_name_plural = '页面访问记录'
+        ordering = ('-created_at',)
+
+    def __str__(self):
+        return f'{self.ip_address or "未知IP"} {self.path}'
