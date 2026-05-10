@@ -195,6 +195,12 @@ async function loadRechargeChannels() {
   try {
     const res: any = await api.get('/users/recharge/channels/')
     rechargeChannels.value = res.data || res || []
+    
+    // 默认选择第一个渠道
+    if (rechargeChannels.value.length > 0) {
+      selectedChannel.value = rechargeChannels.value[0].id
+      loadChannelPackages(selectedChannel.value)
+    }
   } catch (e) {
     console.error('加载充值渠道失败:', e)
     rechargeChannels.value = []
