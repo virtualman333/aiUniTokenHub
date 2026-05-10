@@ -81,7 +81,7 @@ class UpstreamAccountViewSet(viewsets.ModelViewSet):
                     defaults={
                         'name': display_name,
                         'provider': provider,
-                        'status': 'inactive',  # 新添加的模型默认不启用
+                        'status': 'active',  # 新同步的模型默认启用
                         'description': '可用' if model_info.get('ready', True) else '未知',
                     }
                 )

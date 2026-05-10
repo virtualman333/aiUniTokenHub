@@ -208,6 +208,7 @@ import {
   ArrowUp,
   Brush,
 } from '@element-plus/icons-vue'
+import api from '@/stores'
 import { useChat } from './composables/useChat'
 import { useMyKeys } from '../MyKeys/composables/useMyKeys'
 import { useModels } from '../ModelSquare/composables/useModels'
@@ -258,8 +259,11 @@ const hasMessages = computed(() => messages.value.length > 0)
 
 const availableKeys = computed(() => keys.value)
 
+// 拉取全部模型（不限制 page_size），用于下拉选择
+const chatModels = ref<any[]>([])
+
 const modelOptions = computed(() =>
-  (models.value || []).map((m: any) => ({
+  (chatModels.value || models.value || []).map((m: any) => ({
     code: m.code,
     name: m.name,
   }))
@@ -277,8 +281,18 @@ const canSend = computed(
     !sending.value
 )
 
+async function fetchAllModels() {
+  try {
+    const res: any = await api.get('/models/models/', { params: { page: '1', page_size: '9999' } })
+    chatModels.value = res.results || res || []
+  } catch (e) {
+    // 降级：使用共享的 fetchModels（默认 20 条）
+    await fetchModels()
+  }
+}
+
 onMounted(async () => {
-  await Promise.all([loadKeys(), fetchModels(), loadConversations()])
+  await Promise.all([loadKeys(), fetchAllModels(), loadConversations()])
   // 默认选第一个可用密钥
   const firstUsable = keys.value.find((k) => !k.is_expired && k.is_active)
   if (firstUsable) selectedKeyId.value = firstUsable.id
