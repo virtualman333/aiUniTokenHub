@@ -33,6 +33,12 @@ urlpatterns = [
         AdminDashboardViewSet.as_view({"get": "analytics_realtime"}),
         name="admin-analytics-realtime",
     ),
+    # 访问记录分页列表（具体网页IP、PV、UV查询）
+    path(
+        "admin/analytics/records/",
+        AdminDashboardViewSet.as_view({"get": "analytics_records"}),
+        name="admin-analytics-records",
+    ),
     # 用户管理路由
     path(
         "admin/users/",

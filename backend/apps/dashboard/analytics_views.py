@@ -152,3 +152,60 @@ class AnalyticsViewSet:
             'ips': ips,
             'logs': logs,
         }, '获取成功')
+
+    @action(detail=False, methods=['get'], url_path='analytics/records')
+    def analytics_records(self, request):
+        """分页查询访问记录（具体网页的IP、PV、UV列表）"""
+        # 获取筛选参数
+        path = request.query_params.get('path', '').strip()
+        ip_address = request.query_params.get('ip_address', '').strip()
+        start_date = request.query_params.get('start_date', '')
+        end_date = request.query_params.get('end_date', '')
+        page = int(request.query_params.get('page', 1))
+        page_size = int(request.query_params.get('page_size', 20))
+
+        # 构建查询集
+        queryset = PageView.objects.all()
+        if path:
+            queryset = queryset.filter(path__icontains=path)
+        if ip_address:
+            queryset = queryset.filter(ip_address__icontains=ip_address)
+        if start_date:
+            queryset = queryset.filter(created_at__date__gte=start_date)
+        if end_date:
+            queryset = queryset.filter(created_at__date__lte=end_date)
+
+        # 统计当前筛选条件下的总PV、UV、IP
+        total_pv = queryset.count()
+        total_uv = queryset.values('session_key').distinct().count()
+        total_ips = queryset.values('ip_address').distinct().count()
+
+        # 分页
+        start = (page - 1) * page_size
+        end = start + page_size
+        records = queryset.order_by('-created_at')[start:end]
+
+        # 组装返回数据
+        data = []
+        for record in records:
+            data.append({
+                'id': record.id,
+                'path': record.path,
+                'ip_address': record.ip_address or '未知',
+                'username': record.user.username if record.user else '匿名',
+                'user_agent': record.user_agent[:100] if record.user_agent else '',
+                'referer': record.referer or '',
+                'created_at': record.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                # 当前记录的UV标识（session_key）
+                'session_key': record.session_key,
+            })
+
+        return APIResponse.success({
+            'total_pv': total_pv,
+            'total_uv': total_uv,
+            'total_ips': total_ips,
+            'page': page,
+            'page_size': page_size,
+            'total': queryset.count(),
+            'data': data,
+        }, '获取成功')

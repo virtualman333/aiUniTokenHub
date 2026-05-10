@@ -215,3 +215,132 @@ class RedisManagementViewSet(viewsets.ViewSet):
             return APIResponse.success(None, '清空成功')
         except Exception as e:
             return APIResponse.error(f'清空数据库失败: {str(e)}', 500)
+
+    @action(detail=False, methods=['post'])
+    def set_key(self, request):
+        """修改/新增键值"""
+        try:
+            r = self._get_redis_connection()
+            
+            key = request.data.get('key')
+            value = request.data.get('value')
+            key_type = request.data.get('type', 'string')
+            ttl = request.data.get('ttl', -1)  # -1表示不设置过期时间
+            
+            if not key or value is None:
+                return APIResponse.error('缺少key或value参数', 400)
+            
+            # 根据类型设置值
+            if key_type == 'string':
+                r.set(key, str(value))
+            elif key_type == 'hash':
+                # value格式：{"field1": "value1", "field2": "value2"}
+                r.delete(key)  # 先删除原有数据
+                r.hset(key, mapping=value)
+            elif key_type == 'list':
+                # value格式：["item1", "item2"]
+                r.delete(key)
+                r.rpush(key, *value)
+            elif key_type == 'set':
+                # value格式：["member1", "member2"]
+                r.delete(key)
+                r.sadd(key, *value)
+            elif key_type == 'zset':
+                # value格式：[("member1", 1), ("member2", 2)]
+                r.delete(key)
+                r.zadd(key, dict(value))
+            else:
+                return APIResponse.error(f'不支持的键类型: {key_type}', 400)
+            
+            # 设置过期时间
+            if int(ttl) > 0:
+                r.expire(key, int(ttl))
+            
+            r.close()
+            return APIResponse.success(None, '设置成功')
+        except Exception as e:
+            return APIResponse.error(f'设置键值失败: {str(e)}', 500)
+
+    @action(detail=False, methods=['post'])
+    def set_ttl(self, request):
+        """设置键的过期时间"""
+        try:
+            r = self._get_redis_connection()
+            
+            key = request.data.get('key')
+            ttl = request.data.get('ttl')
+            
+            if not key or ttl is None:
+                return APIResponse.error('缺少key或ttl参数', 400)
+            
+            if not r.exists(key):
+                return APIResponse.error('键不存在', 404)
+            
+            ttl = int(ttl)
+            if ttl == -1:
+                # 移除过期时间
+                r.persist(key)
+            else:
+                r.expire(key, ttl)
+            
+            r.close()
+            return APIResponse.success(None, '设置TTL成功')
+        except Exception as e:
+            return APIResponse.error(f'设置TTL失败: {str(e)}', 500)
+
+    @action(detail=False, methods=['post'])
+    def rename_key(self, request):
+        """重命名键"""
+        try:
+            r = self._get_redis_connection()
+            
+            old_key = request.data.get('old_key')
+            new_key = request.data.get('new_key')
+            
+            if not old_key or not new_key:
+                return APIResponse.error('缺少old_key或new_key参数', 400)
+            
+            if not r.exists(old_key):
+                return APIResponse.error('原键不存在', 404)
+            
+            if r.exists(new_key):
+                return APIResponse.error('新键名已存在', 400)
+            
+            r.rename(old_key, new_key)
+            
+            r.close()
+            return APIResponse.success(None, '重命名成功')
+        except Exception as e:
+            return APIResponse.error(f'重命名键失败: {str(e)}', 500)
+
+    @action(detail=False, methods=['post'])
+    def batch_delete_keys(self, request):
+        """批量删除键"""
+        try:
+            r = self._get_redis_connection()
+            
+            keys = request.data.get('keys', [])
+            pattern = request.data.get('pattern', '')
+            
+            if not keys and not pattern:
+                return APIResponse.error('缺少keys参数或pattern参数', 400)
+            
+            deleted_count = 0
+            if keys:
+                # 批量删除指定键
+                deleted_count = r.delete(*keys)
+            elif pattern:
+                # 按模式删除键
+                cursor = 0
+                while True:
+                    cursor, found_keys = r.scan(cursor=cursor, match=pattern, count=100)
+                    if found_keys:
+                        r.delete(*found_keys)
+                        deleted_count += len(found_keys)
+                    if cursor == 0:
+                        break
+            
+            r.close()
+            return APIResponse.success({'deleted_count': deleted_count}, '批量删除成功')
+        except Exception as e:
+            return APIResponse.error(f'批量删除失败: {str(e)}', 500)

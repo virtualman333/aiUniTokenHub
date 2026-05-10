@@ -60,6 +60,10 @@ urlpatterns = [
     path('redis/keys/', RedisManagementViewSet.as_view({'get': 'keys'}), name='redis-keys'),
     path('redis/key-detail/', RedisManagementViewSet.as_view({'get': 'key_detail'}), name='redis-key-detail'),
     path('redis/delete-key/', RedisManagementViewSet.as_view({'post': 'delete_key'}), name='redis-delete-key'),
+    path('redis/set-key/', RedisManagementViewSet.as_view({'post': 'set_key'}), name='redis-set-key'),
+    path('redis/set-ttl/', RedisManagementViewSet.as_view({'post': 'set_ttl'}), name='redis-set-ttl'),
+    path('redis/rename-key/', RedisManagementViewSet.as_view({'post': 'rename_key'}), name='redis-rename-key'),
+    path('redis/batch-delete/', RedisManagementViewSet.as_view({'post': 'batch_delete_keys'}), name='redis-batch-delete'),
     path('redis/flush-db/', RedisManagementViewSet.as_view({'post': 'flush_db'}), name='redis-flush-db'),
     
     # OpenAI 兼容端点
