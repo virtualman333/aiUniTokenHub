@@ -236,9 +236,16 @@ class AIModelViewSet(viewsets.ModelViewSet):
             many=True
         ).data
         
+        # 计算所有可用模型的总数
+        total_models_count = AIModel.objects.filter(
+            status='active',
+            upstream_accounts__is_enabled=True
+        ).distinct().count()
+        
         return APIResponse.success({
             'providers': providers,
             'categories': categories,
+            'total_models_count': total_models_count,
             'capabilities': [
                 {'code': 'streaming', 'name': '流式输出'},
                 {'code': 'vision', 'name': '视觉理解'},

@@ -84,7 +84,7 @@ class AdminDashboardViewSet(viewsets.GenericViewSet, AnalyticsViewSet):
     def distribution(self, request):
         """API调用分布"""
         top_apis = (
-            UsageLog.objects.values("endpoint")
+            APIAccessLog.objects.values("path")
             .annotate(count=Count("id"))
             .order_by("-count")[:10]
         )
@@ -94,13 +94,182 @@ class AdminDashboardViewSet(viewsets.GenericViewSet, AnalyticsViewSet):
         for item in top_apis:
             result.append(
                 {
-                    "name": item["endpoint"],
+                    "name": item["path"],
                     "value": item["count"],
                     "percent": round(item["count"] / total * 100, 1),
                 }
             )
 
         return APIResponse.success(result, "获取成功")
+
+    @action(detail=False, methods=["get"])
+    def token_stats(self, request):
+        """Token消耗统计"""
+        today = timezone.now().date()
+        month_start = timezone.make_aware(
+            timezone.datetime.combine(
+                today.replace(day=1), timezone.datetime.min.time()
+            )
+        )
+        
+        # 今日Token消耗
+        today_tokens = APIAccessLog.objects.filter(
+            created_at__date=today
+        ).aggregate(
+            total_input=Sum("input_tokens"),
+            total_output=Sum("output_tokens"),
+            total=Sum("total_tokens")
+        )
+        
+        # 本月Token消耗
+        month_tokens = APIAccessLog.objects.filter(
+            created_at__gte=month_start
+        ).aggregate(
+            total_input=Sum("input_tokens"),
+            total_output=Sum("output_tokens"),
+            total=Sum("total_tokens")
+        )
+        
+        # 按模型统计Token消耗（本月）
+        model_tokens = (
+            APIAccessLog.objects.filter(created_at__gte=month_start)
+            .values("model__name", "model__code")
+            .annotate(
+                total_tokens=Sum("total_tokens"),
+                total_cost=Sum("cost"),
+                request_count=Count("id")
+            )
+            .order_by("-total_tokens")[:10]
+        )
+        
+        model_stats = []
+        for item in model_tokens:
+            model_stats.append({
+                "model_name": item["model__name"] or item["model__code"],
+                "total_tokens": item["total_tokens"] or 0,
+                "total_cost": float(item["total_cost"] or 0),
+                "request_count": item["request_count"]
+            })
+        
+        return APIResponse.success({
+            "today": {
+                "input_tokens": today_tokens["total_input"] or 0,
+                "output_tokens": today_tokens["total_output"] or 0,
+                "total_tokens": today_tokens["total"] or 0,
+            },
+            "month": {
+                "input_tokens": month_tokens["total_input"] or 0,
+                "output_tokens": month_tokens["total_output"] or 0,
+                "total_tokens": month_tokens["total"] or 0,
+            },
+            "model_stats": model_stats
+        }, "获取成功")
+
+    @action(detail=False, methods=["get"])
+    def active_users(self, request):
+        """活跃用户统计"""
+        today = timezone.now().date()
+        seven_days_ago = today - timedelta(days=7)
+        
+        # 今日活跃用户
+        today_active = APIAccessLog.objects.filter(
+            created_at__date=today,
+            user__isnull=False
+        ).values("user").distinct().count()
+        
+        # 7天活跃用户
+        week_active = APIAccessLog.objects.filter(
+            created_at__date__gte=seven_days_ago,
+            user__isnull=False
+        ).values("user").distinct().count()
+        
+        # 活跃用户排行（近7天）
+        top_active_users = (
+            APIAccessLog.objects.filter(
+                created_at__date__gte=seven_days_ago,
+                user__isnull=False
+            )
+            .values("user__username", "user__id")
+            .annotate(
+                request_count=Count("id"),
+                total_tokens=Sum("total_tokens")
+            )
+            .order_by("-request_count")[:10]
+        )
+        
+        user_stats = []
+        for item in top_active_users:
+            user_stats.append({
+                "username": item["user__username"],
+                "request_count": item["request_count"],
+                "total_tokens": item["total_tokens"] or 0,
+            })
+        
+        return APIResponse.success({
+            "today_active": today_active,
+            "week_active": week_active,
+            "top_users": user_stats
+        }, "获取成功")
+
+    @action(detail=False, methods=["get"])
+    def error_analysis(self, request):
+        """错误分析"""
+        days = int(request.query_params.get("days", 7))
+        start_date = timezone.now().date() - timedelta(days=days-1)
+        
+        # 按日期和状态码统计错误
+        error_stats = []
+        for i in range(days):
+            date = start_date + timedelta(days=i)
+            date_start = timezone.make_aware(
+                timezone.datetime.combine(date, timezone.datetime.min.time())
+            )
+            date_end = timezone.make_aware(
+                timezone.datetime.combine(date, timezone.datetime.max.time())
+            )
+            
+            total = APIAccessLog.objects.filter(
+                created_at__gte=date_start,
+                created_at__lte=date_end
+            ).count()
+            
+            errors = APIAccessLog.objects.filter(
+                created_at__gte=date_start,
+                created_at__lte=date_end,
+                response_status__gte=400
+            ).count()
+            
+            error_rate = round((errors / total * 100) if total > 0 else 0, 2)
+            
+            error_stats.append({
+                "date": date.strftime("%m-%d"),
+                "total": total,
+                "errors": errors,
+                "error_rate": error_rate
+            })
+        
+        # 常见错误状态码分布
+        error_codes = (
+            APIAccessLog.objects.filter(
+                created_at__date__gte=start_date,
+                response_status__gte=400
+            )
+            .values("response_status")
+            .annotate(count=Count("id"))
+            .order_by("-count")[:10]
+        )
+        
+        error_distribution = []
+        for item in error_codes:
+            error_distribution.append({
+                "status": item["response_status"],
+                "count": item["count"]
+            })
+        
+        return APIResponse.success({
+            "error_trend": error_stats,
+            "error_distribution": error_distribution
+        }, "获取成功")
 
     def list_users(self, request):
         """获取用户列表"""

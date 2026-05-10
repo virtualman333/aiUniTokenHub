@@ -19,7 +19,7 @@
       <ProviderSidebar
         :providers="filters.providers"
         :selected-provider="selectedProvider"
-        :total-models="total"
+        :total-models="allTotal"
         @update:selected-provider="selectedProvider = $event"
       />
 
@@ -95,6 +95,7 @@ const {
   currentPage,
   pageSize,
   total,
+  allTotal,
   fetchFilters,
   fetchModels
 } = useModels()

@@ -51,6 +51,7 @@ export function useModels() {
   const currentPage = ref(1)
   const pageSize = ref(20)
   const total = ref(0)
+  const allTotal = ref(0)  // 所有模型的总数，不随筛选条件变化
 
   // 搜索防抖
   let searchTimer: ReturnType<typeof setTimeout> | null = null
@@ -62,6 +63,10 @@ export function useModels() {
     try {
       const res: any = await api.get('/models/models/filters/')
       filters.value = res
+      // 保存所有模型的总数
+      if (res.total_models_count !== undefined) {
+        allTotal.value = res.total_models_count
+      }
     } catch (e) {
       console.error('获取筛选条件失败:', e)
     }
@@ -123,6 +128,7 @@ export function useModels() {
     currentPage,
     pageSize,
     total,
+    allTotal,
     fetchFilters,
     fetchModels,
     debounceSearch,

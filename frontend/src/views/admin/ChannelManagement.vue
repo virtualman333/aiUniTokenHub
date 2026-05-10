@@ -98,6 +98,13 @@
           {{ row.avg_latency || 0 }}ms
         </template>
       </el-table-column>
+      <el-table-column label="绑定模型" width="100" align="center">
+        <template #default="{ row }">
+          <el-button link type="primary" @click="showModelList(row)">
+            {{ row.model_count || 0 }} 个
+          </el-button>
+        </template>
+      </el-table-column>
       <el-table-column label="操作" width="280" fixed="right">
         <template #default="{ row }">
           <el-button size="small" type="success" text @click="syncModels(row)">
@@ -183,6 +190,36 @@
         <el-button type="primary" @click="submitForm" :loading="submitting">
           确定
         </el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 绑定模型列表弹窗 -->
+    <el-dialog v-model="modelListVisible" :title="`${currentChannelName} - 绑定模型列表`" width="700px" destroy-on-close>
+      <el-table :data="modelList" v-loading="modelListLoading" stripe>
+        <el-table-column prop="name" label="模型名称" min-width="150">
+          <template #default="{ row }">
+            <span>{{ row.name }}</span>
+            <span style="color: #909399; font-size: 12px; margin-left: 6px;">{{ row.code }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="provider_name" label="供应商" width="120" />
+        <el-table-column label="状态" width="80">
+          <template #default="{ row }">
+            <el-tag :type="row.status === 'active' ? 'success' : 'info'" size="small">
+              {{ row.status === 'active' ? '已上架' : '未上架' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="定价(元/1M)" width="180">
+          <template #default="{ row }">
+            <span style="font-size: 12px;">入:¥{{ Number(row.input_price || 0).toFixed(2) }}</span>
+            <span style="font-size: 12px; margin-left: 6px;">出:¥{{ Number(row.output_price || 0).toFixed(2) }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="usage_count" label="使用次数" width="100" align="center" />
+      </el-table>
+      <template #footer>
+        <el-button @click="modelListVisible = false">关闭</el-button>
       </template>
     </el-dialog>
   </div>
@@ -375,6 +412,31 @@ const deleteChannel = async (row) => {
     if (error !== 'cancel') {
       ElMessage.error('删除失败')
     }
+  }
+}
+
+// 绑定模型列表
+const modelListVisible = ref(false)
+const modelList = ref([])
+const modelListLoading = ref(false)
+const currentChannelName = ref('')
+
+async function showModelList(row) {
+  currentChannelName.value = row.name
+  modelListVisible.value = true
+  await loadModelList(row.id)
+}
+
+async function loadModelList(accountId) {
+  modelListLoading.value = true
+  try {
+    const res = await api.get(`/models/upstream-accounts/${accountId}/model_list/`)
+    modelList.value = res.data || res || []
+  } catch (error) {
+    modelList.value = []
+    ElMessage.error('获取模型列表失败')
+  } finally {
+    modelListLoading.value = false
   }
 }
 

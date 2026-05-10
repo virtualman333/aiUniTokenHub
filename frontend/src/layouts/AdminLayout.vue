@@ -78,7 +78,7 @@ import { useUserStore } from '@/stores'
 import {
   HomeFilled, User, Connection, List, Box, Guide,
   DArrowLeft, DArrowRight, ArrowDown, Tickets, Back, CreditCard,
-  Share, Setting, Wallet
+  Share, Setting, Wallet, DataLine, Coin
 } from '@element-plus/icons-vue'
 import ThemeToggle from '@/components/ThemeToggle.vue'
 import LangToggle from '@/components/LangToggle.vue'
@@ -97,6 +97,8 @@ const menuItems = [
   { path: '/admin/billing-management', label: '账单管理', icon: markRaw(Wallet) },
   { path: '/admin/invite-management', label: '邀请返利', icon: markRaw(Share) },
   { path: '/admin/access-logs', label: '接口使用记录', icon: markRaw(List) },
+  { path: '/admin/traffic-analysis', label: '流量分析', icon: markRaw(DataLine) },
+  { path: '/admin/redis-management', label: 'Redis管理', icon: markRaw(Coin) },
   { path: '/admin/model-management', label: '模型管理', icon: markRaw(Box) },
   { path: '/admin/provider-management', label: '供应商管理', icon: markRaw(Connection) },
   { path: '/admin/channel-management', label: '渠道管理', icon: markRaw(Guide) },

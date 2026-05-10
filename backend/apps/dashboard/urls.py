@@ -88,6 +88,21 @@ urlpatterns = [
         name="admin-distribution",
     ),
     path(
+        "admin/token-stats/",
+        AdminDashboardViewSet.as_view({"get": "token_stats"}),
+        name="admin-token-stats",
+    ),
+    path(
+        "admin/active-users/",
+        AdminDashboardViewSet.as_view({"get": "active_users"}),
+        name="admin-active-users",
+    ),
+    path(
+        "admin/error-analysis/",
+        AdminDashboardViewSet.as_view({"get": "error_analysis"}),
+        name="admin-error-analysis",
+    ),
+    path(
         "admin/overview/",
         AdminDashboardViewSet.as_view({"get": "overview"}),
         name="admin-overview",
