@@ -7,6 +7,33 @@ router.register(r"overview", AdminDashboardViewSet, basename="overview")
 
 urlpatterns = [
     # 管理端路由（需要在 router 之前定义，避免被覆盖）
+    # 流量统计路由
+    path(
+        "admin/analytics/summary/",
+        AdminDashboardViewSet.as_view({"get": "analytics_summary"}),
+        name="admin-analytics-summary",
+    ),
+    path(
+        "admin/analytics/trend/",
+        AdminDashboardViewSet.as_view({"get": "analytics_trend"}),
+        name="admin-analytics-trend",
+    ),
+    path(
+        "admin/analytics/pages/",
+        AdminDashboardViewSet.as_view({"get": "analytics_pages"}),
+        name="admin-analytics-pages",
+    ),
+    path(
+        "admin/analytics/sources/",
+        AdminDashboardViewSet.as_view({"get": "analytics_sources"}),
+        name="admin-analytics-sources",
+    ),
+    path(
+        "admin/analytics/realtime/",
+        AdminDashboardViewSet.as_view({"get": "analytics_realtime"}),
+        name="admin-analytics-realtime",
+    ),
+    # 用户管理路由
     path(
         "admin/users/",
         AdminDashboardViewSet.as_view({"get": "list_users"}),

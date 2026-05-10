@@ -4,7 +4,7 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
 from django.db import models
-from django.db.models import Count, Sum, Avg, Q
+from django.db.models import Count, Sum, Avg, Q, Exists, OuterRef
 from django.db.models.functions import TruncDate
 from django.utils import timezone
 from datetime import timedelta
@@ -17,10 +17,12 @@ from apps.users.serializers import (
 from apps.api_proxy.models import APIAccessLog
 from apps.api_proxy.serializers import APIAccessLogSerializer
 from apps.ai_models.models import AIModel, ModelProvider
+from apps.ai_models.upstream_models import ModelUpstreamAccount
 from apps.utils.response import APIResponse
+from .analytics_views import AnalyticsViewSet
 
 
-class AdminDashboardViewSet(viewsets.GenericViewSet):
+class AdminDashboardViewSet(viewsets.GenericViewSet, AnalyticsViewSet):
     """管理端仪表盘"""
 
     permission_classes = [IsAuthenticated, IsAdminUser]
@@ -283,8 +285,19 @@ class UserDashboardViewSet(viewsets.GenericViewSet):
             return APIResponse.success(cached_data, "获取成功")
 
         # 按模型统计调用次数和成功率（所有用户）
+        # 过滤：只统计已上架且有可用账号的模型
+        has_account = Exists(
+            ModelUpstreamAccount.objects.filter(
+                model=OuterRef('model'),
+                is_enabled=True
+            )
+        )
         top_models_data = (
-            APIAccessLog.objects.filter(model__isnull=False)
+            APIAccessLog.objects.filter(
+                has_account,
+                model__isnull=False,
+                model__status='active',
+            )
             .values("model__code", "model__name")
             .annotate(
                 count=Count("id"),

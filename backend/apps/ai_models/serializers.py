@@ -11,7 +11,8 @@ class ModelProviderSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'code', 'logo', 'description', 'is_active', 'model_count']
     
     def get_model_count(self, obj):
-        return obj.models.filter(status='active').count()
+        # 只统计已上架且有可用账号的模型
+        return obj.models.filter(status='active', upstream_accounts__is_enabled=True).distinct().count()
 
 
 class ModelCategorySerializer(serializers.ModelSerializer):
@@ -23,7 +24,8 @@ class ModelCategorySerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'code', 'icon', 'is_active', 'model_count']
     
     def get_model_count(self, obj):
-        return obj.models.filter(status='active').count()
+        # 只统计已上架且有可用账号的模型
+        return obj.models.filter(status='active', upstream_accounts__is_enabled=True).distinct().count()
 
 
 class AIModelListSerializer(serializers.ModelSerializer):

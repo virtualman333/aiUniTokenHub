@@ -32,6 +32,7 @@ class PageView(models.Model):
     created_at = models.DateTimeField('访问时间', auto_now_add=True, db_index=True)
 
     class Meta:
+        app_label = 'users'
         db_table = 'page_views'
         verbose_name = '页面访问记录'
         verbose_name_plural = '页面访问记录'
