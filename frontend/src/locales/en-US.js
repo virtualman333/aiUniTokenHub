@@ -46,33 +46,39 @@ export default {
     },
     pricing: {
       title: 'Simple Transparent Pricing',
-      subtitle: 'Pay as you go, no hidden fees',
-      popular: 'Most Popular',
+      subtitle: 'Pay by Token, pay as you go, no hidden fees',
+      popular: 'Recommended',
       start: 'Get Started',
       contact: 'Contact Us',
+      recharge: 'Recharge Now',
       free: {
-        title: 'Free',
-        feature1: '1000 API calls/month',
+        title: 'Free Trial',
+        desc: 'Get ¥1 credit on signup',
+        feature1: '¥1 free credit on registration',
         feature2: 'Basic model access',
         feature3: 'Email support',
         feature4: 'Advanced analytics',
         feature5: 'Dedicated account manager'
       },
-      pro: {
-        title: 'Pro',
-        feature1: '100,000 API calls/month',
-        feature2: 'All models access',
-        feature3: 'Priority support',
-        feature4: 'Advanced analytics',
-        feature5: 'Dedicated account manager'
+      payg: {
+        title: 'Pay As You Go',
+        unit: '¥/1M tokens',
+        tip: 'Actual price depends on the model used',
+        desc: 'Buy tokens upfront, billed by actual usage. Balance never expires.',
+        feature1: 'GPT-4 / Claude and more models supported',
+        feature2: 'Real-time usage statistics & billing details',
+        feature3: 'Intelligent multi-channel load balancing',
+        feature4: 'Low balance auto-notification',
+        feature5: 'Instant recharge to account'
       },
       enterprise: {
         title: 'Enterprise',
+        desc: 'Dedicated service & customized solutions',
         feature1: 'Unlimited API calls',
         feature2: 'All models access',
         feature3: '7x24 dedicated support',
-        feature4: 'Custom reports',
-        feature5: 'Dedicated account manager'
+        feature4: 'Custom reports & API integration',
+        feature5: 'Dedicated success manager'
       }
     },
     docs: {

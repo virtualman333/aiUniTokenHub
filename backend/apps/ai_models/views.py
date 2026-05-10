@@ -126,7 +126,7 @@ class AIModelViewSet(viewsets.ModelViewSet):
         return AIModelListSerializer
     
     def get_permissions(self):
-        if self.action in ['list', 'retrieve', 'search', 'filters']:
+        if self.action in ['list', 'retrieve', 'search', 'filters', 'public_pricing']:
             return [AllowAny()]
         return [IsAdminUser()]
     
@@ -294,16 +294,102 @@ class AIModelViewSet(viewsets.ModelViewSet):
         """批量切换上下架状态"""
         ids = request.data.get('ids', [])
         status_type = request.data.get('status')  # 'active' or 'inactive'
-        
+
         if not ids:
             return Response({'error': '请选择要操作的模型'}, status=status.HTTP_400_BAD_REQUEST)
-        
+
         if status_type not in ['active', 'inactive']:
             return Response({'error': '状态必须是 active 或 inactive'}, status=status.HTTP_400_BAD_REQUEST)
-        
+
         updated_count = AIModel.objects.filter(id__in=ids).update(status=status_type)
         return Response({
             'updated': updated_count,
             'status': status_type,
             'message': f'成功更新 {updated_count} 个模型状态为 {status_type}'
         })
+
+    @action(detail=False, methods=['get'], permission_classes=[AllowAny])
+    def public_pricing(self, request):
+        """公开接口：获取首页展示的模型 Token 定价（无需登录）
+
+        返回推荐/热门模型的定价信息，用于首页定价方案展示。
+        优先返回 is_featured=True 的已上架模型，不足则补充按使用量排序的活跃模型。
+        """
+        from decimal import Decimal
+        from django.db.models import F
+
+        limit = min(int(request.query_params.get('limit', 6)), 20)
+
+        base_qs = (
+            AIModel.objects.filter(status='active', input_price__gt=0)
+            .select_related('provider')
+            .annotate(
+                provider_name=F('provider__name'),
+                provider_code=F('provider__code'),
+            )
+        )
+
+        # 1. 推荐模型
+        featured = list(
+            base_qs.filter(is_featured=True)
+            .order_by('-usage_count')[:limit]
+            .values(
+                'id', 'name', 'code',
+                'input_price', 'output_price', 'cached_input_price',
+                'provider_name', 'provider_code',
+            )
+        )
+
+        # 2. 若推荐不足，补充普通活跃模型（排除已在 featured 中）
+        remaining = limit - len(featured)
+        extra = []
+        if remaining > 0:
+            featured_ids = [m['id'] for m in featured]
+            extra = list(
+                base_qs.exclude(id__in=featured_ids)
+                .order_by('-usage_count')[:remaining]
+                .values(
+                    'id', 'name', 'code',
+                    'input_price', 'output_price', 'cached_input_price',
+                    'provider_name', 'provider_code',
+                )
+            )
+
+        models = featured + extra
+
+        # 构造返回数据：价格统一为 "元 / 百万 tokens"，前端可自行格式化
+        result = {
+            'models': [
+                {
+                    **m,
+                    # 转为 float 避免序列化问题
+                    'input_price': float(m['input_price']),
+                    'output_price': float(m.get('output_price') or Decimal('0')),
+                    'cached_input_price': float(m.get('cached_input_price') or Decimal('0')),
+                    # 友好的价格显示字符串（如 "~¥12 / 1M tokens"）
+                    'price_display': _format_price_display(m),
+                }
+                for m in models
+            ],
+            'total_count': len(models),
+        }
+
+        return APIResponse.success(result, '获取成功')
+
+
+def _format_price_display(model):
+    """将模型价格格式化为友好展示文本"""
+    inp = float(model.get('input_price') or 0)
+    out = float(model.get('output_price') or 0)
+
+    if inp <= 0 and out <= 0:
+        return '免费'
+
+    parts = []
+    if inp > 0:
+        parts.append(f'输入 ~{inp:.1f}')
+    if out > 0:
+        parts.append(f'输出 ~{out:.1f}')
+
+    price_str = ' / '.join(parts) if len(parts) == 2 else parts[0] if parts else ''
+    return f'{price_str} 元/百万tokens' if price_str else ''

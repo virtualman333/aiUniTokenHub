@@ -46,33 +46,39 @@ export default {
     },
     pricing: {
       title: '简单透明的定价',
-      subtitle: '按需付费，无隐藏费用',
-      popular: '最受欢迎',
+      subtitle: '按 Token 计费，用多少付多少，无隐藏费用',
+      popular: '推荐方案',
       start: '开始使用',
       contact: '联系我们',
+      recharge: '立即充值',
       free: {
-        title: '免费版',
-        feature1: '每月 1000 次 API 调用',
-        feature2: '基础模型访问',
+        title: '免费体验',
+        desc: '注册即送 ¥1 额度',
+        feature1: '注册赠送 ¥1 额度',
+        feature2: '基础模型访问权限',
         feature3: '邮件技术支持',
         feature4: '高级分析报表',
         feature5: '专属客户经理'
       },
-      pro: {
-        title: '专业版',
-        feature1: '每月 100000 次 API 调用',
-        feature2: '全部模型访问',
-        feature3: '优先技术支持',
-        feature4: '高级分析报表',
-        feature5: '专属客户经理'
+      payg: {
+        title: '按量付费',
+        unit: '元/百万tokens',
+        tip: '以实际使用模型价格为准',
+        desc: '充值购买 Tokens，按实际使用量计费，余额永不过期',
+        feature1: '支持 GPT-4 / Claude 等主流模型',
+        feature2: '实时用量统计与账单明细',
+        feature3: '多渠道智能负载均衡',
+        feature4: '余额不足自动提醒',
+        feature5: '充值即时到账'
       },
       enterprise: {
-        title: '企业版',
-        feature1: '无限 API 调用',
-        feature2: '全部模型访问',
-        feature3: '7x24 专属支持',
-        feature4: '定制化报表',
-        feature5: '专属客户经理'
+        title: '企业定制',
+        desc: '专属服务与定制化解决方案',
+        feature1: '无限 API 调用量',
+        feature2: '全部模型访问权限',
+        feature3: '7x24 专属技术支持',
+        feature4: '定制化报表与API接口',
+        feature5: '专属客户成功经理'
       }
     },
     docs: {

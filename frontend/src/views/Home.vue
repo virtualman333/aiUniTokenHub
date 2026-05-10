@@ -116,14 +116,15 @@
           <p>{{ t('home.pricing.subtitle') }}</p>
         </div>
         <div class="pricing-grid">
+          <!-- 免费体验 -->
           <div class="pricing-card">
             <div class="pricing-header">
               <h3>{{ t('home.pricing.free.title') }}</h3>
               <div class="pricing-price">
                 <span class="currency">¥</span>
                 <span class="amount">0</span>
-                <span class="period">/月</span>
               </div>
+              <p class="pricing-desc">{{ t('home.pricing.free.desc') }}</p>
             </div>
             <ul class="pricing-features">
               <li>{{ t('home.pricing.free.feature1') }}</li>
@@ -134,32 +135,43 @@
             </ul>
             <button class="btn btn-outline" @click="$router.push('/register')">{{ t('home.pricing.start') }}</button>
           </div>
+
+          <!-- 按量付费 -->
           <div class="pricing-card popular">
             <div class="popular-badge">{{ t('home.pricing.popular') }}</div>
             <div class="pricing-header">
-              <h3>{{ t('home.pricing.pro.title') }}</h3>
+              <h3>{{ t('home.pricing.payg.title') }}</h3>
               <div class="pricing-price">
-                <span class="currency">¥</span>
-                <span class="amount">99</span>
-                <span class="period">/月</span>
+                <span class="avg-label">AVG</span>
+                <span class="amount-lg">¥{{ avgPrice.toFixed(2) }}</span>
+                <span class="unit">{{ t('home.pricing.payg.unit') }}</span>
               </div>
+              <p class="pricing-tip">{{ t('home.pricing.payg.tip') }}</p>
+              <p class="pricing-desc">{{ t('home.pricing.payg.desc') }}</p>
             </div>
-            <ul class="pricing-features">
-              <li>{{ t('home.pricing.pro.feature1') }}</li>
-              <li>{{ t('home.pricing.pro.feature2') }}</li>
-              <li>{{ t('home.pricing.pro.feature3') }}</li>
-              <li>{{ t('home.pricing.pro.feature4') }}</li>
-              <li class="disabled">{{ t('home.pricing.pro.feature5') }}</li>
+            <ul class="pricing-features token-list">
+              <template v-if="pricingModels.length > 0">
+                <li v-for="m in pricingModels.slice(0, 3)" :key="m.id">
+                  <span class="token-pack"><strong>{{ m.name }}</strong> {{ m.price_display }}</span>
+                </li>
+              </template>
+              <template v-else>
+                <li v-for="n in 3" :key="'placeholder-'+n"><span class="token-pack">...</span></li>
+              </template>
+              <li>{{ t('home.pricing.payg.feature4') }}</li>
+              <li>{{ t('home.pricing.payg.feature5') }}</li>
             </ul>
-            <button class="btn btn-primary" @click="$router.push('/register')">{{ t('home.pricing.start') }}</button>
+            <button class="btn btn-primary" @click="$router.push('/register')">{{ t('home.pricing.recharge') }}</button>
           </div>
+
+          <!-- 企业定制 -->
           <div class="pricing-card">
             <div class="pricing-header">
               <h3>{{ t('home.pricing.enterprise.title') }}</h3>
               <div class="pricing-price">
-                <span class="currency">¥</span>
                 <span class="amount">定制</span>
               </div>
+              <p class="pricing-desc">{{ t('home.pricing.enterprise.desc') }}</p>
             </div>
             <ul class="pricing-features">
               <li>{{ t('home.pricing.enterprise.feature1') }}</li>
@@ -227,7 +239,7 @@ import CookieConsent from '@/components/CookieConsent.vue'
 import CodeBlock from '@/components/CodeBlock.vue'
 
 const { t } = useI18n()
-import { ref } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 
 const heroCode = `curl -X POST https://api.unitokenhub.com/v1/chat/completions \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
@@ -236,6 +248,33 @@ const heroCode = `curl -X POST https://api.unitokenhub.com/v1/chat/completions \
     "model": "gpt-4",
     "messages": [{"role": "user", "content": "Hello"}]
   }'`
+
+// ─── 定价数据（从接口获取）───
+const pricingModels = ref([])
+
+// 平均价格：所有模型 input_price 的均值
+const avgPrice = computed(() => {
+  if (!pricingModels.value.length) return 0
+  const total = pricingModels.value.reduce((s, m) => s + (m.input_price || 0), 0)
+  return total / pricingModels.value.length
+})
+
+async function fetchPricing() {
+  try {
+    const apiBase = import.meta.env.VITE_API_BASE_URL || '/api'
+    const res = await fetch(`${apiBase}/models/models/public_pricing/?limit=6`)
+    const json = await res.json()
+    if (json?.data?.models) {
+      pricingModels.value = json.data.models
+    }
+  } catch (e) {
+    console.warn('Failed to fetch pricing data:', e)
+  }
+}
+
+onMounted(() => {
+  fetchPricing()
+})
 
 const scrollToDocs = () => {
   const docsSection = document.getElementById('docs')
@@ -551,6 +590,7 @@ const scrollToDocs = () => {
   align-items: baseline;
   justify-content: center;
   gap: 4px;
+  flex-wrap: wrap;
 }
 
 .currency {
@@ -565,9 +605,45 @@ const scrollToDocs = () => {
   color: #1a1a2e;
 }
 
+.amount-lg {
+  font-size: 32px;
+  font-weight: 700;
+  color: #1a1a2e;
+}
+
+.unit {
+  font-size: 16px;
+  color: #667eea;
+  font-weight: 500;
+}
+
 .period {
   font-size: 16px;
   color: #909399;
+}
+
+.pricing-desc {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: #909399;
+}
+
+.avg-label {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  color: #667eea;
+  background: #f0eeff;
+  padding: 2px 6px;
+  border-radius: 4px;
+  vertical-align: top;
+  margin-top: 8px;
+}
+
+.pricing-tip {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: #e6a23c;
 }
 
 .pricing-features {
@@ -602,6 +678,25 @@ const scrollToDocs = () => {
   
   &:last-child {
     border-bottom: none;
+  }
+}
+
+.token-list li::before {
+  content: '' !important;
+}
+
+.token-pack {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+
+  strong {
+    color: #1a1a2e;
+    min-width: 80px;
+  }
+
+  &::before {
+    content: '💰';
   }
 }
 
