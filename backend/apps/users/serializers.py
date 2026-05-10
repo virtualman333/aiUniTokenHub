@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User, APIKey, Bill, CardPassword, InviteConfig, InviteReward
+from .models import User, APIKey, Bill, CardPassword, InviteConfig, InviteReward, RechargeChannel, RechargePackage
 
 
 class AdminUserSerializer(serializers.ModelSerializer):
@@ -128,11 +128,12 @@ class CardPasswordSerializer(serializers.ModelSerializer):
     """卡密序列化器"""
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     used_by_username = serializers.CharField(source='used_by.username', read_only=True, default=None)
+    channel_name = serializers.CharField(source='channel.name', read_only=True, default=None)
     amount = serializers.FloatField()
 
     class Meta:
         model = CardPassword
-        fields = ['id', 'code', 'amount', 'status', 'status_display', 'batch_no',
+        fields = ['id', 'code', 'amount', 'status', 'status_display', 'batch_no', 'channel', 'channel_name',
                   'used_by', 'used_by_username', 'used_at', 'remark', 'created_at']
         read_only_fields = ['id', 'code', 'status', 'used_by', 'used_at', 'created_at']
 
@@ -177,3 +178,42 @@ class InviteInfoSerializer(serializers.Serializer):
     invite_count = serializers.IntegerField()
     total_reward = serializers.FloatField()
     config = InviteConfigSerializer()
+
+
+class RechargeChannelSerializer(serializers.ModelSerializer):
+    """充值渠道序列化器"""
+    package_count = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = RechargeChannel
+        fields = ['id', 'name', 'code', 'description', 'icon',
+                  'is_active', 'sort_order', 'package_count', 'created_at']
+    
+    def get_package_count(self, obj):
+        return obj.packages.filter(is_active=True).count()
+
+
+class RechargePackageSerializer(serializers.ModelSerializer):
+    """充值套餐序列化器"""
+    channel_name = serializers.CharField(source='channel.name', read_only=True)
+    actual_amount = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = RechargePackage
+        fields = ['id', 'channel', 'channel_name', 'amount', 'bonus', 'actual_amount',
+                  'redirect_url', 'callback_url', 'is_active', 'sort_order', 'description', 'created_at']
+    
+    def get_actual_amount(self, obj):
+        """实际到账金额"""
+        return float(obj.amount + obj.bonus)
+
+
+class RechargeSerializer(serializers.Serializer):
+    """充值请求序列化器"""
+    channel_id = serializers.IntegerField(required=False, help_text='充值渠道ID')
+    package_id = serializers.IntegerField(required=False, help_text='充值套餐ID')
+    amount = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, 
+                                     help_text='自定义金额（不使用套餐时）')
+    payment_method = serializers.CharField(required=False, default='balance',
+                                           help_text='支付方式：balance=余额')
+

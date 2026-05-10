@@ -257,6 +257,12 @@ const routes = [
         component: () => import('@/views/admin/BillingManagement.vue'),
         meta: { title: '账单管理', noIndex: true }
       },
+      {
+        path: 'recharge-management',
+        name: 'RechargeManagement',
+        component: () => import('@/views/admin/RechargeManagement.vue'),
+        meta: { title: '充值管理', noIndex: true }
+      },
     ]
   },
   

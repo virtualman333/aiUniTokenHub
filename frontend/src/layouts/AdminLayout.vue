@@ -93,6 +93,7 @@ const menuItems = [
   { path: '/admin', label: '控制台', icon: markRaw(HomeFilled) },
   { path: '/admin/users', label: '用户管理', icon: markRaw(User) },
   { path: '/admin/card-management', label: '卡密管理', icon: markRaw(CreditCard) },
+  { path: '/admin/recharge-management', label: '充值管理', icon: markRaw(Wallet) },
   { path: '/admin/billing-management', label: '账单管理', icon: markRaw(Wallet) },
   { path: '/admin/invite-management', label: '邀请返利', icon: markRaw(Share) },
   { path: '/admin/access-logs', label: '接口使用记录', icon: markRaw(List) },
