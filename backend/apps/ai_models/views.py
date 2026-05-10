@@ -223,7 +223,7 @@ class AIModelViewSet(viewsets.ModelViewSet):
             ModelCategory.objects.filter(is_active=True), many=True
         ).data
         
-        return Response({
+        return APIResponse.success({
             'providers': providers,
             'categories': categories,
             'capabilities': [

@@ -129,15 +129,6 @@
             </div>
           </div>
         </el-tab-pane>
-        <el-tab-pane label="微信支付" name="wechat" disabled>
-          <div class="coming-soon">即将开放</div>
-        </el-tab-pane>
-        <el-tab-pane label="支付宝" name="alipay" disabled>
-          <div class="coming-soon">即将开放</div>
-        </el-tab-pane>
-        <el-tab-pane label="USDT" name="usdt" disabled>
-          <div class="coming-soon">即将开放</div>
-        </el-tab-pane>
       </el-tabs>
       <template #footer>
         <el-button @click="showRecharge = false">取消</el-button>

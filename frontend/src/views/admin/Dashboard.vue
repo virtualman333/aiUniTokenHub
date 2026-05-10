@@ -1,5 +1,17 @@
 <template>
   <div class="admin-dashboard">
+    <!-- 快捷操作栏 -->
+    <div class="quick-actions">
+      <el-button type="primary" @click="$router.push('/admin/recharge-management')">
+        <el-icon><Wallet /></el-icon>
+        充值管理
+      </el-button>
+      <el-button type="success" @click="checkBalance">
+        <el-icon><TrendCharts /></el-icon>
+        查看余额
+      </el-button>
+    </div>
+
     <!-- 统计卡片 -->
     <div class="stats-grid">
       <div class="stat-card" v-for="stat in stats" :key="stat.title">
@@ -87,6 +99,7 @@
 <script setup>
 import { ref, reactive, onMounted, onUnmounted, onActivated, watch, markRaw } from 'vue'
 import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import * as echarts from 'echarts'
 import api from '@/stores'
 import dayjs from 'dayjs'
@@ -100,6 +113,17 @@ const trendChartRef = ref()
 const pieChartRef = ref()
 let trendChart = null
 let pieChart = null
+
+// 查看余额
+const checkBalance = async () => {
+  try {
+    const res = await api.get('/users/me/')
+    const balance = res.data?.balance || res.balance || 0
+    ElMessage.info(`当前余额：¥${Number(balance).toFixed(4)}`)
+  } catch (e) {
+    ElMessage.error('获取余额失败')
+  }
+}
 
 // 监听图表天数变化
 watch(chartDays, () => {
@@ -271,6 +295,18 @@ const getMethodType = (method) => {
 .admin-dashboard {
   padding: 0;
   min-width: 0;
+}
+
+.quick-actions {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.quick-actions .el-button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 /* 统计卡片 */
