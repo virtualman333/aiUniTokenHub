@@ -35,11 +35,13 @@ from .views_openai import (
     calculate_and_deduct_cost,
     get_client_ip,
     build_endpoint_url,
+    build_protocol_endpoint_url,
     EventStreamRenderer,
 )
-from .adapters.request_adapter import convert_request as convert_req_to_chat
-from .adapters.response_adapter import convert_response as convert_resp_to_response
-from .adapters.streaming_adapter import StreamingConverter
+from .adapters.request_adapter import convert_request as convert_req_to_chat, openai_to_anthropic
+from .adapters.response_adapter import convert_response as convert_resp_to_response, anthropic_to_openai
+from .adapters.streaming_adapter import AnthropicStreamToOpenAIConverter, StreamingConverter
+from .channel_probes import ANTHROPIC_VERSION, protocol_of
 
 logger = logging.getLogger('api_proxy')
 
@@ -156,10 +158,23 @@ class ResponsesView(APIView):
     def _handle_normal(self, original_request, chat_request, api_key, user,
                        account, model_name, start_time, request):
         model_obj = AIModel.objects.filter(code=model_name).first()
+        protocol = protocol_of(account)
 
         headers = self._build_headers()
-        headers['Authorization'] = f'Bearer {account.api_key}'
-        target_url = build_endpoint_url(account.base_url, 'chat/completions')
+        if protocol == 'anthropic':
+            headers.update({
+                'x-api-key': account.api_key,
+                'anthropic-version': ANTHROPIC_VERSION,
+            })
+            upstream_body = openai_to_anthropic(chat_request, model_name)
+        else:
+            headers['Authorization'] = f'Bearer {account.api_key}'
+            upstream_body = chat_request
+        target_url = build_protocol_endpoint_url(
+            account.base_url,
+            'messages' if protocol == 'anthropic' else 'chat/completions',
+            protocol,
+        )
 
         usage_log = UsageLog.objects.create(
             user=user,
@@ -172,7 +187,7 @@ class ResponsesView(APIView):
 
         try:
             with httpx.Client(timeout=120) as client:
-                response = client.post(target_url, headers=headers, json=chat_request)
+                response = client.post(target_url, headers=headers, json=upstream_body)
 
             response_time = int((time.time() - start_time) * 1000)
 
@@ -193,6 +208,8 @@ class ResponsesView(APIView):
             # 转换响应格式（Chat → Response）
             if response.status_code < 400:
                 try:
+                    if protocol == 'anthropic':
+                        response_data = anthropic_to_openai(response_data)
                     response_data = convert_resp_to_response(response_data, original_request)
                 except Exception as e:
                     logger.error(f"[Responses] Response conversion failed: {e}")
@@ -245,13 +262,24 @@ class ResponsesView(APIView):
 
     def _handle_streaming(self, original_request, chat_request, api_key, user,
                           account, model_name, start_time, request):
+        protocol = protocol_of(account)
         headers = self._build_headers()
-        headers['Authorization'] = f'Bearer {account.api_key}'
+        if protocol == 'anthropic':
+            headers.update({
+                'x-api-key': account.api_key,
+                'anthropic-version': ANTHROPIC_VERSION,
+            })
+        else:
+            headers['Authorization'] = f'Bearer {account.api_key}'
         headers['Accept'] = 'text/event-stream'
         headers.pop('Accept-Encoding', None)
         headers.pop('accept-encoding', None)
 
-        target_url = build_endpoint_url(account.base_url, 'chat/completions')
+        target_url = build_protocol_endpoint_url(
+            account.base_url,
+            'messages' if protocol == 'anthropic' else 'chat/completions',
+            protocol,
+        )
 
         client_ip = get_client_ip(request)
         model_obj = AIModel.objects.filter(code=model_name).first()
@@ -268,10 +296,13 @@ class ResponsesView(APIView):
         try:
             body = dict(chat_request)
             body['stream'] = True
+            if protocol == 'anthropic':
+                body = openai_to_anthropic(body, model_name)
             logger.debug(f"[Responses-Stream] Request body: {body}")
 
             def generate():
                 converter = StreamingConverter()
+                anthropic_converter = AnthropicStreamToOpenAIConverter(model_name) if protocol == 'anthropic' else None
                 final_status = 0
                 final_error_msg = ''
                 final_usage = None
@@ -333,6 +364,14 @@ class ResponsesView(APIView):
                                 continue
 
                             # SSE 格式转换
+                            if anthropic_converter is not None:
+                                for openai_event in anthropic_converter.feed(chunk):
+                                    events = converter.feed(openai_event.encode('utf-8'))
+                                    for event_line in events:
+                                        yield event_line.encode('utf-8')
+                                final_usage = anthropic_converter.usage
+                                continue
+
                             events = converter.feed(chunk)
                             for event_line in events:
                                 yield event_line.encode('utf-8')
@@ -365,6 +404,12 @@ class ResponsesView(APIView):
 
                         # 确保流式结束事件已发送
                         finish_events = converter.finish()
+                        if anthropic_converter is not None:
+                            for openai_event in anthropic_converter.finish():
+                                events = converter.feed(openai_event.encode('utf-8'))
+                                for event_line in events:
+                                    yield event_line.encode('utf-8')
+                            final_usage = anthropic_converter.usage
                         for event_line in finish_events:
                             yield event_line.encode('utf-8')
 

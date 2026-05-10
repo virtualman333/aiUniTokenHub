@@ -2,6 +2,7 @@ from django.db import models
 from apps.users.models import User, APIKey
 from apps.ai_models.models import AIModel
 from apps.ai_models.upstream_models import UpstreamAccount
+from apps.api_proxy.models_channel import APIChannel, ChannelHealthLog, ModelChannelBinding  # noqa: F401
 
 
 class APIAccessLog(models.Model):

@@ -8,7 +8,7 @@ class UpstreamAccountSerializer(serializers.ModelSerializer):
     class Meta:
         model = UpstreamAccount
         fields = [
-            'id', 'name', 'provider', 'base_url', 'api_key', 'proxy_url',
+            'id', 'name', 'provider', 'protocol', 'base_url', 'api_key', 'proxy_url',
             'max_rpm', 'max_tpm', 'is_active', 'is_available', 
             'last_error', 'order', 'created_at', 'updated_at'
         ]
@@ -27,7 +27,7 @@ class UpstreamAccountListSerializer(serializers.ModelSerializer):
     class Meta:
         model = UpstreamAccount
         fields = [
-            'id', 'name', 'provider', 'provider_name', 'base_url', 
+            'id', 'name', 'provider', 'provider_name', 'protocol', 'base_url',
             'max_rpm', 'is_active', 'is_available', 'model_count', 'order'
         ]
     

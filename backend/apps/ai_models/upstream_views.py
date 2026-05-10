@@ -12,6 +12,7 @@ from .upstream_serializers import (
     ModelUpstreamAccountSerializer, ModelUpstreamAccountCreateSerializer
 )
 from apps.utils.response import APIResponse
+from apps.api_proxy.channel_probes import fetch_models, probe_status
 
 
 class UpstreamAccountViewSet(viewsets.ModelViewSet):
@@ -32,8 +33,17 @@ class UpstreamAccountViewSet(viewsets.ModelViewSet):
         
         instance = serializer.save()
         
-        # 自动获取并添加模型
-        added_count, bound_count = self._fetch_and_add_models(instance)
+        try:
+            added_count, bound_count = self._fetch_and_add_models(instance)
+        except Exception as e:
+            # 认证失败等错误：账号已创建但同步失败，返回警告
+            instance.is_available = False
+            instance.last_error = str(e)[:500]
+            instance.save(update_fields=['is_available', 'last_error'])
+            return APIResponse.created(
+                {**serializer.data, 'models_added': 0, 'accounts_bound': 0},
+                f'账号已创建，但同步模型失败: {str(e)[:200]}'
+            )
         
         return APIResponse.created(
             {**serializer.data, 'models_added': added_count, 'accounts_bound': bound_count},
@@ -43,25 +53,8 @@ class UpstreamAccountViewSet(viewsets.ModelViewSet):
     def _fetch_and_add_models(self, account):
         """从上游获取模型列表并添加到数据库，返回元组(新增模型数, 绑定数)"""
         try:
-            import httpx
-            
-            headers = {}
-            if account.api_key:
-                headers['Authorization'] = f'Bearer {account.api_key}'
-            
-            # 调用上游模型列表接口
+            models_data = fetch_models(account, timeout=15)
             base_url = account.base_url.rstrip('/')
-            response = httpx.get(
-                f"{base_url}/models",
-                headers=headers,
-                timeout=15
-            )
-            
-            if response.status_code != 200:
-                return (0, 0)
-            
-            data = response.json()
-            models_data = data.get('data', []) if isinstance(data, dict) else []
             
             if not models_data:
                 return (0, 0)
@@ -80,12 +73,13 @@ class UpstreamAccountViewSet(viewsets.ModelViewSet):
                 model_id = model_info.get('id', '')
                 if not model_id:
                     continue
+                display_name = model_info.get('display_name') or model_id
                 
                 # 获取或创建模型
                 model, created = AIModel.objects.get_or_create(
                     code=model_id,
                     defaults={
-                        'name': model_id,
+                        'name': display_name,
                         'provider': provider,
                         'status': 'inactive',  # 新添加的模型默认不启用
                         'description': '可用' if model_info.get('ready', True) else '未知',
@@ -112,9 +106,12 @@ class UpstreamAccountViewSet(viewsets.ModelViewSet):
             return (added_count, bound_count)
             
         except Exception as e:
-            # 记录错误但不影响账号创建
             import traceback
             traceback.print_exc()
+            # 认证错误必须向上抛出，不能静默吞掉
+            if hasattr(e, 'response') and getattr(e.response, 'status_code', None) in (401, 403):
+                raise
+            # 其他错误不影响账号创建，记录但不中断
             return (0, 0)
     
     def _get_or_create_provider(self, base_url, account):
@@ -181,24 +178,17 @@ class UpstreamAccountViewSet(viewsets.ModelViewSet):
         """测试账号连接"""
         account = self.get_object()
         try:
-            import httpx
-            headers = {'Authorization': f'Bearer {account.api_key}'}
-            # 简单测试：获取模型列表
-            response = httpx.get(
-                f"{account.base_url.rstrip('/')}/models",
-                headers=headers,
-                timeout=10
-            )
-            if response.status_code == 200:
+            ok, error = probe_status(account, timeout=10)
+            if ok:
                 account.is_available = True
                 account.last_error = ''
                 account.save()
                 return APIResponse.success({'status': 'ok'}, '连接成功')
             else:
                 account.is_available = False
-                account.last_error = f'HTTP {response.status_code}'
+                account.last_error = error
                 account.save()
-                return APIResponse.error(f'连接失败: HTTP {response.status_code}', 400)
+                return APIResponse.error(f'连接失败: {error}', 400)
         except Exception as e:
             account.is_available = False
             account.last_error = str(e)[:500]
@@ -209,11 +199,18 @@ class UpstreamAccountViewSet(viewsets.ModelViewSet):
     def sync_models(self, request, pk=None):
         """从上游账号同步模型列表"""
         account = self.get_object()
-        added_count, bound_count = self._fetch_and_add_models(account)
-        return APIResponse.success(
-            {'added': added_count, 'bound': bound_count},
-            f'成功同步 {added_count} 个模型，绑定 {bound_count} 个账号'
-        )
+        try:
+            added_count, bound_count = self._fetch_and_add_models(account)
+            return APIResponse.success(
+                {'added': added_count, 'bound': bound_count},
+                f'成功同步 {added_count} 个模型，绑定 {bound_count} 个账号'
+            )
+        except Exception as e:
+            error_msg = str(e)[:500]
+            account.is_available = False
+            account.last_error = error_msg
+            account.save(update_fields=['is_available', 'last_error'])
+            return APIResponse.error(f'同步失败: {error_msg}', 400)
 
 
 class ModelUpstreamAccountViewSet(viewsets.GenericViewSet):
@@ -324,6 +321,7 @@ class ModelUpstreamAccountViewSet(viewsets.GenericViewSet):
         return APIResponse.success({
             'account_id': selected.account.id,
             'name': selected.account.name,
+            'protocol': selected.account.protocol,
             'base_url': selected.account.base_url,
             'api_key': selected.account.api_key,
             'proxy_url': selected.account.proxy_url

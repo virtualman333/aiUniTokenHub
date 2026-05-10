@@ -65,6 +65,11 @@
           <el-tag>{{ row.provider_name || row.provider?.name }}</el-tag>
         </template>
       </el-table-column>
+      <el-table-column prop="protocol" label="协议" width="120">
+        <template #default="{ row }">
+          <el-tag>{{ protocolLabel(row.protocol) }}</el-tag>
+        </template>
+      </el-table-column>
       <el-table-column prop="base_url" label="基础URL" min-width="200">
         <template #default="{ row }">
           <el-tooltip :content="row.base_url" placement="top">
@@ -136,8 +141,25 @@
             />
           </el-select>
         </el-form-item>
+        <el-form-item label="协议" prop="protocol">
+          <el-select v-model="form.protocol" placeholder="选择协议" style="width: 100%" @change="handleProtocolChange">
+            <el-option
+              v-for="item in protocolOptions"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
+            />
+          </el-select>
+        </el-form-item>
+        <el-alert
+          v-if="form.protocol === 'anthropic'"
+          title="Anthropic base_url 建议填写 https://api.anthropic.com"
+          type="info"
+          :closable="false"
+          class="protocol-tip"
+        />
         <el-form-item label="基础URL" prop="base_url">
-          <el-input v-model="form.base_url" placeholder="https://api.openai.com/v1" />
+          <el-input v-model="form.base_url" :placeholder="baseUrlPlaceholder" />
         </el-form-item>
         <el-form-item label="API Key" prop="api_key">
           <el-input 
@@ -189,7 +211,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Connection, Refresh } from '@element-plus/icons-vue'
 import api from '@/stores'
@@ -207,6 +229,7 @@ const defaultForm = () => ({
   id: null,
   name: '',
   provider: null,
+  protocol: 'openai',
   base_url: '',
   api_key: '',
   proxy_url: '',
@@ -217,6 +240,18 @@ const defaultForm = () => ({
 })
 
 const form = ref({ ...defaultForm() })
+
+const protocolOptions = [
+  { label: 'OpenAI兼容', value: 'openai' },
+  { label: 'Anthropic', value: 'anthropic' },
+  { label: 'Gemini', value: 'gemini' }
+]
+
+const baseUrlPlaceholder = computed(() => (
+  form.value.protocol === 'anthropic'
+    ? 'https://api.anthropic.com'
+    : 'https://api.openai.com/v1'
+))
 
 const rules = {
   name: [{ required: true, message: '请输入渠道名称', trigger: 'blur' }],
@@ -270,6 +305,7 @@ const showDialog = (type, row = null) => {
       id: row.id,
       name: row.name,
       provider: row.provider?.id || row.provider_id,
+      protocol: row.protocol || 'openai',
       base_url: row.base_url,
       api_key: row.api_key || '',
       proxy_url: row.proxy_url || '',
@@ -280,6 +316,16 @@ const showDialog = (type, row = null) => {
     }
   }
   dialogVisible.value = true
+}
+
+const handleProtocolChange = (value) => {
+  if (value === 'anthropic' && (!form.value.base_url || form.value.base_url === 'https://api.openai.com/v1')) {
+    form.value.base_url = 'https://api.anthropic.com'
+  }
+}
+
+const protocolLabel = (value) => {
+  return protocolOptions.find(item => item.value === value)?.label || 'OpenAI兼容'
 }
 
 const submitForm = async () => {
@@ -446,4 +492,8 @@ onMounted(() => {
 .text-success { color: #67C23A; }
 .text-warning { color: #E6A23C; }
 .text-danger { color: #F56C6C; }
+
+.protocol-tip {
+  margin-bottom: 18px;
+}
 </style>

@@ -5,6 +5,7 @@
 """
 import json
 import re
+import time
 from typing import Any, Dict, List, Optional
 
 
@@ -438,3 +439,162 @@ def _sse_event(event_type: str, data: Dict[str, Any]) -> str:
     event = {'type': event_type}
     event.update(data)
     return f"event: {event_type}\ndata: {json.dumps(event, ensure_ascii=False)}\n\n"
+
+
+class AnthropicStreamToOpenAIConverter:
+    """Convert Anthropic Messages SSE events into OpenAI Chat Completions chunks."""
+
+    def __init__(self, model: str = '') -> None:
+        self.buffer = ''
+        self.message_id = ''
+        self.model = model
+        self.created = int(time.time())
+        self.sent_done = False
+        self.stop_reason: Optional[str] = None
+        self.input_tokens = 0
+        self.output_tokens = 0
+        self.tool_calls: Dict[int, Dict[str, Any]] = {}
+
+    @property
+    def usage(self) -> Dict[str, int]:
+        return {
+            'prompt_tokens': self.input_tokens,
+            'completion_tokens': self.output_tokens,
+            'total_tokens': self.input_tokens + self.output_tokens,
+        }
+
+    def feed(self, chunk: bytes) -> List[str]:
+        events: List[str] = []
+        self.buffer += chunk.decode('utf-8', errors='replace')
+
+        while True:
+            match = re.search(r'\r?\n\r?\n', self.buffer)
+            if match is None:
+                break
+
+            raw_event = self.buffer[:match.start()]
+            self.buffer = self.buffer[match.end():]
+            event_name, data = self._parse_event(raw_event)
+            if data is None:
+                continue
+            events.extend(self._process_event(event_name, data))
+
+        return events
+
+    def finish(self) -> List[str]:
+        if self.sent_done:
+            return []
+        self.sent_done = True
+        return ['data: [DONE]\n\n']
+
+    def _parse_event(self, raw_event: str) -> tuple[str, Optional[Dict[str, Any]]]:
+        event_name = ''
+        data_lines: List[str] = []
+        for line in raw_event.splitlines():
+            line = line.strip()
+            if line.startswith('event:'):
+                event_name = line[6:].strip()
+            elif line.startswith('data:'):
+                data_lines.append(line[5:].strip())
+
+        if not data_lines:
+            return event_name, None
+
+        try:
+            return event_name, json.loads('\n'.join(data_lines))
+        except json.JSONDecodeError:
+            return event_name, None
+
+    def _process_event(self, event_name: str, data: Dict[str, Any]) -> List[str]:
+        event_type = data.get('type') or event_name
+
+        if event_type == 'message_start':
+            message = data.get('message') or {}
+            self.message_id = message.get('id') or self.message_id
+            self.model = message.get('model') or self.model
+            usage = message.get('usage') or {}
+            self.input_tokens = int(usage.get('input_tokens') or self.input_tokens or 0)
+            self.output_tokens = int(usage.get('output_tokens') or self.output_tokens or 0)
+            return [self._chunk({'role': 'assistant'})]
+
+        if event_type == 'content_block_start':
+            index = int(data.get('index') or 0)
+            block = data.get('content_block') or {}
+            if block.get('type') != 'tool_use':
+                return []
+            self.tool_calls[index] = {
+                'id': block.get('id'),
+                'name': block.get('name', ''),
+                'arguments': '',
+            }
+            return [self._chunk({
+                'tool_calls': [{
+                    'index': index,
+                    'id': block.get('id'),
+                    'type': 'function',
+                    'function': {
+                        'name': block.get('name', ''),
+                        'arguments': '',
+                    },
+                }]
+            })]
+
+        if event_type == 'content_block_delta':
+            index = int(data.get('index') or 0)
+            delta = data.get('delta') or {}
+            if delta.get('type') == 'text_delta':
+                return [self._chunk({'content': delta.get('text', '')})]
+            if delta.get('type') == 'input_json_delta':
+                partial = delta.get('partial_json', '')
+                entry = self.tool_calls.setdefault(index, {'id': None, 'name': '', 'arguments': ''})
+                entry['arguments'] += partial
+                return [self._chunk({
+                    'tool_calls': [{
+                        'index': index,
+                        'function': {'arguments': partial},
+                    }]
+                })]
+            return []
+
+        if event_type == 'message_delta':
+            delta = data.get('delta') or {}
+            self.stop_reason = delta.get('stop_reason') or self.stop_reason
+            usage = data.get('usage') or {}
+            if 'output_tokens' in usage:
+                self.output_tokens = int(usage.get('output_tokens') or 0)
+            return [self._chunk({}, finish_reason=_map_anthropic_stream_stop_reason(self.stop_reason), usage=self.usage)]
+
+        if event_type == 'message_stop':
+            return self.finish()
+
+        return []
+
+    def _chunk(
+        self,
+        delta: Dict[str, Any],
+        finish_reason: Optional[str] = None,
+        usage: Optional[Dict[str, int]] = None,
+    ) -> str:
+        payload: Dict[str, Any] = {
+            'id': self.message_id,
+            'object': 'chat.completion.chunk',
+            'created': self.created,
+            'model': self.model,
+            'choices': [{
+                'index': 0,
+                'delta': delta,
+                'finish_reason': finish_reason,
+            }],
+        }
+        if usage is not None:
+            payload['usage'] = usage
+        return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
+
+def _map_anthropic_stream_stop_reason(stop_reason: Optional[str]) -> Optional[str]:
+    return {
+        'end_turn': 'stop',
+        'max_tokens': 'length',
+        'stop_sequence': 'stop',
+        'tool_use': 'tool_calls',
+    }.get(stop_reason)

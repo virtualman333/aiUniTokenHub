@@ -1,6 +1,8 @@
 """
 Chat Completions 响应 → Response API 响应转换器（非流式）
 """
+import json
+import time
 from typing import Any, Dict, List, Optional
 
 
@@ -53,6 +55,66 @@ def convert_response(chat_response: Dict[str, Any], original_request: Dict[str, 
         'user': None,
         'metadata': original_request.get('metadata', {}),
     }
+
+
+def anthropic_to_openai(resp: Dict[str, Any]) -> Dict[str, Any]:
+    content_blocks = resp.get('content') or []
+    text = ''.join(
+        block.get('text', '')
+        for block in content_blocks
+        if isinstance(block, dict) and block.get('type') == 'text'
+    )
+
+    message: Dict[str, Any] = {
+        'role': 'assistant',
+        'content': text,
+    }
+
+    tool_calls = []
+    for block in content_blocks:
+        if not isinstance(block, dict) or block.get('type') != 'tool_use':
+            continue
+        tool_calls.append({
+            'id': block.get('id'),
+            'type': 'function',
+            'function': {
+                'name': block.get('name', ''),
+                'arguments': json.dumps(block.get('input') or {}, ensure_ascii=False),
+            },
+        })
+
+    if tool_calls:
+        message['tool_calls'] = tool_calls
+
+    usage = resp.get('usage') or {}
+    input_tokens = int(usage.get('input_tokens') or 0)
+    output_tokens = int(usage.get('output_tokens') or 0)
+
+    return {
+        'id': resp.get('id'),
+        'object': 'chat.completion',
+        'created': int(time.time()),
+        'model': resp.get('model', ''),
+        'choices': [{
+            'index': 0,
+            'message': message,
+            'finish_reason': map_anthropic_stop_reason(resp.get('stop_reason')),
+        }],
+        'usage': {
+            'prompt_tokens': input_tokens,
+            'completion_tokens': output_tokens,
+            'total_tokens': input_tokens + output_tokens,
+        },
+    }
+
+
+def map_anthropic_stop_reason(stop_reason: Optional[str]) -> Optional[str]:
+    return {
+        'end_turn': 'stop',
+        'max_tokens': 'length',
+        'stop_sequence': 'stop',
+        'tool_use': 'tool_calls',
+    }.get(stop_reason)
 
 
 def _convert_id(chat_id: str) -> str:

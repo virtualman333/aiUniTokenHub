@@ -10,6 +10,12 @@ class UpstreamAccount(models.Model):
                                  related_name='upstream_accounts', verbose_name='供应商')
     
     # API配置
+    PROTOCOL_CHOICES = [
+        ('openai', 'OpenAI兼容'),
+        ('anthropic', 'Anthropic'),
+        ('gemini', 'Gemini'),
+    ]
+    protocol = models.CharField('协议', max_length=20, choices=PROTOCOL_CHOICES, default='openai')
     base_url = models.CharField('API基础地址', max_length=500, 
                                 help_text='如: https://api.openai.com/v1')
     api_key = models.CharField('API密钥', max_length=500)

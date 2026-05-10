@@ -25,6 +25,10 @@ from apps.users.models import APIKey, UsageLog, Bill
 from apps.ai_models.models import AIModel
 from apps.ai_models.upstream_models import UpstreamAccount, ModelUpstreamAccount
 from .models import APIAccessLog
+from .adapters.request_adapter import openai_to_anthropic
+from .adapters.response_adapter import anthropic_to_openai
+from .adapters.streaming_adapter import AnthropicStreamToOpenAIConverter
+from .channel_probes import ANTHROPIC_VERSION, endpoint_url, protocol_of
 
 
 logger = logging.getLogger('api_proxy')
@@ -61,6 +65,12 @@ def build_endpoint_url(base_url: str, endpoint: str = 'chat/completions') -> str
     """
     base = base_url.rstrip('/')
     return f"{base}/{endpoint}"
+
+
+def build_protocol_endpoint_url(base_url: str, endpoint: str, protocol: str) -> str:
+    if protocol == 'anthropic':
+        return endpoint_url(base_url, endpoint, protocol)
+    return build_endpoint_url(base_url, endpoint)
 
 def get_api_key_from_request(request) -> tuple:
     """从请求中提取API Key，返回 (api_key, user) 或 (None, None)"""
@@ -400,13 +410,23 @@ class ChatCompletionsView(APIView):
         """处理普通（非流式）请求"""
         # 获取 AIModel 对象
         model_obj = AIModel.objects.filter(code=model_name).first()
+        protocol = protocol_of(account)
         
         # 构建转发请求
-        headers = self._build_headers(request)
-        headers['Authorization'] = f'Bearer {account.api_key}'
+        if protocol == 'anthropic':
+            headers = self._build_anthropic_headers(account.api_key)
+            upstream_body = openai_to_anthropic(request.data, model_name)
+        else:
+            headers = self._build_headers(request)
+            headers['Authorization'] = f'Bearer {account.api_key}'
+            upstream_body = request.data
         
         # 构建目标 URL
-        target_url = build_endpoint_url(account.base_url, 'chat/completions')
+        target_url = build_protocol_endpoint_url(
+            account.base_url,
+            'messages' if protocol == 'anthropic' else 'chat/completions',
+            protocol,
+        )
         
         # 日志记录转发信息
         logger.info(f"[ChatCompletions-Normal] model={model_name}, user_id={user.id}, account={account.name}")
@@ -429,7 +449,7 @@ class ChatCompletionsView(APIView):
                 response = client.post(
                     target_url,
                     headers=headers,
-                    json=request.data,
+                    json=upstream_body,
                     timeout=timeout,
                 )
             
@@ -457,6 +477,9 @@ class ChatCompletionsView(APIView):
                 )
             else:
                 logger.info(f"[ChatCompletions-Normal] Success, status={response.status_code}")
+
+            if response.status_code < 400 and protocol == 'anthropic':
+                response_data = anthropic_to_openai(response_data)
             
             # 更新日志（含计费）
             self._update_usage_log(usage_log, response, response_data, response_time, model_name)
@@ -535,8 +558,11 @@ class ChatCompletionsView(APIView):
     
     def _handle_streaming(self, request, api_key, user, account, model_name, start_time):
         """处理流式请求"""
+        protocol = protocol_of(account)
         headers = self._build_headers(request)
         headers['Authorization'] = f'Bearer {account.api_key}'
+        if protocol == 'anthropic':
+            headers = self._build_anthropic_headers(account.api_key, stream=True)
         # 关键：明确告诉上游用流式
         headers['Accept'] = 'text/event-stream'
         # 移除可能导致缓冲的压缩
@@ -544,7 +570,11 @@ class ChatCompletionsView(APIView):
         headers.pop('accept-encoding', None)
 
         # 构建目标 URL
-        target_url = build_endpoint_url(account.base_url, 'chat/completions')
+        target_url = build_protocol_endpoint_url(
+            account.base_url,
+            'messages' if protocol == 'anthropic' else 'chat/completions',
+            protocol,
+        )
 
         # 日志记录转发信息
         logger.info(f"[ChatCompletions-Stream] model={model_name}, user_id={user.id}, account={account.name}")
@@ -571,6 +601,8 @@ class ChatCompletionsView(APIView):
             # 在生成器外部把 request.data 复制出来，避免在生成器执行期间访问已关闭的请求
             body = dict(request_data_copy)
             body['stream'] = True
+            if protocol == 'anthropic':
+                body = openai_to_anthropic(body, model_name)
 
             def generate():
                 """生成器函数，按字节流式返回 SSE 数据，并解析 usage 用于结束后的统计/计费"""
@@ -579,6 +611,7 @@ class ChatCompletionsView(APIView):
                 final_usage = None
                 # 累积未完成的 SSE 事件文本（用于解析 usage / [DONE]）
                 sse_buffer = ''
+                anthropic_converter = AnthropicStreamToOpenAIConverter(model_name) if protocol == 'anthropic' else None
 
                 try:
                     with httpx.stream(
@@ -622,6 +655,11 @@ class ChatCompletionsView(APIView):
                             if not chunk:
                                 continue
                             # 立即转发给前端
+                            if anthropic_converter is not None:
+                                for event_line in anthropic_converter.feed(chunk):
+                                    yield event_line.encode('utf-8')
+                                final_usage = anthropic_converter.usage
+                                continue
                             yield chunk
                             # 解析 SSE 事件提取 usage（最后一个 chunk 通常带 usage）
                             try:
@@ -648,6 +686,10 @@ class ChatCompletionsView(APIView):
                                     u = evt.get('usage') if isinstance(evt, dict) else None
                                     if isinstance(u, dict) and u:
                                         final_usage = u
+                        if anthropic_converter is not None:
+                            for event_line in anthropic_converter.finish():
+                                yield event_line.encode('utf-8')
+                            final_usage = anthropic_converter.usage
                         update_upstream_usage(account, success=True)
                 except httpx.TimeoutException:
                     update_upstream_usage(account, success=False)
@@ -784,6 +826,16 @@ class ChatCompletionsView(APIView):
         for key, value in request.headers.items():
             if key.lower() not in skip_keys:
                 headers[key] = value
+        return headers
+
+    def _build_anthropic_headers(self, api_key: str = '', stream: bool = False) -> dict:
+        headers = {
+            'x-api-key': api_key,
+            'anthropic-version': ANTHROPIC_VERSION,
+            'content-type': 'application/json',
+        }
+        if stream:
+            headers['Accept'] = 'text/event-stream'
         return headers
     
     def _update_usage_log(self, log, response, response_data, response_time, model_code=''):

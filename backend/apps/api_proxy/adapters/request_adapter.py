@@ -67,6 +67,130 @@ def convert_request(data: Dict[str, Any]) -> Dict[str, Any]:
     return chat_data
 
 
+def openai_to_anthropic(payload: Dict[str, Any], model: Optional[str] = None) -> Dict[str, Any]:
+    anthropic_payload: Dict[str, Any] = {
+        'model': model or payload.get('model'),
+        'max_tokens': payload.get('max_tokens') or payload.get('max_output_tokens') or 4096,
+    }
+
+    system_parts: List[str] = []
+    messages: List[Dict[str, Any]] = []
+
+    for message in payload.get('messages') or []:
+        if not isinstance(message, dict):
+            continue
+
+        role = message.get('role')
+        content = message.get('content', '')
+
+        if role == 'system':
+            text = _content_to_text(content)
+            if text:
+                system_parts.append(text)
+            continue
+
+        if role not in ('user', 'assistant'):
+            continue
+
+        messages.append({
+            'role': role,
+            'content': _openai_content_to_anthropic(content),
+        })
+
+    if system_parts:
+        anthropic_payload['system'] = '\n\n'.join(system_parts)
+
+    anthropic_payload['messages'] = messages
+
+    for key in ('temperature', 'top_p', 'stream'):
+        if key in payload:
+            anthropic_payload[key] = payload[key]
+
+    if 'stop' in payload:
+        stop = payload['stop']
+        anthropic_payload['stop_sequences'] = stop if isinstance(stop, list) else [stop]
+
+    tools = _openai_tools_to_anthropic(payload.get('tools') or [])
+    if tools:
+        anthropic_payload['tools'] = tools
+
+    tool_choice = _openai_tool_choice_to_anthropic(payload.get('tool_choice'))
+    if tool_choice:
+        anthropic_payload['tool_choice'] = tool_choice
+
+    return anthropic_payload
+
+
+def _content_to_text(content: Any) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        texts: List[str] = []
+        for part in content:
+            if not isinstance(part, dict):
+                continue
+            if part.get('type') == 'text':
+                texts.append(str(part.get('text') or ''))
+        return ''.join(texts)
+    return '' if content is None else str(content)
+
+
+def _openai_content_to_anthropic(content: Any) -> Any:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        converted: List[Dict[str, Any]] = []
+        for part in content:
+            if not isinstance(part, dict):
+                continue
+            if part.get('type') == 'text':
+                converted.append({'type': 'text', 'text': str(part.get('text') or '')})
+            elif 'text' in part:
+                converted.append({'type': 'text', 'text': str(part.get('text') or '')})
+        return converted
+    return '' if content is None else str(content)
+
+
+def _openai_tools_to_anthropic(tools: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    converted: List[Dict[str, Any]] = []
+    for tool in tools:
+        if not isinstance(tool, dict):
+            continue
+
+        function = tool.get('function') if tool.get('type') == 'function' else None
+        if not isinstance(function, dict):
+            continue
+
+        converted.append({
+            'name': function.get('name', ''),
+            'description': function.get('description', ''),
+            'input_schema': function.get('parameters') or {},
+        })
+
+    return converted
+
+
+def _openai_tool_choice_to_anthropic(tool_choice: Any) -> Optional[Dict[str, Any]]:
+    if not tool_choice:
+        return None
+    if tool_choice == 'auto':
+        return {'type': 'auto'}
+    if tool_choice == 'none':
+        return {'type': 'none'}
+    if tool_choice == 'required':
+        return {'type': 'any'}
+    if isinstance(tool_choice, str):
+        return {'type': 'tool', 'name': tool_choice}
+    if isinstance(tool_choice, dict):
+        if tool_choice.get('type') in ('auto', 'none', 'any'):
+            return {'type': tool_choice['type']}
+        function = tool_choice.get('function') or {}
+        name = function.get('name') or tool_choice.get('name')
+        if name:
+            return {'type': 'tool', 'name': name}
+    return None
+
+
 def _convert_input_item(item: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """
     将 Response API 的 input item 转换为 Chat API 的 message。

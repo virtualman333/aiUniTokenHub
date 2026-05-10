@@ -21,6 +21,17 @@ class APIChannel(models.Model):
     base_url = models.URLField('基础URL', max_length=500)
     api_key = models.CharField('API Key', max_length=500, blank=True)
     api_secret = models.CharField('API Secret', max_length=500, blank=True)
+    PROTOCOL_CHOICES = [
+        ('openai', 'OpenAI兼容'),
+        ('anthropic', 'Anthropic'),
+        ('gemini', 'Gemini'),
+    ]
+    protocol = models.CharField(
+        '协议',
+        max_length=20,
+        choices=PROTOCOL_CHOICES,
+        default='openai',
+    )
     
     # 负载均衡配置
     WEIGHT_CHOICES = [
