@@ -28,7 +28,7 @@ from .models import APIAccessLog
 from .adapters.request_adapter import openai_to_anthropic
 from .adapters.response_adapter import anthropic_to_openai
 from .adapters.streaming_adapter import AnthropicStreamToOpenAIConverter
-from .channel_probes import ANTHROPIC_VERSION, endpoint_url, protocol_of
+from .channel_probes import ANTHROPIC_VERSION, endpoint_url, protocol_of, _anthropic_auth_headers
 
 
 logger = logging.getLogger('api_proxy')
@@ -102,14 +102,23 @@ def select_upstream_account(model_code: str) -> Optional[UpstreamAccount]:
     logger.info(f"[select_account] Looking for model: {model_code}")
     
     try:
-        # 查找模型
+        # 查找模型（先精确匹配 code，再匹配 api_model_id）
         model = AIModel.objects.filter(code=model_code, status='active').first()
         if not model:
-            # 尝试通过 api_model_id 查找
             model = AIModel.objects.filter(api_model_id=model_code, status='active').first()
         
+        # 如果 active 状态找不到，检查是否有 inactive 的同名模型（帮助排障）
         if not model:
-            logger.warning(f"[select_account] Model not found: {model_code}")
+            inactive_model = AIModel.objects.filter(code=model_code).first()
+            if not inactive_model:
+                inactive_model = AIModel.objects.filter(api_model_id=model_code).first()
+            if inactive_model:
+                logger.warning(
+                    f"[select_account] Model '{model_code}' found but status='{inactive_model.status}', "
+                    f"not 'active'. Please activate it in admin panel."
+                )
+            else:
+                logger.warning(f"[select_account] Model '{model_code}' not found in database at all.")
             return None
             
         logger.info(f"[select_account] Found model: {model.name} (id={model.id})")
@@ -125,56 +134,70 @@ def select_upstream_account(model_code: str) -> Optional[UpstreamAccount]:
     
     logger.info(f"[select_account] Found {bindings.count()} upstream account bindings for model")
     
-    # 收集可用账号及其权重
+    # 收集可用账号及其权重（优先 is_available=True 的账号）
     available_accounts = []
+    fallback_accounts = []
     for binding in bindings:
         account = binding.account
         logger.info(f"[select_account] Checking account: {account.name}, is_active={account.is_active}, is_available={account.is_available}")
         if account.is_active and account.is_available:
             available_accounts.append((account, binding.weight))
             logger.info(f"[select_account] Account {account.name} is available (weight={binding.weight})")
+        elif account.is_active:
+            # 即使 is_available=False（健康检查失败），也作为备选
+            fallback_accounts.append((account, binding.weight))
+            logger.info(f"[select_account] Account {account.name} is active but unavailable (fallback, weight={binding.weight})")
     
-    if not available_accounts:
+    if not available_accounts and not fallback_accounts:
         logger.warning(f"[select_account] No available bindings for model")
         return None
     
+    # 优先使用健康账号，没有则降级使用不健康的账号
+    if available_accounts:
+        accounts_pool = available_accounts
+    else:
+        accounts_pool = fallback_accounts
+        logger.warning(f"[select_account] No healthy accounts, falling back to unhealthy accounts")
+    
     # 加权随机选择（权重越高被选中的概率越大）
-    total_weight = sum(weight for _, weight in available_accounts)
+    total_weight = sum(weight for _, weight in accounts_pool)
     if total_weight == 0:
-        selected = available_accounts[0][0]
+        selected = accounts_pool[0][0]
     else:
         import random
         rand_val = random.randint(1, total_weight)
         cumulative = 0
-        for account, weight in available_accounts:
+        for account, weight in accounts_pool:
             cumulative += weight
             if cumulative >= rand_val:
                 selected = account
                 break
         else:
-            selected = available_accounts[0][0]
+            selected = accounts_pool[0][0]
     
     logger.info(f"[select_account] Selected account: {selected.name}, base_url: {selected.base_url}, api_key: {'***' + selected.api_key[-8:] if selected.api_key else 'None'}")
     return selected
 
 
 def check_rate_limit(api_key: APIKey, account: UpstreamAccount) -> Optional[Response]:
-    """检查速率限制"""
+    """检查速率限制（Redis 不可用时放行）"""
     limit = min(api_key.rate_limit, account.max_rpm)
     cache_key = f"rate_limit:{api_key.key}:{account.id}"
     
-    current = cache.get(cache_key, 0)
-    if current >= limit:
-        return Response({
-            'error': {
-                'message': 'Rate limit exceeded. Please retry later.',
-                'type': 'rate_limit_error',
-                'param': None,
-                'code': 'rate_limit_exceeded'
-            }
-        }, status=status.HTTP_429_TOO_MANY_REQUESTS)
-    
-    cache.set(cache_key, current + 1, 60)
+    try:
+        current = cache.get(cache_key, 0)
+        if current >= limit:
+            return Response({
+                'error': {
+                    'message': 'Rate limit exceeded. Please retry later.',
+                    'type': 'rate_limit_error',
+                    'param': None,
+                    'code': 'rate_limit_exceeded'
+                }
+            }, status=status.HTTP_429_TOO_MANY_REQUESTS)
+        cache.set(cache_key, current + 1, 60)
+    except Exception as e:
+        logger.warning(f"[check_rate_limit] Redis unavailable, skipping: {e}")
     return None
 
 
@@ -432,7 +455,9 @@ class ChatCompletionsView(APIView):
         logger.info(f"[ChatCompletions-Normal] model={model_name}, user_id={user.id}, account={account.name}")
         logger.info(f"[ChatCompletions-Normal] Account base_url: {account.base_url}")
         logger.info(f"[ChatCompletions-Normal] Forwarding to: {target_url}")
-        logger.debug(f"[ChatCompletions-Normal] Request headers: {headers}")
+        # 记录鉴权头（隐藏敏感信息）
+        safe_headers = {k: (v[:20] + '***' if k in ('x-api-key', 'Authorization') and len(v) > 20 else v) for k, v in headers.items()}
+        logger.info(f"[ChatCompletions-Normal] Request headers: {safe_headers}")
         
         # 记录使用日志
         usage_log = UsageLog.objects.create(
@@ -830,7 +855,7 @@ class ChatCompletionsView(APIView):
 
     def _build_anthropic_headers(self, api_key: str = '', stream: bool = False) -> dict:
         headers = {
-            'x-api-key': api_key,
+            **_anthropic_auth_headers(api_key),
             'anthropic-version': ANTHROPIC_VERSION,
             'content-type': 'application/json',
         }

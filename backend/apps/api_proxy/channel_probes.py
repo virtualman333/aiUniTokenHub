@@ -29,14 +29,11 @@ def endpoint_url(base_url: str, endpoint: str, protocol: str = 'openai') -> str:
 def _anthropic_auth_headers(api_key: str) -> Dict[str, str]:
     """根据 Anthropic token 格式选择鉴权头。
     - sk-ant-oat01-... / sk-ant-sid-... (OAuth/会话 token) → Authorization: Bearer
-    - sk-ant-api03-... (标准 API key) → x-api-key
-    - 其他格式 (中转聚合 key, 如 sk-...) → 两个头都带，由上游自行选择
+    - 其他格式 → 两个头都带（x-api-key + Authorization: Bearer），由上游自行选择
     """
     if api_key.startswith('sk-ant-oat01-') or api_key.startswith('sk-ant-sid-'):
         return {'Authorization': f'Bearer {api_key}'}
-    if api_key.startswith('sk-ant-api03-'):
-        return {'x-api-key': api_key}
-    # 中转代理聚合 key：两个头都带，最大兼容
+    # 标准 API key 和中转 key：两个头都带，最大兼容
     return {
         'x-api-key': api_key,
         'Authorization': f'Bearer {api_key}',
@@ -71,10 +68,8 @@ def test_connection(channel: Any, timeout: int = 10) -> httpx.Response:
         raise ValueError('Gemini protocol probing is not implemented yet')
 
     if protocol == 'anthropic':
-        # 使用 GET /v1/models 端点测试连接（不消耗 token，仅验证鉴权）
-        url = endpoint_url(getattr(channel, 'base_url', ''), 'models', protocol)
-        headers = headers_for(channel, stream=False)
-        return httpx.get(url, headers=headers, timeout=timeout)
+        # Anthropic API 不一定支持 GET /v1/models，优先用 POST /v1/messages 做最小化鉴权测试
+        return _test_anthropic_connection(channel, timeout)
 
     response = httpx.get(
         endpoint_url(getattr(channel, 'base_url', ''), 'models', protocol),
@@ -82,6 +77,33 @@ def test_connection(channel: Any, timeout: int = 10) -> httpx.Response:
         timeout=timeout,
     )
     return response
+
+
+def _test_anthropic_connection(channel: Any, timeout: int = 10) -> httpx.Response:
+    """Anthropic 专用连接测试：先尝试 POST /v1/messages（最小请求），失败则回退 GET /v1/models"""
+    base_url = getattr(channel, 'base_url', '')
+    headers = headers_for(channel, stream=False)
+    # 发送最小 messages 请求（max_tokens=1 以极低成本验证鉴权）
+    messages_url = endpoint_url(base_url, 'messages', 'anthropic')
+    minimal_body = {
+        'model': 'claude-3-haiku-20240307',
+        'max_tokens': 1,
+        'messages': [{'role': 'user', 'content': 'hi'}],
+    }
+    try:
+        resp = httpx.post(messages_url, headers=headers, json=minimal_body, timeout=timeout)
+        # 401/403 = 认证失败，直接返回
+        if resp.status_code in (401, 403):
+            return resp
+        # 400/422 = 请求格式有误但认证通过，也算连接成功
+        if resp.status_code in (400, 422):
+            return resp
+        # 2xx = 正常（虽然消耗了 1 token 但确认了连接）
+        return resp
+    except Exception:
+        # POST 失败，回退到 GET /v1/models
+        models_url = endpoint_url(base_url, 'models', 'anthropic')
+        return httpx.get(models_url, headers=headers, timeout=timeout)
 
 
 def fetch_models(channel: Any, timeout: int = 15) -> List[Dict[str, Any]]:
@@ -166,9 +188,9 @@ def probe_status(channel: Any, timeout: int = 10) -> Tuple[bool, str]:
         response = test_connection(channel, timeout=timeout)
         if response.status_code == 200:
             return True, ''
-        # Anthropic 协议：400/422 表示请求格式有误但连接正常（非认证问题）
+        # Anthropic 协议：400/422/404/405 表示连接正常（端点不支持或请求格式有误，非认证问题）
         protocol = protocol_of(channel)
-        if protocol == 'anthropic' and response.status_code in (400, 422):
+        if protocol == 'anthropic' and response.status_code in (400, 404, 405, 422):
             return True, ''
         error_msg = _extract_error_message(response)
         return False, f'HTTP {response.status_code}: {error_msg}'
