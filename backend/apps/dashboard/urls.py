@@ -7,6 +7,39 @@ router.register(r"overview", AdminDashboardViewSet, basename="overview")
 
 urlpatterns = [
     # 管理端路由（需要在 router 之前定义，避免被覆盖）
+    # 流量统计路由
+    path(
+        "admin/analytics/summary/",
+        AdminDashboardViewSet.as_view({"get": "analytics_summary"}),
+        name="admin-analytics-summary",
+    ),
+    path(
+        "admin/analytics/trend/",
+        AdminDashboardViewSet.as_view({"get": "analytics_trend"}),
+        name="admin-analytics-trend",
+    ),
+    path(
+        "admin/analytics/pages/",
+        AdminDashboardViewSet.as_view({"get": "analytics_pages"}),
+        name="admin-analytics-pages",
+    ),
+    path(
+        "admin/analytics/sources/",
+        AdminDashboardViewSet.as_view({"get": "analytics_sources"}),
+        name="admin-analytics-sources",
+    ),
+    path(
+        "admin/analytics/realtime/",
+        AdminDashboardViewSet.as_view({"get": "analytics_realtime"}),
+        name="admin-analytics-realtime",
+    ),
+    # 访问记录分页列表（具体网页IP、PV、UV查询）
+    path(
+        "admin/analytics/records/",
+        AdminDashboardViewSet.as_view({"get": "analytics_records"}),
+        name="admin-analytics-records",
+    ),
+    # 用户管理路由
     path(
         "admin/users/",
         AdminDashboardViewSet.as_view({"get": "list_users"}),
@@ -61,6 +94,21 @@ urlpatterns = [
         name="admin-distribution",
     ),
     path(
+        "admin/token-stats/",
+        AdminDashboardViewSet.as_view({"get": "token_stats"}),
+        name="admin-token-stats",
+    ),
+    path(
+        "admin/active-users/",
+        AdminDashboardViewSet.as_view({"get": "active_users"}),
+        name="admin-active-users",
+    ),
+    path(
+        "admin/error-analysis/",
+        AdminDashboardViewSet.as_view({"get": "error_analysis"}),
+        name="admin-error-analysis",
+    ),
+    path(
         "admin/overview/",
         AdminDashboardViewSet.as_view({"get": "overview"}),
         name="admin-overview",
@@ -75,6 +123,11 @@ urlpatterns = [
         "user/top-apis/",
         UserDashboardViewSet.as_view({"get": "top_apis"}),
         name="user-top-apis",
+    ),
+    path(
+        "user/top-models/",
+        UserDashboardViewSet.as_view({"get": "top_models"}),
+        name="user-top-models",
     ),
     path(
         "user/request-stats/",

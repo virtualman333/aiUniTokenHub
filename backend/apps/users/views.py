@@ -12,13 +12,14 @@ from django.db import models as db_models
 from django.utils import timezone
 from .models import (
     User, APIKey, Bill, CardPassword, InviteConfig, InviteReward,
-    EmailConfig, EmailVerifyCode,
+    EmailConfig, EmailVerifyCode, RechargeChannel, RechargePackage,
 )
 from .serializers import (
     UserRegisterSerializer, UserLoginSerializer, UserSerializer,
     APIKeySerializer, ChangePasswordSerializer, BillSerializer,
     CardPasswordSerializer, CardRedeemSerializer,
-    InviteConfigSerializer, InviteRewardSerializer
+    InviteConfigSerializer, InviteRewardSerializer,
+    RechargeChannelSerializer, RechargePackageSerializer, RechargeSerializer
 )
 from .authentication import generate_token
 from .mailer import send_email, render_verify_code_email, EmailNotConfigured
@@ -460,3 +461,254 @@ class InviteViewSet(viewsets.GenericViewSet):
         rewards = InviteReward.objects.filter(inviter=request.user)[:10]
         serializer = InviteRewardSerializer(rewards, many=True)
         return APIResponse.success(serializer.data, '获取成功')
+
+
+class RechargeViewSet(viewsets.GenericViewSet):
+    """充值管理"""
+    permission_classes = [IsAuthenticated]
+
+    @action(detail=False, methods=['get'])
+    def channels(self, request):
+        """获取所有启用的充值渠道"""
+        channels = RechargeChannel.objects.filter(is_active=True)
+        serializer = RechargeChannelSerializer(channels, many=True)
+        return APIResponse.success(serializer.data, '获取成功')
+
+    @action(detail=False, methods=['get'])
+    def packages(self, request):
+        """获取充值套餐列表"""
+        channel_id = request.query_params.get('channel_id')
+        packages = RechargePackage.objects.filter(is_active=True)
+        if channel_id:
+            packages = packages.filter(channel_id=channel_id)
+        serializer = RechargePackageSerializer(packages, many=True)
+        return APIResponse.success(serializer.data, '获取成功')
+
+    @action(detail=False, methods=['post'])
+    def submit(self, request):
+        """提交充值请求 - 生成第三方网站跳转URL"""
+        serializer = RechargeSerializer(data=request.data)
+        if not serializer.is_valid():
+            errors = serializer.errors
+            first_error = list(errors.values())[0][0] if errors else '参数错误'
+            return APIResponse.error(str(first_error), 400)
+        
+        user = request.user
+        channel_id = serializer.validated_data.get('channel_id')
+        package_id = serializer.validated_data.get('package_id')
+        
+        # 获取充值套餐
+        if not package_id:
+            return APIResponse.error('请选择充值套餐', 400)
+        
+        try:
+            package = RechargePackage.objects.select_related('channel').get(
+                id=package_id, channel_id=channel_id, is_active=True
+            )
+        except RechargePackage.DoesNotExist:
+            return APIResponse.error('充值套餐不存在或已禁用', 404)
+        
+        channel = package.channel
+        
+        # 检查套餐是否配置了跳转URL
+        if not package.redirect_url:
+            return APIResponse.error('该套餐暂不支持在线充值，请联系管理员', 400)
+        
+        # 计算充值金额
+        amount = package.amount
+        bonus = package.bonus
+        
+        # 生成订单ID
+        order_id = f"R{user.id}{timezone.now().strftime('%Y%m%d%H%M%S')}{random.randint(1000, 9999)}"
+        
+        # 构建跳转URL（替换占位符）
+        redirect_url = package.redirect_url.format(
+            amount=float(amount),
+            bonus=float(bonus),
+            total=float(amount + bonus),
+            order_id=order_id,
+            user_id=user.id,
+            channel_id=channel.id,
+            package_id=package_id
+        )
+        
+        return APIResponse.success({
+            'order_id': order_id,
+            'redirect_url': redirect_url,
+            'amount': float(amount),
+            'bonus': float(bonus),
+            'total': float(amount + bonus),
+            'channel_name': channel.name,
+            'package_name': f'¥{package.amount}' + (f'+赠¥{bonus}' if bonus > 0 else ''),
+            'hint': '即将跳转到第三方支付页面，请在完成支付后获取卡密进行充值'
+        }, '即将跳转到第三方充值页面')
+
+
+class AdminRechargeViewSet(viewsets.GenericViewSet):
+    """管理员充值渠道管理"""
+    permission_classes = [IsAdminUser]
+
+    @action(detail=False, methods=['get'])
+    def list_channels(self, request):
+        """获取充值渠道列表"""
+        channels = RechargeChannel.objects.all()
+        serializer = RechargeChannelSerializer(channels, many=True)
+        return APIResponse.success(serializer.data, '获取成功')
+
+    @action(detail=False, methods=['post'])
+    def create_channel(self, request):
+        """创建充值渠道"""
+        name = request.data.get('name')
+        code = request.data.get('code')
+        if not name or not code:
+            return APIResponse.error('名称和代码不能为空', 400)
+        
+        if RechargeChannel.objects.filter(code=code).exists():
+            return APIResponse.error('渠道代码已存在', 400)
+        
+        channel = RechargeChannel.objects.create(
+            name=name,
+            code=code,
+            description=request.data.get('description', ''),
+            icon=request.data.get('icon', ''),
+            is_active=request.data.get('is_active', True),
+            sort_order=request.data.get('sort_order', 0)
+        )
+        return APIResponse.created(RechargeChannelSerializer(channel).data, '创建成功')
+
+    @action(detail=False, methods=['put'], url_path='update_channel/(?P<pk>[^/.]+)')
+    def update_channel(self, request, pk=None):
+        """更新充值渠道"""
+        try:
+            channel = RechargeChannel.objects.get(pk=pk)
+        except RechargeChannel.DoesNotExist:
+            return APIResponse.error('渠道不存在', 404)
+        
+        if 'name' in request.data:
+            channel.name = request.data['name']
+        if 'description' in request.data:
+            channel.description = request.data['description']
+        if 'icon' in request.data:
+            channel.icon = request.data['icon']
+        if 'is_active' in request.data:
+            channel.is_active = request.data['is_active']
+        if 'sort_order' in request.data:
+            channel.sort_order = request.data['sort_order']
+        
+        channel.save()
+        return APIResponse.success(RechargeChannelSerializer(channel).data, '更新成功')
+
+    @action(detail=False, methods=['delete'], url_path='delete_channel/(?P<pk>[^/.]+)')
+    def delete_channel(self, request, pk=None):
+        """删除充值渠道"""
+        try:
+            channel = RechargeChannel.objects.get(pk=pk)
+        except RechargeChannel.DoesNotExist:
+            return APIResponse.error('渠道不存在', 404)
+        
+        # 检查是否有套餐
+        if channel.packages.exists():
+            return APIResponse.error('请先删除该渠道下的所有套餐', 400)
+        
+        channel.delete()
+        return APIResponse.success(None, '删除成功')
+
+    @action(detail=False, methods=['get'])
+    def list_packages(self, request):
+        """获取充值套餐列表"""
+        try:
+            channel_id = request.query_params.get('channel_id')
+            packages = RechargePackage.objects.select_related('channel').all()
+            if channel_id:
+                packages = packages.filter(channel_id=channel_id)
+            serializer = RechargePackageSerializer(packages, many=True)
+            return APIResponse.success(serializer.data, '获取成功')
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f'list_packages error: {str(e)}', exc_info=True)
+            return APIResponse.error('获取套餐列表失败', 500)
+
+    @action(detail=False, methods=['post'])
+    def create_package(self, request):
+        """创建充值套餐"""
+        channel_id = request.data.get('channel_id')
+        amount = request.data.get('amount')
+        redirect_url = request.data.get('redirect_url', '')
+        
+        if not channel_id:
+            return APIResponse.error('请选择所属渠道', 400)
+        if not amount:
+            return APIResponse.error('金额不能为空', 400)
+        if not redirect_url:
+            return APIResponse.error('跳转URL不能为空', 400)
+        
+        try:
+            channel = RechargeChannel.objects.get(id=channel_id)
+        except RechargeChannel.DoesNotExist:
+            return APIResponse.error('充值渠道不存在', 404)
+        
+        try:
+            amount = Decimal(str(amount))
+            if amount <= 0:
+                return APIResponse.error('金额必须大于0', 400)
+        except:
+            return APIResponse.error('无效的金额', 400)
+        
+        package = RechargePackage.objects.create(
+            channel=channel,
+            amount=amount,
+            bonus=Decimal(str(request.data.get('bonus', '0'))),
+            redirect_url=redirect_url,
+            callback_url=request.data.get('callback_url', ''),
+            is_active=request.data.get('is_active', True),
+            sort_order=request.data.get('sort_order', 0),
+            description=request.data.get('description', '')
+        )
+        return APIResponse.created(RechargePackageSerializer(package).data, '创建成功')
+
+    @action(detail=False, methods=['put'], url_path='update_package/(?P<pk>[^/.]+)')
+    def update_package(self, request, pk=None):
+        """更新充值套餐"""
+        try:
+            package = RechargePackage.objects.get(pk=pk)
+        except RechargePackage.DoesNotExist:
+            return APIResponse.error('套餐不存在', 404)
+        
+        if 'amount' in request.data:
+            try:
+                amount = Decimal(str(request.data['amount']))
+                if amount <= 0:
+                    return APIResponse.error('金额必须大于0', 400)
+                package.amount = amount
+            except:
+                return APIResponse.error('无效的金额', 400)
+        
+        if 'bonus' in request.data:
+            package.bonus = Decimal(str(request.data['bonus']))
+        if 'redirect_url' in request.data:
+            package.redirect_url = request.data['redirect_url']
+        if 'callback_url' in request.data:
+            package.callback_url = request.data['callback_url']
+        if 'is_active' in request.data:
+            package.is_active = request.data['is_active']
+        if 'sort_order' in request.data:
+            package.sort_order = request.data['sort_order']
+        if 'description' in request.data:
+            package.description = request.data['description']
+        
+        package.save()
+        return APIResponse.success(RechargePackageSerializer(package).data, '更新成功')
+
+    @action(detail=False, methods=['delete'], url_path='delete_package/(?P<pk>[^/.]+)')
+    def delete_package(self, request, pk=None):
+        """删除充值套餐"""
+        try:
+            package = RechargePackage.objects.get(pk=pk)
+        except RechargePackage.DoesNotExist:
+            return APIResponse.error('套餐不存在', 404)
+        
+        package.delete()
+        return APIResponse.success(None, '删除成功')
+
+

@@ -18,6 +18,8 @@ class APIAccessLogSerializer(serializers.ModelSerializer):
     upstream_provider = serializers.CharField(source='upstream_account.provider.name', read_only=True, default='')
 
     cost = serializers.FloatField(read_only=True)
+    # 前端Dashboard表格期望 status 字段（别名到 response_status）
+    status = serializers.IntegerField(source='response_status', read_only=True)
 
     class Meta:
         model = APIAccessLog
@@ -27,7 +29,7 @@ class APIAccessLogSerializer(serializers.ModelSerializer):
             'model', 'model_name', 'model_code',
             'upstream_account', 'upstream_account_name', 'upstream_provider',
             'method', 'path', 'request_headers', 'request_params', 'request_body',
-            'response_status', 'response_body', 'response_time',
+            'response_status', 'status', 'response_body', 'response_time',
             'input_tokens', 'output_tokens', 'total_tokens', 'cached_tokens', 'cost',
             'ip_address', 'error_message', 'created_at'
         ]

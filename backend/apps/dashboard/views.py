@@ -4,7 +4,7 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
 from django.db import models
-from django.db.models import Count, Sum, Avg, Q
+from django.db.models import Count, Sum, Avg, Q, Exists, OuterRef
 from django.db.models.functions import TruncDate
 from django.utils import timezone
 from datetime import timedelta
@@ -17,10 +17,12 @@ from apps.users.serializers import (
 from apps.api_proxy.models import APIAccessLog
 from apps.api_proxy.serializers import APIAccessLogSerializer
 from apps.ai_models.models import AIModel, ModelProvider
+from apps.ai_models.upstream_models import ModelUpstreamAccount
 from apps.utils.response import APIResponse
+from .analytics_views import AnalyticsViewSet
 
 
-class AdminDashboardViewSet(viewsets.GenericViewSet):
+class AdminDashboardViewSet(viewsets.GenericViewSet, AnalyticsViewSet):
     """管理端仪表盘"""
 
     permission_classes = [IsAuthenticated, IsAdminUser]
@@ -58,7 +60,7 @@ class AdminDashboardViewSet(viewsets.GenericViewSet):
 
     @action(detail=False, methods=["get"])
     def trend(self, request):
-        """请求趋势"""
+        """请求趋势 — 基于 APIAccessLog"""
         days = int(request.query_params.get("days", 7))
 
         stats = []
@@ -71,7 +73,7 @@ class AdminDashboardViewSet(viewsets.GenericViewSet):
                 timezone.datetime.combine(date, timezone.datetime.max.time())
             )
 
-            count = UsageLog.objects.filter(
+            count = APIAccessLog.objects.filter(
                 created_at__gte=start, created_at__lte=end
             ).count()
             stats.append({"date": date.strftime("%m-%d"), "count": count})
@@ -82,7 +84,7 @@ class AdminDashboardViewSet(viewsets.GenericViewSet):
     def distribution(self, request):
         """API调用分布"""
         top_apis = (
-            UsageLog.objects.values("endpoint")
+            APIAccessLog.objects.values("path")
             .annotate(count=Count("id"))
             .order_by("-count")[:10]
         )
@@ -92,13 +94,182 @@ class AdminDashboardViewSet(viewsets.GenericViewSet):
         for item in top_apis:
             result.append(
                 {
-                    "name": item["endpoint"],
+                    "name": item["path"],
                     "value": item["count"],
                     "percent": round(item["count"] / total * 100, 1),
                 }
             )
 
         return APIResponse.success(result, "获取成功")
+
+    @action(detail=False, methods=["get"])
+    def token_stats(self, request):
+        """Token消耗统计"""
+        today = timezone.now().date()
+        month_start = timezone.make_aware(
+            timezone.datetime.combine(
+                today.replace(day=1), timezone.datetime.min.time()
+            )
+        )
+        
+        # 今日Token消耗
+        today_tokens = APIAccessLog.objects.filter(
+            created_at__date=today
+        ).aggregate(
+            total_input=Sum("input_tokens"),
+            total_output=Sum("output_tokens"),
+            total=Sum("total_tokens")
+        )
+        
+        # 本月Token消耗
+        month_tokens = APIAccessLog.objects.filter(
+            created_at__gte=month_start
+        ).aggregate(
+            total_input=Sum("input_tokens"),
+            total_output=Sum("output_tokens"),
+            total=Sum("total_tokens")
+        )
+        
+        # 按模型统计Token消耗（本月）
+        model_tokens = (
+            APIAccessLog.objects.filter(created_at__gte=month_start)
+            .values("model__name", "model__code")
+            .annotate(
+                total_tokens=Sum("total_tokens"),
+                total_cost=Sum("cost"),
+                request_count=Count("id")
+            )
+            .order_by("-total_tokens")[:10]
+        )
+        
+        model_stats = []
+        for item in model_tokens:
+            model_stats.append({
+                "model_name": item["model__name"] or item["model__code"],
+                "total_tokens": item["total_tokens"] or 0,
+                "total_cost": float(item["total_cost"] or 0),
+                "request_count": item["request_count"]
+            })
+        
+        return APIResponse.success({
+            "today": {
+                "input_tokens": today_tokens["total_input"] or 0,
+                "output_tokens": today_tokens["total_output"] or 0,
+                "total_tokens": today_tokens["total"] or 0,
+            },
+            "month": {
+                "input_tokens": month_tokens["total_input"] or 0,
+                "output_tokens": month_tokens["total_output"] or 0,
+                "total_tokens": month_tokens["total"] or 0,
+            },
+            "model_stats": model_stats
+        }, "获取成功")
+
+    @action(detail=False, methods=["get"])
+    def active_users(self, request):
+        """活跃用户统计"""
+        today = timezone.now().date()
+        seven_days_ago = today - timedelta(days=7)
+        
+        # 今日活跃用户
+        today_active = APIAccessLog.objects.filter(
+            created_at__date=today,
+            user__isnull=False
+        ).values("user").distinct().count()
+        
+        # 7天活跃用户
+        week_active = APIAccessLog.objects.filter(
+            created_at__date__gte=seven_days_ago,
+            user__isnull=False
+        ).values("user").distinct().count()
+        
+        # 活跃用户排行（近7天）
+        top_active_users = (
+            APIAccessLog.objects.filter(
+                created_at__date__gte=seven_days_ago,
+                user__isnull=False
+            )
+            .values("user__username", "user__id")
+            .annotate(
+                request_count=Count("id"),
+                total_tokens=Sum("total_tokens")
+            )
+            .order_by("-request_count")[:10]
+        )
+        
+        user_stats = []
+        for item in top_active_users:
+            user_stats.append({
+                "username": item["user__username"],
+                "request_count": item["request_count"],
+                "total_tokens": item["total_tokens"] or 0,
+            })
+        
+        return APIResponse.success({
+            "today_active": today_active,
+            "week_active": week_active,
+            "top_users": user_stats
+        }, "获取成功")
+
+    @action(detail=False, methods=["get"])
+    def error_analysis(self, request):
+        """错误分析"""
+        days = int(request.query_params.get("days", 7))
+        start_date = timezone.now().date() - timedelta(days=days-1)
+        
+        # 按日期和状态码统计错误
+        error_stats = []
+        for i in range(days):
+            date = start_date + timedelta(days=i)
+            date_start = timezone.make_aware(
+                timezone.datetime.combine(date, timezone.datetime.min.time())
+            )
+            date_end = timezone.make_aware(
+                timezone.datetime.combine(date, timezone.datetime.max.time())
+            )
+            
+            total = APIAccessLog.objects.filter(
+                created_at__gte=date_start,
+                created_at__lte=date_end
+            ).count()
+            
+            errors = APIAccessLog.objects.filter(
+                created_at__gte=date_start,
+                created_at__lte=date_end,
+                response_status__gte=400
+            ).count()
+            
+            error_rate = round((errors / total * 100) if total > 0 else 0, 2)
+            
+            error_stats.append({
+                "date": date.strftime("%m-%d"),
+                "total": total,
+                "errors": errors,
+                "error_rate": error_rate
+            })
+        
+        # 常见错误状态码分布
+        error_codes = (
+            APIAccessLog.objects.filter(
+                created_at__date__gte=start_date,
+                response_status__gte=400
+            )
+            .values("response_status")
+            .annotate(count=Count("id"))
+            .order_by("-count")[:10]
+        )
+        
+        error_distribution = []
+        for item in error_codes:
+            error_distribution.append({
+                "status": item["response_status"],
+                "count": item["count"]
+            })
+        
+        return APIResponse.success({
+            "error_trend": error_stats,
+            "error_distribution": error_distribution
+        }, "获取成功")
 
     def list_users(self, request):
         """获取用户列表"""
@@ -231,17 +402,23 @@ class UserDashboardViewSet(viewsets.GenericViewSet):
             else 100
         )
 
-        # 计算平均响应时间
-        avg_response = user_logs.filter(response_time__gt=0).aggregate(
-            avg=Avg("response_time")
-        )["avg"]
-        avg_response_time = round(avg_response) if avg_response else 0
+        # 计算Token消耗
+        token_stats = user_logs.aggregate(
+            total_input_tokens=Sum("input_tokens"),
+            total_output_tokens=Sum("output_tokens"),
+            total_tokens=Sum("total_tokens")
+        )
+        total_input_tokens = token_stats["total_input_tokens"] or 0
+        total_output_tokens = token_stats["total_output_tokens"] or 0
+        total_tokens_consumed = token_stats["total_tokens"] or 0
 
         data = {
             "total_requests": total_requests,
             "today_requests": today_requests,
             "success_rate": success_rate,
-            "avg_response_time": avg_response_time,
+            "total_input_tokens": total_input_tokens,
+            "total_output_tokens": total_output_tokens,
+            "total_tokens": total_tokens_consumed,
         }
 
         return APIResponse.success(data, "获取成功")
@@ -261,6 +438,61 @@ class UserDashboardViewSet(viewsets.GenericViewSet):
 
         result = [{"name": item["path"], "count": item["count"]} for item in top_apis]
 
+        return APIResponse.success(result, "获取成功")
+
+    @action(detail=False, methods=["get"])
+    def top_models(self, request):
+        """热门模型 - 所有用户最常用的模型统计（Redis缓存30分钟）"""
+        from django.core.cache import cache
+        
+        limit = int(request.query_params.get("limit", 5))
+        cache_key = f"top_models_{limit}"
+        
+        # 尝试从缓存获取
+        cached_data = cache.get(cache_key)
+        if cached_data:
+            return APIResponse.success(cached_data, "获取成功")
+
+        # 按模型统计调用次数和成功率（所有用户）
+        # 过滤：只统计已上架且有可用账号的模型
+        has_account = Exists(
+            ModelUpstreamAccount.objects.filter(
+                model=OuterRef('model'),
+                is_enabled=True
+            )
+        )
+        top_models_data = (
+            APIAccessLog.objects.filter(
+                has_account,
+                model__isnull=False,
+                model__status='active',
+            )
+            .values("model__code", "model__name")
+            .annotate(
+                count=Count("id"),
+                success_count=Count("id", filter=Q(response_status__gte=200, response_status__lt=300))
+            )
+            .order_by("-count")[:limit]
+        )
+
+        result = []
+        for item in top_models_data:
+            model_name = item["model__name"] or item["model__code"]
+            count = item["count"]
+            success_count = item["success_count"]
+            success_rate = round(success_count / count * 100, 1) if count > 0 else 0
+
+            result.append({
+                "name": model_name,
+                "model_code": item["model__code"],
+                "count": count,
+                "success_rate": success_rate,
+            })
+
+        # 缓存30分钟（1800秒）
+        cache.set(cache_key, result, 1800)
+
+        # 如果没有数据，返回空列表（前端有模拟数据兜底）
         return APIResponse.success(result, "获取成功")
 
     @action(detail=False, methods=["get"])

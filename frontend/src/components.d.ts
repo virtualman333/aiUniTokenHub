@@ -11,6 +11,7 @@ declare module 'vue' {
     CookieConsent: typeof import('./components/CookieConsent.vue')['default']
     ElAlert: typeof import('element-plus/es')['ElAlert']
     ElAvatar: typeof import('element-plus/es')['ElAvatar']
+    ElBadge: typeof import('element-plus/es')['ElBadge']
     ElButton: typeof import('element-plus/es')['ElButton']
     ElCard: typeof import('element-plus/es')['ElCard']
     ElCheckbox: typeof import('element-plus/es')['ElCheckbox']
@@ -52,8 +53,11 @@ declare module 'vue' {
     ElUpload: typeof import('element-plus/es')['ElUpload']
     ImageUpload: typeof import('./components/ImageUpload.vue')['default']
     LangToggle: typeof import('./components/LangToggle.vue')['default']
+    RechargeDialog: typeof import('./components/RechargeDialog.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    SeoMeta: typeof import('./components/SeoMeta.vue')['default']
+    TagsView: typeof import('./components/admin/TagsView.vue')['default']
     ThemeToggle: typeof import('./components/ThemeToggle.vue')['default']
   }
   export interface ComponentCustomProperties {

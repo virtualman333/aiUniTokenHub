@@ -1,12 +1,6 @@
 <template>
   <div class="quick-tags">
     <button 
-      :class="{ active: featuredOnly }" 
-      @click="$emit('toggle-featured')"
-    >
-      <i class="icon-star"></i> 推荐模型
-    </button>
-    <button 
       v-for="tag in tags" 
       :key="tag" 
       :class="{ active: selectedTags.includes(tag) }"
@@ -21,11 +15,9 @@
 defineProps<{
   tags: string[]
   selectedTags: string[]
-  featuredOnly: boolean
 }>()
 
 defineEmits<{
-  'toggle-featured': []
   'toggle-tag': [tag: string]
 }>()
 </script>

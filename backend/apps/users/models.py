@@ -108,6 +108,10 @@ class Bill(models.Model):
     amount = models.DecimalField('交易金额', max_digits=12, decimal_places=6)
     balance = models.DecimalField('交易后余额', max_digits=12, decimal_places=6)
     description = models.CharField('交易说明', max_length=500, blank=True)
+    channel = models.ForeignKey(
+        'RechargeChannel', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='bills', verbose_name='充值渠道'
+    )
     usage_log = models.ForeignKey(
         'UsageLog', on_delete=models.SET_NULL, null=True, blank=True,
         related_name='bills', verbose_name='关联使用日志'
@@ -136,6 +140,10 @@ class CardPassword(models.Model):
     amount = models.DecimalField('面值', max_digits=10, decimal_places=2)
     status = models.CharField('状态', max_length=10, choices=STATUS_CHOICES, default='unused')
     batch_no = models.CharField('批次号', max_length=50, blank=True, help_text='批量生成时的批次标识')
+    channel = models.ForeignKey(
+        'RechargeChannel', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='cards', verbose_name='所属渠道'
+    )
     used_by = models.ForeignKey(
         User, on_delete=models.SET_NULL, null=True, blank=True,
         related_name='used_cards', verbose_name='使用者'
@@ -152,6 +160,59 @@ class CardPassword(models.Model):
 
     def __str__(self):
         return f"{self.code} ¥{self.amount} ({self.get_status_display()})"
+
+
+class RechargeChannel(models.Model):
+    """充值渠道/入口"""
+
+    name = models.CharField('渠道名称', max_length=100)
+    code = models.CharField('渠道代码', max_length=50, unique=True, db_index=True)
+    description = models.CharField('描述', max_length=500, blank=True)
+    icon = models.CharField('图标', max_length=255, blank=True, help_text='图标URL或CSS类名')
+    is_active = models.BooleanField('是否启用', default=True)
+    sort_order = models.IntegerField('排序', default=0)
+    created_at = models.DateTimeField('创建时间', auto_now_add=True)
+    updated_at = models.DateTimeField('更新时间', auto_now=True)
+
+    class Meta:
+        db_table = 'recharge_channels'
+        verbose_name = '充值渠道'
+        verbose_name_plural = '充值渠道'
+        ordering = ('sort_order', '-created_at')
+
+    def __str__(self):
+        return f"{self.name} ({self.code})"
+
+
+class RechargePackage(models.Model):
+    """充值套餐"""
+
+    channel = models.ForeignKey(
+        RechargeChannel, on_delete=models.CASCADE,
+        related_name='packages', verbose_name='所属渠道'
+    )
+    amount = models.DecimalField('充值金额', max_digits=10, decimal_places=2)
+    bonus = models.DecimalField('赠送金额', max_digits=10, decimal_places=2, default=0,
+                                help_text='额外赠送的金额')
+    redirect_url = models.URLField('跳转URL', max_length=500, blank=True, 
+                                    help_text='第三方充值网站跳转地址，如：https://xxx.com/pay?amount={amount}&order={order_id}')
+    callback_url = models.URLField('回调URL', max_length=500, blank=True, 
+                                   help_text='第三方回调通知地址（可选）')
+    is_active = models.BooleanField('是否启用', default=True)
+    sort_order = models.IntegerField('排序', default=0)
+    description = models.CharField('套餐说明', max_length=500, blank=True)
+    created_at = models.DateTimeField('创建时间', auto_now_add=True)
+    updated_at = models.DateTimeField('更新时间', auto_now=True)
+
+    class Meta:
+        db_table = 'recharge_packages'
+        verbose_name = '充值套餐'
+        verbose_name_plural = '充值套餐'
+        ordering = ('sort_order', 'amount')
+
+    def __str__(self):
+        bonus_str = f'+{self.bonus}' if self.bonus > 0 else ''
+        return f"¥{self.amount}{bonus_str}"
 
 
 class InviteConfig(models.Model):
@@ -279,3 +340,31 @@ class EmailVerifyCode(models.Model):
     @property
     def is_valid(self):
         return (not self.is_used) and (not self.is_expired)
+
+
+class PageView(models.Model):
+    """页面访问记录（PV/UV统计）- 批量入库用"""
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='page_views',
+        verbose_name='用户',
+    )
+    session_key = models.CharField('会话标识', max_length=128, blank=True, default='')
+    ip_address = models.GenericIPAddressField('IP地址', null=True, blank=True)
+    path = models.CharField('访问路径', max_length=500, db_index=True)
+    referer = models.URLField('来源页', blank=True, default='')
+    user_agent = models.TextField('UA信息', blank=True, default='')
+    created_at = models.DateTimeField('访问时间', db_index=True)
+
+    class Meta:
+        db_table = 'page_views'
+        verbose_name = '页面访问记录'
+        verbose_name_plural = '页面访问记录'
+        ordering = ('-created_at',)
+
+    def __str__(self):
+        return f'{self.ip_address or "未知IP"} {self.path}'

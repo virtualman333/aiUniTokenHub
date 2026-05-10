@@ -67,46 +67,16 @@
     </el-card>
 
     <!-- 充值对话框 -->
-    <el-dialog v-model="showRecharge" title="账户充值" width="500px">
-      <el-tabs v-model="payMethod" @tab-change="handlePayMethodChange">
-        <el-tab-pane label="卡密充值" name="card">
-          <el-form label-width="80px" style="margin-top: 16px;">
-            <el-form-item label="卡密码">
-              <el-input v-model="cardCode" placeholder="请输入卡密码" clearable />
-            </el-form-item>
-          </el-form>
-        </el-tab-pane>
-        <el-tab-pane label="微信支付" name="wechat" disabled>
-          <div class="coming-soon">即将开放</div>
-        </el-tab-pane>
-        <el-tab-pane label="支付宝" name="alipay" disabled>
-          <div class="coming-soon">即将开放</div>
-        </el-tab-pane>
-        <el-tab-pane label="USDT" name="usdt" disabled>
-          <div class="coming-soon">即将开放</div>
-        </el-tab-pane>
-      </el-tabs>
-      <template #footer>
-        <el-button @click="showRecharge = false">取消</el-button>
-        <el-button
-          v-if="payMethod === 'card'"
-          type="primary"
-          :loading="recharging"
-          @click="handleRedeemCard"
-        >
-          确认兑换
-        </el-button>
-      </template>
-    </el-dialog>
+    <RechargeDialog v-model="showRecharge" @success="handleRechargeSuccess" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import dayjs from 'dayjs'
 import { useBilling } from './composables/useBilling'
-import { fireConfetti } from '@/utils/confetti'
+import RechargeDialog from '@/components/RechargeDialog.vue'
 
 const {
   loading,
@@ -114,16 +84,10 @@ const {
   bills,
   pagination,
   loadBalance,
-  loadBills,
-  recharge,
-  redeemCard
+  loadBills
 } = useBilling()
 
 const showRecharge = ref(false)
-const rechargeAmount = ref(100)
-const recharging = ref(false)
-const payMethod = ref('card')
-const cardCode = ref('')
 
 onMounted(() => {
   loadBalance()
@@ -160,48 +124,10 @@ function getAmountClass(type: string) {
   return type === 'consume' ? 'amount-consume' : 'amount-add'
 }
 
-async function handleRecharge() {
-  recharging.value = true
-  try {
-    await recharge(rechargeAmount.value)
-    ElMessage.success('充值成功')
-    showRecharge.value = false
-    loadBalance()
-    loadBills()
-  } catch (e: any) {
-    const errorMsg = e?.response?.data?.msg || e?.response?.data?.detail || e?.message || '充值失败'
-    ElMessage.error(errorMsg)
-  } finally {
-    recharging.value = false
-  }
-}
-
-async function handleRedeemCard() {
-  if (!cardCode.value.trim()) {
-    ElMessage.warning('请输入卡密码')
-    return
-  }
-  recharging.value = true
-  try {
-    const res = await redeemCard(cardCode.value.trim())
-    ElMessage.success(`卡密兑换成功，充值 ¥${res.card_amount}`)
-    showRecharge.value = false
-    cardCode.value = ''
-    loadBalance()
-    loadBills()
-    
-    // 触发彩色纸屑礼花筒效果
-    fireConfetti()
-  } catch (e: any) {
-    const errorMsg = e.response?.data?.msg || e.response?.data?.detail || e.message || '卡密兑换失败'
-    ElMessage.error(errorMsg)
-  } finally {
-    recharging.value = false
-  }
-}
-
-function handlePayMethodChange() {
-  cardCode.value = ''
+// 充值成功回调
+function handleRechargeSuccess() {
+  loadBalance()
+  loadBills()
 }
 </script>
 
@@ -268,12 +194,5 @@ function handlePayMethodChange() {
 
 .amount-add {
   color: #67C23A;
-}
-
-.coming-soon {
-  text-align: center;
-  padding: 40px 0;
-  color: #909399;
-  font-size: 14px;
 }
 </style>

@@ -212,6 +212,30 @@ class UpstreamAccountViewSet(viewsets.ModelViewSet):
             account.save(update_fields=['is_available', 'last_error'])
             return APIResponse.error(f'同步失败: {error_msg}', 400)
 
+    @action(detail=True, methods=['get'])
+    def model_list(self, request, pk=None):
+        """获取该账号绑定的模型列表"""
+        account = self.get_object()
+        bindings = ModelUpstreamAccount.objects.filter(
+            account=account, is_enabled=True
+        ).select_related('model')
+        model_list = []
+        for binding in bindings:
+            model = binding.model
+            model_list.append({
+                'id': model.id,
+                'name': model.name,
+                'code': model.code,
+                'status': model.status,
+                'provider_name': model.provider.name if model.provider else '',
+                'input_price': float(model.input_price) if model.input_price else 0,
+                'output_price': float(model.output_price) if model.output_price else 0,
+                'binding_id': binding.id,
+                'weight': binding.weight,
+                'usage_count': binding.usage_count,
+            })
+        return APIResponse.success(model_list, '获取成功')
+
 
 class ModelUpstreamAccountViewSet(viewsets.GenericViewSet):
     """模型账号关联管理"""

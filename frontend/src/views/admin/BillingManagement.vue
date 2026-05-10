@@ -93,11 +93,11 @@
       <el-table :data="bills" v-loading="loading" stripe style="width: 100%">
         <el-table-column prop="id" label="ID" width="80" />
         
-        <el-table-column prop="user.username" label="用户" width="120">
+        <el-table-column prop="username" label="用户" width="120">
           <template #default="{ row }">
             <div class="user-cell">
-              <div class="user-avatar">{{ row.user?.username?.[0]?.toUpperCase() || '?' }}</div>
-              <span>{{ row.user?.username || '未知' }}</span>
+              <div class="user-avatar">{{ row.username?.[0]?.toUpperCase() || '?' }}</div>
+              <span>{{ row.username || '未知' }}</span>
             </div>
           </template>
         </el-table-column>
@@ -203,8 +203,8 @@ const loadBills = async () => {
 
     const res = await api.get('/users/billing/admin-bills/', { params })
     // API 拦截器已处理统一响应格式，res 直接是 data 部分
-    if (res && res.list) {
-      bills.value = res.list || []
+    if (res && res.results) {
+      bills.value = res.results || []
       pagination.total = res.total || 0
       
       // 计算统计数据
@@ -249,8 +249,8 @@ const searchUsers = async (query) => {
       params: { search: query, page: 1, page_size: 10 }
     })
     // API 拦截器已处理，res 直接是 data 部分
-    if (res && res.list) {
-      userOptions.value = res.list || []
+    if (res && res.results) {
+      userOptions.value = res.results || []
     }
   } catch (error) {
     console.error('搜索用户失败:', error)

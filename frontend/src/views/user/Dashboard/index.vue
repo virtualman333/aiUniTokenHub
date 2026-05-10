@@ -5,8 +5,20 @@
       <div class="header-content">
         <h1>控制台</h1>
         <p class="subtitle">查看您的 API 使用概览</p>
+        <!-- 余额显示 -->
+        <div class="balance-display" v-loading="balanceLoading">
+          <span class="balance-label">账户余额：</span>
+          <span class="balance-value">¥{{ Number(balance).toFixed(4) }}</span>
+          <el-button type="primary" link size="small" @click="handleRefreshBalance">
+            <el-icon><Refresh /></el-icon>
+          </el-button>
+        </div>
       </div>
       <div class="header-actions">
+        <el-button type="primary" @click="showRecharge = true">
+          <el-icon><Wallet /></el-icon>
+          账户充值
+        </el-button>
         <el-button type="primary" @click="$router.push('/app/api-doc')">
           <el-icon><Document /></el-icon>
           查看文档
@@ -41,55 +53,40 @@
         :trend-up="true"
       />
       <StatCard
-        :value="`${overview.avg_response_time || 0}ms`"
-        label="平均响应时间"
+        :value="formatTokenCount(overview.total_tokens)"
+        label="Token消耗"
         gradient="linear-gradient(135deg, #868e96 0%, #adb5bd 100%)"
-        :icon="Timer"
-        trend="-15ms"
-        :trend-up="false"
+        :icon="Coin"
+        trend=""
+        :trend-up="true"
       />
     </div>
-
-    <!-- 图表区域 -->
-    <div class="charts-section" v-loading="loading">
-      <div class="chart-main">
-        <div class="chart-card">
-          <div class="chart-header">
-            <h3>请求趋势</h3>
-            <div class="chart-actions">
-              <el-radio-group v-model="chartPeriod" size="small">
-                <el-radio-button label="week">本周</el-radio-button>
-                <el-radio-button label="month">本月</el-radio-button>
-                <el-radio-button label="year">全年</el-radio-button>
-              </el-radio-group>
-            </div>
-          </div>
-          <div class="chart-content">
-            <RequestChart :data="requestStats" />
-          </div>
+    
+    <!-- 热门模型区域 -->
+    <div class="models-section" v-loading="loading">
+      <div class="chart-card">
+        <div class="chart-header">
+          <h3>热门模型</h3>
+          <el-button text type="primary" size="small" @click="$router.push('/app/model-square')">
+            查看全部
+          </el-button>
         </div>
-      </div>
-      
-      <div class="chart-side">
-        <div class="chart-card">
-          <div class="chart-header">
-            <h3>热门API</h3>
-            <el-button text type="primary" size="small">查看全部</el-button>
+        <div class="model-list">
+          <div v-for="(model, index) in topModels" :key="model.name" class="model-item">
+            <div class="model-rank" :class="{ 'top-3': index < 3 }">{{ index + 1 }}</div>
+            <div class="model-info">
+              <div class="model-name">{{ model.name }}</div>
+              <div class="model-stats">
+                <span class="model-count">{{ model.count }} 次调用</span>
+                <span class="model-success-rate">成功率 {{ model.success_rate }}%</span>
+              </div>
+            </div>
+            <div class="model-bar">
+              <div class="model-bar-fill" :style="{ width: `${(model.count / (topModels[0]?.count || 1)) * 100}%` }"></div>
+            </div>
           </div>
-          <div class="api-list">
-            <div v-for="(api, index) in topAPIs" :key="api.name" class="api-item">
-              <div class="api-rank" :class="{ 'top-3': index < 3 }">{{ index + 1 }}</div>
-              <div class="api-info">
-                <div class="api-name">{{ api.name }}</div>
-                <div class="api-count">{{ api.count }} 次调用</div>
-              </div>
-              <div class="api-bar">
-                <div class="api-bar-fill" :style="{ width: `${(api.count / (topAPIs[0]?.count || 1)) * 100}%` }"></div>
-              </div>
-            </div>
-            <div v-if="topAPIs.length === 0" class="api-empty">
-              <el-empty description="暂无数据" :image-size="60" />
-            </div>
+          <div v-if="topModels.length === 0" class="model-empty">
+            <el-empty description="暂无数据" :image-size="60" />
           </div>
         </div>
       </div>
@@ -182,6 +179,9 @@
         </div>
       </div>
     </div>
+
+    <!-- 充值对话框 -->
+    <RechargeDialog v-model="showRecharge" @success="handleRechargeSuccess" />
   </div>
 </template>
 
@@ -192,27 +192,33 @@ import {
   DataLine, 
   TrendCharts, 
   CircleCheck, 
-  Timer, 
   Document, 
   Share, 
-  DocumentCopy 
+  DocumentCopy,
+  Refresh,
+  Wallet,
+  Coin
 } from '@element-plus/icons-vue'
 import StatCard from './components/StatCard.vue'
-import RequestChart from './components/RequestChart.vue'
+import RechargeDialog from '@/components/RechargeDialog.vue'
 import { useDashboard } from './composables/useDashboard'
+import { useBilling } from '@/views/user/Billing/composables/useBilling'
 import { copyToClipboard } from '@/utils/clipboard'
 
 const {
   loading,
   overview,
-  topAPIs,
+  topModels,
   requestStats,
   inviteInfo,
   inviteRewards,
   loadData
 } = useDashboard()
 
-const chartPeriod = ref('week')
+// 余额相关
+const { balance, loadBalance } = useBilling()
+const balanceLoading = ref(false)
+const showRecharge = ref(false)
 
 const inviteLink = computed(() => {
   const code = inviteInfo.value.invite_code
@@ -230,8 +236,38 @@ async function copyInviteLink() {
   }
 }
 
+// 刷新余额
+async function handleRefreshBalance() {
+  balanceLoading.value = true
+  try {
+    await loadBalance()
+  } finally {
+    balanceLoading.value = false
+  }
+}
+
+// 充值成功回调
+function handleRechargeSuccess() {
+  loadBalance()
+}
+
+// 格式化Token数量
+function formatTokenCount(count: number): string {
+  if (count >= 1000000000) {
+    return (count / 1000000000).toFixed(1) + 'B'
+  }
+  if (count >= 1000000) {
+    return (count / 1000000).toFixed(1) + 'M'
+  }
+  if (count >= 1000) {
+    return (count / 1000).toFixed(1) + 'K'
+  }
+  return count.toString()
+}
+
 onMounted(() => {
   loadData()
+  loadBalance()
 })
 </script>
 
@@ -262,6 +298,32 @@ onMounted(() => {
   color: var(--text-secondary);
   font-size: var(--text-base);
   font-weight: var(--font-normal);
+  margin-bottom: var(--space-2);
+}
+
+/* 余额显示 */
+.balance-display {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  background: linear-gradient(135deg, var(--primary-50) 0%, var(--accent-50) 100%);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-light);
+  margin-top: var(--space-3);
+  width: fit-content;
+}
+
+.balance-label {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  font-weight: var(--font-medium);
+}
+
+.balance-value {
+  font-size: var(--text-xl);
+  font-weight: var(--font-bold);
+  color: var(--primary-600);
 }
 
 .header-actions {
@@ -276,11 +338,8 @@ onMounted(() => {
   margin-bottom: var(--space-8);
 }
 
-/* 图表区域 */
-.charts-section {
-  display: grid;
-  grid-template-columns: 2fr 1fr;
-  gap: var(--space-6);
+/* 热门模型区域 */
+.models-section {
   margin-bottom: var(--space-8);
 }
 
@@ -314,16 +373,12 @@ onMounted(() => {
   margin: 0;
 }
 
-.chart-content {
-  padding: var(--space-6);
-}
-
-/* API列表 */
-.api-list {
+/* 模型列表 */
+.model-list {
   padding: var(--space-4) var(--space-6);
 }
 
-.api-item {
+.model-item {
   display: flex;
   align-items: center;
   gap: var(--space-3);
@@ -335,7 +390,7 @@ onMounted(() => {
   }
 }
 
-.api-rank {
+.model-rank {
   width: 28px;
   height: 28px;
   border-radius: var(--radius-full);
@@ -354,12 +409,12 @@ onMounted(() => {
   }
 }
 
-.api-info {
+.model-info {
   flex: 1;
   min-width: 0;
 }
 
-.api-name {
+.model-name {
   font-size: var(--text-sm);
   font-weight: var(--font-medium);
   color: var(--text-primary);
@@ -369,12 +424,22 @@ onMounted(() => {
   text-overflow: ellipsis;
 }
 
-.api-count {
+.model-stats {
+  display: flex;
+  gap: var(--space-3);
   font-size: var(--text-xs);
   color: var(--text-tertiary);
 }
 
-.api-bar {
+.model-count {
+  color: var(--text-secondary);
+}
+
+.model-success-rate {
+  color: var(--success-600, #40c057);
+}
+
+.model-bar {
   width: 60px;
   height: 4px;
   background: var(--neutral-100);
@@ -383,14 +448,14 @@ onMounted(() => {
   flex-shrink: 0;
 }
 
-.api-bar-fill {
+.model-bar-fill {
   height: 100%;
   background: var(--gradient-primary);
   border-radius: var(--radius-full);
   transition: width var(--transition-slow);
 }
 
-.api-empty {
+.model-empty {
   padding: var(--space-8) 0;
 }
 
@@ -544,8 +609,8 @@ onMounted(() => {
     grid-template-columns: repeat(2, 1fr);
   }
   
-  .charts-section {
-    grid-template-columns: 1fr;
+  .models-section {
+    margin-bottom: var(--space-6);
   }
   
   .invite-stats {
@@ -584,8 +649,7 @@ onMounted(() => {
     overflow-x: auto;
   }
 
-  .chart-content,
-  .api-list,
+  .model-list,
   .invite-header,
   .invite-stats,
   .invite-details {
@@ -617,11 +681,11 @@ onMounted(() => {
     padding: 0 var(--space-2);
   }
 
-  .api-item {
+  .model-item {
     align-items: flex-start;
   }
 
-  .api-bar {
+  .model-bar {
     display: none;
   }
 }

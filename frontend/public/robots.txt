@@ -1,0 +1,25 @@
+# https://www.robotstxt.org/robotstxt.html
+# 本文件控制搜索引擎爬虫对网站的访问
+
+User-agent: *
+# 允许爬取所有公共页面
+Allow: /
+
+# 禁止爬取管理后台和付费相关页面
+Disallow: /admin/
+Disallow: /app/
+Disallow: /login
+Disallow: /register
+Disallow: /forgot-password
+
+# 允许爬取的公共页面
+Allow: /
+
+# 爬虫延迟（可选，避免对服务器造成过大压力）
+Crawl-delay: 1
+
+# Sitemap 位置
+Sitemap: https://unitokenhub.m3it.cn/sitemap.xml
+
+# Host（告诉搜索引擎首选域名）
+Host: unitokenhub.m3it.cn

@@ -1,5 +1,6 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
+import { createHead } from '@vueuse/head'
 import ElementPlus from 'element-plus'
 import zhCn from 'element-plus/dist/locale/zh-cn.mjs'
 import en from 'element-plus/dist/locale/en.mjs'
@@ -26,6 +27,7 @@ function setFavicon(href) {
 setFavicon(faviconUrl)
 
 const pinia = createPinia()
+const head = createHead()
 const app = createApp(App)
 
 // 注册所有图标
@@ -35,6 +37,7 @@ for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
 
 app.use(pinia)
 app.use(router)
+app.use(head)
 
 // 使用 pinia 后才能初始化 i18n
 const i18nStore = useI18nStore()
@@ -42,3 +45,7 @@ const elementLocale = i18nStore.locale === 'zh-CN' ? zhCn : en
 app.use(ElementPlus, { locale: elementLocale })
 
 app.mount('#app')
+
+// 触发预渲染完成事件（用于 vite-plugin-prerender）
+// 当应用挂载完成后，通知预渲染器可以捕获页面内容
+window.dispatchEvent(new Event('rendered'))

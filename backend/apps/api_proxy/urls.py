@@ -26,7 +26,28 @@ conversation_clear = ConversationViewSet.as_view({'post': 'clear'})
 conversation_messages = ConversationViewSet.as_view({'get': 'messages', 'post': 'messages'})
 conversation_message_delete = ConversationViewSet.as_view({'delete': 'delete_message'})
 
+from .views_redis import RedisManagementViewSet
+
+redis_viewset = RedisManagementViewSet.as_view({
+    'get': 'info',
+    'get': 'keys',
+    'get': 'key_detail',
+    'post': 'delete_key',
+    'post': 'flush_db',
+})
+
 urlpatterns = [
+    # Redis管理相关路由
+    path('redis/info/', RedisManagementViewSet.as_view({'get': 'info'}), name='redis-info'),
+    path('redis/keys/', RedisManagementViewSet.as_view({'get': 'keys'}), name='redis-keys'),
+    path('redis/key-detail/', RedisManagementViewSet.as_view({'get': 'key_detail'}), name='redis-key-detail'),
+    path('redis/delete-key/', RedisManagementViewSet.as_view({'post': 'delete_key'}), name='redis-delete-key'),
+    path('redis/set-key/', RedisManagementViewSet.as_view({'post': 'set_key'}), name='redis-set-key'),
+    path('redis/set-ttl/', RedisManagementViewSet.as_view({'post': 'set_ttl'}), name='redis-set-ttl'),
+    path('redis/rename-key/', RedisManagementViewSet.as_view({'post': 'rename_key'}), name='redis-rename-key'),
+    path('redis/batch-delete/', RedisManagementViewSet.as_view({'post': 'batch_delete_keys'}), name='redis-batch-delete'),
+    path('redis/flush-db/', RedisManagementViewSet.as_view({'post': 'flush_db'}), name='redis-flush-db'),
+    
     # OpenAI 兼容端点
     path('v1/chat/completions', ChatCompletionsView.as_view(), name='chat-completions'),
     path('v1/completions', CompletionsView.as_view(), name='completions'),

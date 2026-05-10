@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django import forms
 from decimal import Decimal
-from .models import User, APIKey, UsageLog, Bill, CardPassword, EmailConfig, EmailVerifyCode
+from .models import User, APIKey, UsageLog, Bill, CardPassword, EmailConfig, EmailVerifyCode, RechargeChannel, RechargePackage
 from apps.ai_models.admin import admin_site
 
 
@@ -157,6 +157,28 @@ class EmailVerifyCodeAdmin(admin.ModelAdmin):
         return False
 
 
+class RechargeChannelAdmin(admin.ModelAdmin):
+    list_display = ('name', 'code', 'description', 'is_active', 'sort_order', 'package_count', 'created_at')
+    list_filter = ('is_active',)
+    search_fields = ('name', 'code')
+    ordering = ('sort_order', '-created_at')
+    
+    def package_count(self, obj):
+        return obj.packages.count()
+    package_count.short_description = '套餐数量'
+
+
+class RechargePackageAdmin(admin.ModelAdmin):
+    list_display = ('id', 'channel', 'amount', 'bonus', 'actual_amount', 'is_active', 'sort_order', 'description')
+    list_filter = ('is_active', 'channel')
+    search_fields = ('description',)
+    ordering = ('channel', 'sort_order', 'amount')
+    
+    def actual_amount(self, obj):
+        return float(obj.amount + obj.bonus)
+    actual_amount.short_description = '实际到账'
+
+
 # 注册到自定义 admin_site
 admin_site.register(User, UserAdmin)
 admin_site.register(APIKey, APIKeyAdmin)
@@ -165,3 +187,5 @@ admin_site.register(Bill, BillAdmin)
 admin_site.register(CardPassword, CardPasswordAdmin)
 admin_site.register(EmailConfig, EmailConfigAdmin)
 admin_site.register(EmailVerifyCode, EmailVerifyCodeAdmin)
+admin_site.register(RechargeChannel, RechargeChannelAdmin)
+admin_site.register(RechargePackage, RechargePackageAdmin)

@@ -142,9 +142,9 @@ class AIModelViewSet(viewsets.ModelViewSet):
             )
         )
         
-        # 非管理员只能看到已上架的
+        # 非管理员只能看到已上架且有可用账号的
         if not is_admin:
-            queryset = queryset.filter(status='active')
+            queryset = queryset.filter(status='active', _account_count__gt=0)
         
         # 使用 annotate 添加 has_accounts 和 account_count 字段（始终执行）
         # 统计启用的账号数量
@@ -215,17 +215,37 @@ class AIModelViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['get'])
     def filters(self, request):
-        """获取筛选选项"""
+        """获取筛选选项（只返回有可用模型的供应商/分类）"""
+        # 只返回有已上架且有账号模型的供应商
         providers = ModelProviderSerializer(
-            ModelProvider.objects.filter(is_active=True), many=True
-        ).data
-        categories = ModelCategorySerializer(
-            ModelCategory.objects.filter(is_active=True), many=True
+            ModelProvider.objects.filter(
+                is_active=True,
+                models__status='active',
+                models__upstream_accounts__is_enabled=True
+            ).distinct(),
+            many=True
         ).data
         
-        return Response({
+        # 只返回有已上架且有账号模型的分类
+        categories = ModelCategorySerializer(
+            ModelCategory.objects.filter(
+                is_active=True,
+                models__status='active',
+                models__upstream_accounts__is_enabled=True
+            ).distinct(),
+            many=True
+        ).data
+        
+        # 计算所有可用模型的总数
+        total_models_count = AIModel.objects.filter(
+            status='active',
+            upstream_accounts__is_enabled=True
+        ).distinct().count()
+        
+        return APIResponse.success({
             'providers': providers,
             'categories': categories,
+            'total_models_count': total_models_count,
             'capabilities': [
                 {'code': 'streaming', 'name': '流式输出'},
                 {'code': 'vision', 'name': '视觉理解'},

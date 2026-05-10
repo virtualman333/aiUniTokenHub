@@ -114,13 +114,13 @@
             </template>
           </el-table-column>
           <el-table-column prop="usage_count" label="调用次数" width="100" sortable />
-          <el-table-column label="操作" width="220" fixed="right">
+          <el-table-column label="操作" width="280" fixed="right">
             <template #default="{ row }">
               <el-button size="small" link type="primary" @click="openModelForm(row)">
                 编辑
               </el-button>
-              <el-button size="small" link type="warning" @click="openAccountDialog(row)">
-                账号池
+              <el-button size="small" link type="success" @click="openAccountManager(row)">
+                管理账号
               </el-button>
               <el-button size="small" link @click="toggleStatus(row)">
                 {{ row.status === 'active' ? '下架' : '上架' }}
@@ -144,65 +144,6 @@
             @current-change="fetchModels"
           />
         </div>
-      </el-tab-pane>
-
-      <!-- 上游账号管理 -->
-      <el-tab-pane label="上游账号池" name="accounts">
-        <div class="page-header">
-          <h2>上游账号池</h2>
-          <div class="header-actions">
-            <el-button type="primary" @click="openAccountForm()">
-              <i class="icon-plus"></i> 添加账号
-            </el-button>
-          </div>
-        </div>
-
-        <el-table :data="upstreamAccounts" v-loading="loadingAccounts" stripe>
-          <el-table-column prop="name" label="账号名称" min-width="150">
-            <template #default="{ row }">
-              <span class="account-name">{{ row.name }}</span>
-            </template>
-          </el-table-column>
-          <el-table-column prop="provider_name" label="供应商" width="120">
-            <template #default="{ row }">
-              <el-tag size="small">{{ row.provider_name }}</el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column prop="base_url" label="API地址" min-width="200" show-overflow-tooltip />
-          <el-table-column prop="max_rpm" label="限流(RPM)" width="100" align="center" />
-          <el-table-column label="状态" width="100" align="center">
-            <template #default="{ row }">
-              <el-tag :type="row.is_active ? 'success' : 'info'" size="small">
-                {{ row.is_active ? '启用' : '禁用' }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column label="可用性" width="100" align="center">
-            <template #default="{ row }">
-              <el-tag :type="row.is_available ? 'success' : 'danger'" size="small">
-                {{ row.is_available ? '正常' : '异常' }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column prop="model_count" label="关联模型" width="100" align="center">
-            <template #default="{ row }">
-              <el-link type="primary">{{ row.model_count }} 个</el-link>
-            </template>
-          </el-table-column>
-          <el-table-column label="操作" width="180" fixed="right">
-            <template #default="{ row }">
-              <el-button size="small" link type="primary" @click="openAccountForm(row)">
-                编辑
-              </el-button>
-              <el-button size="small" link type="success" @click="testConnection(row)">
-                测试
-              </el-button>
-              <el-button size="small" link type="danger" @click="deleteAccount(row)">
-                删除
-              </el-button>
-            </template>
-          </el-table-column>
-        </el-table>
       </el-tab-pane>
     </el-tabs>
 
@@ -378,121 +319,114 @@
       </template>
     </el-dialog>
 
-    <!-- 账号池配置弹窗 -->
-    <el-dialog v-model="accountDialogVisible" :title="`配置 ${currentModel?.name} 账号池`" width="800px" destroy-on-close>
-      <div class="account-pool-config">
-        <div class="config-header">
-          <el-button type="primary" @click="showAddAccountPanel = true">
-            添加账号到模型
-          </el-button>
-        </div>
+    <!-- 管理上游账号对话框 -->
+    <el-dialog
+      v-model="accountManagerVisible"
+      :title="accountDialogTitle"
+      width="900px"
+      :close-on-click-modal="false"
+    >
+      <div class="account-manager">
+        <!-- 已关联的账号列表 -->
+        <div class="bound-accounts">
+          <div class="section-header">
+            <h3>已关联账号 - {{ currentModel?.name || '' }}</h3>
+            <el-button size="small" type="primary" @click="showAddDialog = true">
+              添加账号
+            </el-button>
+          </div>
 
-        <el-table :data="modelAccounts" v-loading="loadingModelAccounts" stripe>
-          <el-table-column prop="account_name" label="账号名称" />
-          <el-table-column prop="account_url" label="API地址" show-overflow-tooltip />
-          <el-table-column label="状态" width="80">
+          <el-table :data="boundAccounts" v-loading="accountsLoading" stripe size="small">
+            <el-table-column prop="account_name" label="账号名称" min-width="150" />
+            <el-table-column prop="provider_name" label="供应商" width="120" />
+            <el-table-column label="权重" width="120">
+              <template #default="{ row }">
+                <el-input-number
+                  v-model="row.weight"
+                  :min="1"
+                  :max="100"
+                  size="small"
+                  style="width: 100px"
+                  @change="updateAccountWeight(row)"
+                />
+              </template>
+            </el-table-column>
+            <el-table-column label="状态" width="100" align="center">
+              <template #default="{ row }">
+                <el-tag :type="row.is_enabled ? 'success' : 'info'" size="small">
+                  {{ row.is_enabled ? '启用' : '禁用' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="usage_count" label="使用次数" width="100" align="center" sortable />
+            <el-table-column label="操作" width="120" align="center">
+              <template #default="{ row }">
+                <el-button size="small" link @click="toggleAccount(row)">
+                  {{ row.is_enabled ? '禁用' : '启用' }}
+                </el-button>
+                <el-button size="small" link type="danger" @click="removeAccount(row)">
+                  移除
+                </el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+
+          <el-empty v-if="!accountsLoading && boundAccounts.length === 0" description="暂无关联账号" />
+        </div>
+      </div>
+    </el-dialog>
+
+    <!-- 添加账号对话框 -->
+    <el-dialog
+      v-model="showAddDialog"
+      title="添加上游账号"
+      width="600px"
+      :close-on-click-modal="false"
+    >
+      <div class="add-account-dialog">
+        <div class="tip-text" style="margin-bottom: 16px; color: #909399; font-size: 13px;">
+          选择要添加到"{{ currentModel?.name }}"的账号：
+        </div>
+        <el-table
+          :data="availableAccounts"
+          v-loading="availableLoading"
+          stripe
+          size="small"
+          @selection-change="handleAccountSelection"
+        >
+          <el-table-column type="selection" width="50" />
+          <el-table-column prop="name" label="账号名称" min-width="150" />
+          <el-table-column prop="provider_name" label="供应商" width="120" />
+          <el-table-column prop="base_url" label="API地址" min-width="200">
             <template #default="{ row }">
-              <el-tag :type="row.account_active ? 'success' : 'info'" size="small">
-                {{ row.account_active ? '启用' : '禁用' }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column label="权重" width="120">
-            <template #default="{ row }">
-              <el-input-number 
-                v-model="row.weight" 
-                :min="1" 
-                :max="100" 
-                size="small"
-                @change="updateWeight(row)"
-              />
-            </template>
-          </el-table-column>
-          <el-table-column label="启用" width="80">
-            <template #default="{ row }">
-              <el-switch v-model="row.is_enabled" @change="toggleBinding(row)" />
-            </template>
-          </el-table-column>
-          <el-table-column prop="usage_count" label="使用次数" width="100" />
-          <el-table-column label="操作" width="80">
-            <template #default="{ row }">
-              <el-button size="small" link type="danger" @click="removeBinding(row)">
-                移除
-              </el-button>
+              <span style="font-size: 12px; word-break: break-all;">{{ row.base_url }}</span>
             </template>
           </el-table-column>
         </el-table>
 
-        <!-- 添加账号面板 -->
-        <el-drawer v-model="showAddAccountPanel" title="添加账号" size="500px">
-          <div class="add-account-form">
-            <el-form-item label="选择账号">
-              <el-select v-model="selectedAccountIds" multiple placeholder="选择上游账号" style="width: 100%">
-                <el-option
-                  v-for="acc in availableAccounts"
-                  :key="acc.id"
-                  :label="acc.name"
-                  :value="acc.id"
-                />
-              </el-select>
-            </el-form-item>
-            <el-form-item label="权重">
-              <el-input-number v-model="newAccountWeight" :min="1" :max="100" />
-            </el-form-item>
-            <el-button type="primary" @click="addAccountsToModel" :loading="addingAccounts">
-              添加
-            </el-button>
-          </div>
-        </el-drawer>
+        <div style="margin-top: 16px;">
+          <span style="margin-right: 16px;">权重：</span>
+          <el-input-number
+            v-model="addWeight"
+            :min="1"
+            :max="100"
+            size="small"
+          />
+        </div>
       </div>
-    </el-dialog>
 
-    <!-- 上游账号表单弹窗 -->
-    <el-dialog v-model="accountFormVisible" :title="isAccountEdit ? '编辑账号' : '添加账号'" width="600px" destroy-on-close>
-      <el-form ref="accountFormRef" :model="accountFormData" :rules="accountFormRules" label-width="100px">
-        <el-form-item label="账号名称" prop="name">
-          <el-input v-model="accountFormData.name" placeholder="如: OpenAI主账号" />
-        </el-form-item>
-        <el-form-item label="供应商" prop="provider">
-          <el-select v-model="accountFormData.provider" placeholder="选择供应商" style="width: 100%">
-            <el-option v-for="p in providers" :key="p.id" :label="p.name" :value="p.id" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="API地址" prop="base_url">
-          <el-input v-model="accountFormData.base_url" placeholder="如: https://api.openai.com/v1" />
-        </el-form-item>
-        <el-form-item label="API密钥" prop="api_key">
-          <el-input v-model="accountFormData.api_key" type="password" show-password placeholder="sk-..." />
-        </el-form-item>
-        <el-form-item label="代理地址" prop="proxy_url">
-          <el-input v-model="accountFormData.proxy_url" placeholder="留空则直连" />
-        </el-form-item>
-        <el-row :gutter="20">
-          <el-col :span="12">
-            <el-form-item label="最大RPM">
-              <el-input-number v-model="accountFormData.max_rpm" :min="1" style="width: 100%" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="最大TPM">
-              <el-input-number v-model="accountFormData.max_tpm" :min="1000" style="width: 100%" />
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-form-item label="启用">
-          <el-switch v-model="accountFormData.is_active" />
-        </el-form-item>
-      </el-form>
       <template #footer>
-        <el-button @click="accountFormVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitAccountForm" :loading="submittingAccount">确定</el-button>
+        <el-button @click="showAddDialog = false">取消</el-button>
+        <el-button type="primary" @click="addAccounts" :loading="adding">
+          确定添加（{{ selectedAccounts.length }}个）
+        </el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search } from '@element-plus/icons-vue'
 import api from '@/stores'
@@ -510,23 +444,6 @@ const filterStatus = ref('')
 const filterProvider = ref('')
 const filterHasAccounts = ref('true') // 默认只显示已配置账号的模型
 const selectedModels = ref([])
-
-// 上游账号相关
-const upstreamAccounts = ref([])
-const loadingAccounts = ref(false)
-const accountDialogVisible = ref(false)
-const accountFormVisible = ref(false)
-const accountFormRef = ref()
-const isAccountEdit = ref(false)
-const submittingAccount = ref(false)
-const currentModel = ref(null)
-const modelAccounts = ref([])
-const loadingModelAccounts = ref(false)
-const showAddAccountPanel = ref(false)
-const selectedAccountIds = ref([])
-const newAccountWeight = ref(1)
-const addingAccounts = ref(false)
-const availableAccounts = ref([])
 
 const defaultFormData = () => ({
   id: null,
@@ -557,25 +474,6 @@ const formRef = ref()
 const isEdit = ref(false)
 const submitting = ref(false)
 
-const accountFormData = ref({
-  id: null,
-  name: '',
-  provider: null,
-  base_url: '',
-  api_key: '',
-  proxy_url: '',
-  max_rpm: 60,
-  max_tpm: 100000,
-  is_active: true
-})
-
-const accountFormRules = {
-  name: [{ required: true, message: '请输入账号名称', trigger: 'blur' }],
-  provider: [{ required: true, message: '请选择供应商', trigger: 'change' }],
-  base_url: [{ required: true, message: '请输入API地址', trigger: 'blur' }],
-  api_key: [{ required: true, message: '请输入API密钥', trigger: 'blur' }]
-}
-
 const formRules = {
   name: [{ required: true, message: '请输入模型名称', trigger: 'blur' }],
   code: [{ required: true, message: '请输入模型代码', trigger: 'blur' }],
@@ -586,6 +484,18 @@ const commonTags = ['免费', 'GPT-4', 'Claude', 'Gemini', '国产', '开源', '
 
 let searchTimer = null
 
+// 管理上游账号相关
+const accountManagerVisible = ref(false)
+const showAddDialog = ref(false)
+const currentModel = ref(null)
+const boundAccounts = ref([])
+const availableAccounts = ref([])
+const accountsLoading = ref(false)
+const availableLoading = ref(false)
+const selectedAccounts = ref([])
+const addWeight = ref(1)
+const adding = ref(false)
+
 onMounted(async () => {
   // 并行加载模型列表、供应商和分类
   await Promise.all([
@@ -594,12 +504,6 @@ onMounted(async () => {
     fetchCategories()
   ])
 })
-
-function onTabChange(tab) {
-  if (tab === 'accounts') {
-    fetchUpstreamAccounts()
-  }
-}
 
 async function fetchModels() {
   loading.value = true
@@ -621,18 +525,6 @@ async function fetchModels() {
     console.error('获取模型列表失败:', e)
   } finally {
     loading.value = false
-  }
-}
-
-async function fetchUpstreamAccounts() {
-  loadingAccounts.value = true
-  try {
-    const res = await api.get('/models/upstream-accounts/')
-    upstreamAccounts.value = res.results || res || []
-  } catch (e) {
-    console.error('获取上游账号失败:', e)
-  } finally {
-    loadingAccounts.value = false
   }
 }
 
@@ -667,9 +559,126 @@ function handleSelectionChange(selection) {
   selectedModels.value = selection
 }
 
+// 管理上游账号
+async function openAccountManager(row) {
+  currentModel.value = row
+  accountManagerVisible.value = true
+  await fetchBoundAccounts()
+}
+
+async function fetchBoundAccounts() {
+  accountsLoading.value = true
+  try {
+    const res = await api.get(`/models/model-upstream/model/${currentModel.value.id}/`)
+    boundAccounts.value = res || []
+  } catch (e) {
+    console.error('获取关联账号失败:', e)
+    ElMessage.error('获取关联账号失败')
+  } finally {
+    accountsLoading.value = false
+  }
+}
+
+async function fetchAvailableAccounts() {
+  availableLoading.value = true
+  try {
+    const res = await api.get('/models/upstream-accounts/', { params: { page_size: 1000 } })
+    const allAccounts = res.results || res || []
+    // 过滤掉已关联的账号
+    const boundIds = new Set(boundAccounts.value.map(a => a.account_id))
+    availableAccounts.value = allAccounts.filter(a => !boundIds.has(a.id))
+  } catch (e) {
+    console.error('获取可用账号失败:', e)
+  } finally {
+    availableLoading.value = false
+  }
+}
+
+async function updateAccountWeight(row) {
+  try {
+    await api.patch(`/models/model-upstream/${row.id}/weight/`, { weight: row.weight })
+    ElMessage.success('权重已更新')
+  } catch (e) {
+    ElMessage.error('更新权重失败')
+    await fetchBoundAccounts() // 刷新恢复
+  }
+}
+
+async function toggleAccount(row) {
+  try {
+    const res = await api.post(`/models/model-upstream/${row.id}/toggle/`)
+    row.is_enabled = res.is_enabled
+    ElMessage.success(res.message)
+  } catch (e) {
+    ElMessage.error('操作失败')
+  }
+}
+
+async function removeAccount(row) {
+  try {
+    await ElMessageBox.confirm(
+      `确定要移除账号 "${row.account_name}" 与模型 "${currentModel.value?.name}" 的关联吗？`,
+      '移除确认',
+      { type: 'warning' }
+    )
+    await api.delete('/models/model-upstream/batch-remove/', {
+      data: { binding_ids: [row.id] }
+    })
+    ElMessage.success('移除成功')
+    await fetchBoundAccounts()
+  } catch (e) {
+    if (e !== 'cancel') {
+      ElMessage.error('移除失败')
+    }
+  }
+}
+
+function handleAccountSelection(selection) {
+  selectedAccounts.value = selection
+}
+
+async function addAccounts() {
+  if (selectedAccounts.value.length === 0) {
+    ElMessage.warning('请选择要添加的账号')
+    return
+  }
+  
+  adding.value = true
+  try {
+    const account_ids = selectedAccounts.value.map(a => a.id)
+    const res = await api.post('/models/model-upstream/batch-add/', {
+      model_id: currentModel.value.id,
+      account_ids: account_ids,
+      weight: addWeight.value
+    })
+    ElMessage.success(`成功添加 ${res.created} 个账号`)
+    showAddDialog.value = false
+    selectedAccounts.value = []
+    await fetchBoundAccounts()
+  } catch (e) {
+    ElMessage.error(e.message || '添加失败')
+  } finally {
+    adding.value = false
+  }
+}
+
+// 监听添加对话框显示
+watch(showAddDialog, (newVal) => {
+  if (newVal) {
+    addWeight.value = 1
+    selectedAccounts.value = []
+    fetchAvailableAccounts()
+  }
+})
+
 // 计算是否所有选中项都是上架状态
 const allSelectedActive = computed(() => {
   return selectedModels.value.every(m => m.status === 'active')
+})
+
+// 管理账号对话框标题
+const accountDialogTitle = computed(() => {
+  return `管理上游账号 - ${currentModel.value?.name || ''}`
 })
 
 // 批量删除
@@ -837,175 +846,6 @@ function getStatusType(status) {
     beta: 'warning'
   }
   return map[status] || ''
-}
-
-// 上游账号相关方法
-function openAccountDialog(model) {
-  currentModel.value = model
-  accountDialogVisible.value = true
-  loadModelAccounts(model.id)
-  loadAvailableAccounts()
-}
-
-async function loadModelAccounts(modelId) {
-  loadingModelAccounts.value = true
-  try {
-    const res = await api.get(`/models/model-upstream/model/${modelId}/`)
-    modelAccounts.value = res
-  } catch (e) {
-    modelAccounts.value = []
-  } finally {
-    loadingModelAccounts.value = false
-  }
-}
-
-async function loadAvailableAccounts() {
-  try {
-    const res = await api.get('/models/upstream-accounts/active/')
-    availableAccounts.value = res
-  } catch (e) {
-    availableAccounts.value = []
-  }
-}
-
-function openAccountForm(account = null) {
-  if (account) {
-    isAccountEdit.value = true
-    accountFormData.value = {
-      id: account.id,
-      name: account.name,
-      provider: account.provider,
-      base_url: account.base_url,
-      api_key: '',
-      proxy_url: account.proxy_url || '',
-      max_rpm: account.max_rpm,
-      max_tpm: account.max_tpm,
-      is_active: account.is_active
-    }
-  } else {
-    isAccountEdit.value = false
-    accountFormData.value = {
-      id: null,
-      name: '',
-      provider: null,
-      base_url: '',
-      api_key: '',
-      proxy_url: '',
-      max_rpm: 60,
-      max_tpm: 100000,
-      is_active: true
-    }
-  }
-  accountFormVisible.value = true
-}
-
-async function submitAccountForm() {
-  try {
-    await accountFormRef.value.validate()
-  } catch {
-    return
-  }
-  
-  submittingAccount.value = true
-  try {
-    const data = { ...accountFormData.value }
-    if (data.api_key === '') delete data.api_key
-    
-    if (isAccountEdit.value) {
-      await api.patch(`/models/upstream-accounts/${data.id}/`, data)
-      ElMessage.success('账号更新成功')
-    } else {
-      await api.post('/models/upstream-accounts/', data)
-      ElMessage.success('账号添加成功')
-    }
-    accountFormVisible.value = false
-    fetchUpstreamAccounts()
-  } catch (e) {
-    ElMessage.error(e.message || '操作失败')
-  } finally {
-    submittingAccount.value = false
-  }
-}
-
-async function testConnection(account) {
-  try {
-    const res = await api.post(`/models/upstream-accounts/${account.id}/test_connection/`)
-    ElMessage.success('连接成功')
-  } catch (e) {
-    ElMessage.error(e.message || '连接失败')
-  }
-}
-
-async function deleteAccount(account) {
-  try {
-    await ElMessageBox.confirm(`确定要删除账号 "${account.name}" 吗？`, '删除确认', { type: 'warning' })
-    await api.delete(`/models/upstream-accounts/${account.id}/`)
-    ElMessage.success('删除成功')
-    fetchUpstreamAccounts()
-  } catch (e) {
-    if (e !== 'cancel') {
-      ElMessage.error('删除失败')
-    }
-  }
-}
-
-async function addAccountsToModel() {
-  if (!selectedAccountIds.value.length) {
-    ElMessage.warning('请选择账号')
-    return
-  }
-  
-  addingAccounts.value = true
-  try {
-    await api.post('/models/model-upstream/batch-add/', {
-      model_id: currentModel.value.id,
-      account_ids: selectedAccountIds.value,
-      weight: newAccountWeight.value
-    })
-    ElMessage.success('添加成功')
-    showAddAccountPanel.value = false
-    selectedAccountIds.value = []
-    loadModelAccounts(currentModel.value.id)
-  } catch (e) {
-    ElMessage.error(e.message || '添加失败')
-  } finally {
-    addingAccounts.value = false
-  }
-}
-
-async function updateWeight(binding) {
-  try {
-    await api.patch(`/models/model-upstream/${binding.id}/weight/`, {
-      weight: binding.weight
-    })
-  } catch (e) {
-    ElMessage.error('更新权重失败')
-  }
-}
-
-async function toggleBinding(binding) {
-  try {
-    await api.post(`/models/model-upstream/${binding.id}/toggle/`)
-    ElMessage.success(binding.is_enabled ? '已启用' : '已禁用')
-  } catch (e) {
-    binding.is_enabled = !binding.is_enabled
-    ElMessage.error('操作失败')
-  }
-}
-
-async function removeBinding(binding) {
-  try {
-    await ElMessageBox.confirm('确定要移除这个账号关联吗？', '提示', { type: 'warning' })
-    await api.delete('/models/model-upstream/batch-remove/', {
-      data: { binding_ids: [binding.id] }
-    })
-    ElMessage.success('移除成功')
-    loadModelAccounts(currentModel.value.id)
-  } catch (e) {
-    if (e !== 'cancel') {
-      ElMessage.error('移除失败')
-    }
-  }
 }
 </script>
 
@@ -1185,5 +1025,36 @@ async function removeBinding(binding) {
 
 :deep(.el-button--primary:hover) {
   background: linear-gradient(135deg, #5a6fd6 0%, #6a4190 100%);
+}
+/* 管理账号对话框样式 */
+.account-manager {
+  min-height: 200px;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.section-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.bound-accounts {
+  margin-bottom: 20px;
+}
+
+.add-account-dialog {
+  padding: 0;
+}
+
+.tip-text {
+  color: #909399;
+  font-size: 13px;
 }
 </style>
