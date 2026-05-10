@@ -56,6 +56,7 @@ declare module 'vue' {
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     SeoMeta: typeof import('./components/SeoMeta.vue')['default']
+    TagsView: typeof import('./components/admin/TagsView.vue')['default']
     ThemeToggle: typeof import('./components/ThemeToggle.vue')['default']
   }
   export interface ComponentCustomProperties {
