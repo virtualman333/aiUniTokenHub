@@ -10,15 +10,6 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        # 从渠道移除字段（如果之前添加过）
-        migrations.RemoveField(
-            model_name='rechargechannel',
-            name='redirect_url',
-        ),
-        migrations.RemoveField(
-            model_name='rechargechannel',
-            name='callback_url',
-        ),
         # 添加到套餐
         migrations.AddField(
             model_name='rechargepackage',

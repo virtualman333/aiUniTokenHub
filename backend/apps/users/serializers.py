@@ -195,8 +195,10 @@ class RechargeChannelSerializer(serializers.ModelSerializer):
 
 class RechargePackageSerializer(serializers.ModelSerializer):
     """充值套餐序列化器"""
-    channel_name = serializers.CharField(source='channel.name', read_only=True)
+    channel_name = serializers.CharField(source='channel.name', read_only=True, default='')
     actual_amount = serializers.SerializerMethodField()
+    redirect_url = serializers.CharField(allow_blank=True, required=False)
+    callback_url = serializers.CharField(allow_blank=True, required=False)
     
     class Meta:
         model = RechargePackage
