@@ -223,10 +223,19 @@ class ResponsesView(APIView):
                 response_data = self._wrap_error(response_data, response.status_code)
 
             # 更新日志与计费
-            self._update_usage_log(usage_log, response, response_data, response_time, model_name,
+            billing_success = self._update_usage_log(usage_log, response, response_data, response_time, model_name,
                                   upstream_account=account)
             usage_log.refresh_from_db()
             update_upstream_usage(account, success=response.status_code < 400)
+            
+            # 检查扣款是否成功，失败则返回402错误
+            if not billing_success and response.status_code < 400:
+                return self._error_response(
+                    '余额不足，请充值后再试。',
+                    'billing_error',
+                    'insufficient_balance',
+                    status_code=402,
+                )
 
             # 记录访问日志
             self._log_access(
@@ -263,6 +272,16 @@ class ResponsesView(APIView):
 
     def _handle_streaming(self, original_request, chat_request, api_key, user,
                           account, model_name, start_time, request):
+        # 检查余额是否充足，余额为0或负数时拒绝请求
+        if user.balance <= 0:
+            logger.warning(f"[Responses-Stream] 用户 {user.username}(ID:{user.id}) 余额为0，拒绝流式请求")
+            return self._error_response(
+                '余额不足，请充值后再试。',
+                'billing_error',
+                'insufficient_balance',
+                status_code=402,
+            )
+        
         protocol = protocol_of(account)
         headers = self._build_headers()
         if protocol == 'anthropic':
@@ -576,13 +595,21 @@ class ResponsesView(APIView):
 
         log.save()
 
+        # 计费扣费（仅在请求成功时）
+        billing_success = True
         if response.status_code < 400 and log.total_tokens > 0:
-            calculate_and_deduct_cost(
+            cost, success = calculate_and_deduct_cost(
                 log.user, model_code,
                 log.input_tokens, log.output_tokens, log,
                 cached_tokens=cached_tokens,
                 upstream_account=upstream_account,
             )
+            if not success and cost > 0:
+                # 余额不足
+                logger.warning(f"[Billing] 用户 {log.user.username}(ID:{log.user.id}) 余额不足，费用: {cost}元，余额: {log.user.balance}元")
+                billing_success = False
+        
+        return billing_success
 
     def _finalize_stream(self, usage_log, user, api_key, model_name,
                          original_request, final_status, final_error_msg,
