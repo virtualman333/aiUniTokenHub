@@ -283,7 +283,7 @@ const canSend = computed(
 
 async function fetchAllModels() {
   try {
-    const res: any = await api.get('/models/models/', { params: { page: '1', page_size: '9999' } })
+    const res: any = await api.get('/models/models/', { params: { page: '1', page_size: '9999', category: 'llm' } })
     chatModels.value = res.results || res || []
   } catch (e) {
     // 降级：使用共享的 fetchModels（默认 20 条）

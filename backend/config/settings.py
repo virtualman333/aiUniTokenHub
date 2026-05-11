@@ -34,6 +34,7 @@ INSTALLED_APPS = [
     'apps.dashboard',
     'apps.ai_models',
     'apps.tickets',
+    'apps.image_gen',
 ]
 
 MIDDLEWARE = [

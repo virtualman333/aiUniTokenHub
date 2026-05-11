@@ -567,14 +567,12 @@ async function selectKey(key) {
 
 async function refreshModels(apiKey = null) {
   try {
-    const response = await axios.get(`${apiBaseUrl.value}/models`, {
-      headers: apiKey ? { 'Authorization': `Bearer ${apiKey}` } : {}
-    })
-    const res = response.data
-    if (res && res.data && res.data.length > 0) {
-      availableModels.value = res.data.map(m => ({
-        code: m.id,
-        name: m.id
+    const response = await api.get('/models/models/', { params: { page: '1', page_size: '9999', category: 'llm' } })
+    const results = response.results || response || []
+    if (results.length > 0) {
+      availableModels.value = results.map(m => ({
+        code: m.code,
+        name: m.name
       }))
     } else {
       availableModels.value = []

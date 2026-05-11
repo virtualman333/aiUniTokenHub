@@ -73,8 +73,8 @@ import { computed, onMounted, markRaw } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores'
 import {
-  HomeFilled, Document, Box, List, Setting, Wallet, Key, 
-  ArrowDown, SwitchButton, Tickets, ChatRound
+  HomeFilled, Document, Box, List, Setting, Wallet, Key,
+  ArrowDown, SwitchButton, Tickets, ChatRound, Picture
 } from '@element-plus/icons-vue'
 import ThemeToggle from '@/components/ThemeToggle.vue'
 import LangToggle from '@/components/LangToggle.vue'
@@ -91,6 +91,7 @@ const navItems = [
   { path: '/app/api-doc', label: '接口文档', icon: markRaw(Document) },
   { path: '/app/model-square', label: '模型广场', icon: markRaw(Box) },
   { path: '/app/chat', label: 'AI 对话', icon: markRaw(ChatRound) },
+  { path: '/app/image-gen', label: '图像生成', icon: markRaw(Picture) },
   { path: '/app/usage-log', label: '使用记录', icon: markRaw(List) },
   { path: '/app/tickets', label: '工单中心', icon: markRaw(Tickets) },
 ]

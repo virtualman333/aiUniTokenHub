@@ -67,6 +67,10 @@ class AIModel(models.Model):
         '缓存命中价格(元/百万tokens)', max_digits=12, decimal_places=4, default=0,
         help_text='输入 tokens 中命中缓存部分的单价；为 0 时按 input_price 计费'
     )
+    per_image_price = models.DecimalField(
+        '单张图片价格(元)', max_digits=10, decimal_places=4, default=0,
+        help_text='图像生成类模型的单张价格'
+    )
     
     # 功能特性
     supports_streaming = models.BooleanField('支持流式', default=True)

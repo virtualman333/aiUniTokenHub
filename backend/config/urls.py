@@ -14,6 +14,7 @@ urlpatterns = [
     path('api/dashboard/', include('apps.dashboard.urls')),
     path('api/models/', include('apps.ai_models.urls')),
     path('api/tickets/', include('apps.tickets.urls')),
+    path('api/image-gen/', include('apps.image_gen.urls')),
 ]
 
 if settings.DEBUG:

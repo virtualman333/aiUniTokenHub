@@ -194,46 +194,60 @@
           <el-input v-model="formData.version" placeholder="如: 2024-01-25" />
         </el-form-item>
         
-        <el-divider>定价（元 / 百万 tokens）</el-divider>
+        <el-divider>{{ isImageCategory ? '定价（元 / 张）' : '定价（元 / 百万 tokens）' }}</el-divider>
         
-        <el-row :gutter="20">
-          <el-col :span="8">
-            <el-form-item label="输入价格">
-              <el-input-number 
-                v-model="formData.input_price" 
-                :min="0" 
-                :precision="4"
-                :step="0.5"
-                style="width: 100%"
-              />
-              <span class="form-tip">元/1M tokens</span>
-            </el-form-item>
-          </el-col>
-          <el-col :span="8">
-            <el-form-item label="缓存命中价格">
-              <el-input-number 
-                v-model="formData.cached_input_price" 
-                :min="0" 
-                :precision="4"
-                :step="0.1"
-                style="width: 100%"
-              />
-              <span class="form-tip">元/1M tokens；0 时按输入价计费</span>
-            </el-form-item>
-          </el-col>
-          <el-col :span="8">
-            <el-form-item label="输出价格">
-              <el-input-number 
-                v-model="formData.output_price" 
-                :min="0" 
-                :precision="4"
-                :step="0.5"
-                style="width: 100%"
-              />
-              <span class="form-tip">元/1M tokens</span>
-            </el-form-item>
-          </el-col>
-        </el-row>
+        <template v-if="isImageCategory">
+          <el-form-item label="单张价格">
+            <el-input-number 
+              v-model="formData.per_image_price" 
+              :min="0" 
+              :precision="4"
+              :step="0.01"
+              style="width: 100%"
+            />
+            <span class="form-tip">元/张</span>
+          </el-form-item>
+        </template>
+        <template v-else>
+          <el-row :gutter="20">
+            <el-col :span="8">
+              <el-form-item label="输入价格">
+                <el-input-number 
+                  v-model="formData.input_price" 
+                  :min="0" 
+                  :precision="4"
+                  :step="0.5"
+                  style="width: 100%"
+                />
+                <span class="form-tip">元/1M tokens</span>
+              </el-form-item>
+            </el-col>
+            <el-col :span="8">
+              <el-form-item label="缓存命中价格">
+                <el-input-number 
+                  v-model="formData.cached_input_price" 
+                  :min="0" 
+                  :precision="4"
+                  :step="0.1"
+                  style="width: 100%"
+                />
+                <span class="form-tip">元/1M tokens；0 时按输入价计费</span>
+              </el-form-item>
+            </el-col>
+            <el-col :span="8">
+              <el-form-item label="输出价格">
+                <el-input-number 
+                  v-model="formData.output_price" 
+                  :min="0" 
+                  :precision="4"
+                  :step="0.5"
+                  style="width: 100%"
+                />
+                <span class="form-tip">元/1M tokens</span>
+              </el-form-item>
+            </el-col>
+          </el-row>
+        </template>
         
         <el-divider>功能特性</el-divider>
         
@@ -475,6 +489,13 @@ const models = ref([])
 const providers = ref([])
 const categories = ref([])
 const currentPage = ref(1)
+
+// 判断当前选中分类是否为图像生成
+const isImageCategory = computed(() => {
+  if (!formData.value.category) return false
+  const cat = categories.value.find(c => c.id === formData.value.category)
+  return cat?.code === 'picture'
+})
 const pageSize = ref(20)
 const total = ref(0)
 const searchQuery = ref('')
@@ -493,6 +514,7 @@ const defaultFormData = () => ({
   input_price: 0,
   output_price: 0,
   cached_input_price: 0,
+  per_image_price: 0,
   supports_streaming: true,
   supports_vision: false,
   supports_tools: false,
@@ -515,7 +537,8 @@ const submitting = ref(false)
 const formRules = {
   name: [{ required: true, message: '请输入模型名称', trigger: 'blur' }],
   code: [{ required: true, message: '请输入模型代码', trigger: 'blur' }],
-  provider: [{ required: true, message: '请选择供应商', trigger: 'change' }]
+  provider: [{ required: true, message: '请选择供应商', trigger: 'change' }],
+  category: [{ required: true, message: '请选择分类', trigger: 'change' }]
 }
 
 const commonTags = ['免费', 'GPT-4', 'Claude', 'Gemini', '国产', '开源', '大语言模型', '视觉模型']
@@ -804,6 +827,7 @@ function openModelForm(model = null) {
       input_price: parseFloat(model.input_price) || 0,
       output_price: parseFloat(model.output_price) || 0,
       cached_input_price: parseFloat(model.cached_input_price) || 0,
+      per_image_price: parseFloat(model.per_image_price) || 0,
       supports_streaming: model.supports_streaming,
       supports_vision: model.supports_vision,
       supports_tools: model.supports_tools,

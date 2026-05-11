@@ -28,6 +28,7 @@ class Command(BaseCommand):
             {'name': '视觉模型', 'code': 'vision', 'icon': 'eye'},
             {'name': 'Embedding', 'code': 'embedding', 'icon': 'vector'},
             {'name': '语音合成', 'code': 'tts', 'icon': 'audio'},
+            {'name': '图像生成', 'code': 'picture', 'icon': 'image'}
         ]
         
         categories = {}

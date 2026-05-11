@@ -117,6 +117,16 @@ const routes = [
         }
       },
       {
+        path: 'image-gen',
+        name: 'ImageGen',
+        component: () => import('@/views/user/ImageGen/index.vue'),
+        meta: {
+          title: '图像生成',
+          description: 'uniTokenHub 图像生成 - 使用AI模型生成和编辑图片。',
+          keywords: 'AI图像生成,图片生成,gpt-image'
+        }
+      },
+      {
         path: 'my-keys',
         name: 'MyKeys',
         component: () => import('@/views/user/MyKeys/index.vue'),
