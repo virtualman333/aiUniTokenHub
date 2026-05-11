@@ -265,6 +265,24 @@ def is_disposable_email(email):
     """
     try:
         domain = email.split('@')[-1].lower()
+        
+        # 先从数据库配置中读取黑名单
+        try:
+            from .models import EmailConfig
+            cfg = EmailConfig.get_config()
+            if cfg.blocked_email_domains:
+                # 按行分割，去除空行和前后空格
+                blocked_domains = {
+                    d.strip().lower() 
+                    for d in cfg.blocked_email_domains.split('\n') 
+                    if d.strip()
+                }
+                if domain in blocked_domains:
+                    return True
+        except Exception:
+            pass  # 如果数据库读取失败，使用硬编码列表
+        
+        # 如果数据库中没有配置，使用硬编码的默认列表
         return domain in DISPOSABLE_EMAIL_DOMAINS
     except (IndexError, AttributeError):
         return False

@@ -243,6 +243,31 @@
             </div>
           </div>
         </section>
+
+        <!-- Section: 邮箱黑名单 -->
+        <section class="section" style="margin-top: 24px;">
+          <header class="section-head">
+            <div>
+              <div class="section-title">邮箱域名黑名单</div>
+              <div class="section-desc">禁止使用该列表中的邮箱域名注册（每行一个域名）</div>
+            </div>
+          </header>
+
+          <div class="blocked-domains-area">
+            <label class="field-label">黑名单域名列表</label>
+            <el-input
+              v-model="form.blocked_email_domains"
+              type="textarea"
+              :rows="6"
+              placeholder="每行输入一个域名，例如：&#10;duck.com&#10;tempmail.org&#10;mailinator.com"
+              :disabled="!form.is_enabled"
+            />
+            <div class="hint">
+              提示：注册或发送验证码时，系统会检查邮箱域名是否在黑名单中。当前已配置 
+              <strong>{{ blockedDomainsCount }}</strong> 个域名
+            </div>
+          </div>
+        </section>
       </div>
 
       <!-- 操作栏 -->
@@ -444,6 +469,7 @@ interface EmailConfigForm {
   daily_limit_per_email: number | string
   alert_enabled: boolean
   alert_emails: string
+  blocked_email_domains: string
   updated_at_text?: string
 }
 
@@ -469,6 +495,7 @@ const form = reactive<EmailConfigForm>({
   daily_limit_per_email: 10,
   alert_enabled: false,
   alert_emails: '',
+  blocked_email_domains: '',
   updated_at_text: '',
 })
 
@@ -542,9 +569,20 @@ function applyConfig(data: any) {
   form.daily_limit_per_email = Number(data.daily_limit_per_email) || 10
   form.alert_enabled = !!data.alert_enabled
   form.alert_emails = data.alert_emails || ''
+  form.blocked_email_domains = data.blocked_email_domains || ''
   form.updated_at_text = data.updated_at ? dayjs(data.updated_at).format('YYYY-MM-DD HH:mm:ss') : ''
   encryption.value = form.use_ssl ? 'ssl' : (form.use_tls ? 'tls' : 'none')
 }
+
+// 计算黑名单域名数量
+const blockedDomainsCount = computed(() => {
+  if (!form.blocked_email_domains) return 0
+  return form.blocked_email_domains
+    .split('\n')
+    .map(s => s.trim())
+    .filter(s => s.length > 0)
+    .length
+})
 
 async function loadConfig() {
   loading.value = true
@@ -569,40 +607,41 @@ function validateBeforeSave(): string | null {
 }
 
 async function handleSave() {
-  const err = validateBeforeSave()
-  if (err) {
-    ElMessage.warning(err)
-    return
-  }
-  saving.value = true
-  try {
-    const payload: any = {
-      is_enabled: form.is_enabled,
-      smtp_host: form.smtp_host,
-      smtp_port: Number(form.smtp_port) || 0,
-      use_ssl: form.use_ssl,
-      use_tls: form.use_tls,
-      smtp_user: form.smtp_user,
-      from_email: form.from_email,
-      from_name: form.from_name,
-      code_expire_minutes: Number(form.code_expire_minutes) || 5,
-      code_resend_seconds: Number(form.code_resend_seconds) || 60,
-      daily_limit_per_email: Number(form.daily_limit_per_email) || 10,
-      alert_enabled: form.alert_enabled,
-      alert_emails: form.alert_emails,
+    const err = validateBeforeSave()
+    if (err) {
+      ElMessage.warning(err)
+      return
     }
-    if (form.smtp_password) {
-      payload.smtp_password = form.smtp_password
+    saving.value = true
+    try {
+      const payload: any = {
+        is_enabled: form.is_enabled,
+        smtp_host: form.smtp_host,
+        smtp_port: Number(form.smtp_port) || 0,
+        use_ssl: form.use_ssl,
+        use_tls: form.use_tls,
+        smtp_user: form.smtp_user,
+        from_email: form.from_email,
+        from_name: form.from_name,
+        code_expire_minutes: Number(form.code_expire_minutes) || 5,
+        code_resend_seconds: Number(form.code_resend_seconds) || 60,
+        daily_limit_per_email: Number(form.daily_limit_per_email) || 10,
+        alert_enabled: form.alert_enabled,
+        alert_emails: form.alert_emails,
+        blocked_email_domains: form.blocked_email_domains,
+      }
+      if (form.smtp_password) {
+        payload.smtp_password = form.smtp_password
+      }
+      const res: any = await api.put('/users/admin/system/email_config/', payload)
+      applyConfig(res || {})
+      ElMessage.success('保存成功')
+    } catch (e: any) {
+      ElMessage.error(e?.message || '保存失败')
+    } finally {
+      saving.value = false
     }
-    const res: any = await api.put('/users/admin/system/email_config/', payload)
-    applyConfig(res || {})
-    ElMessage.success('保存成功')
-  } catch (e: any) {
-    ElMessage.error(e?.message || '保存失败')
-  } finally {
-    saving.value = false
   }
-}
 
 function openTestDialog() {
   if (!form.smtp_password_set) {
@@ -1073,6 +1112,21 @@ onMounted(loadConfig)
 .head-icon-alert {
   background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
   color: #ea580c;
+}
+
+/* ========== 邮箱黑名单 ========== */
+.blocked-domains-area {
+  .hint {
+    font-size: 12px;
+    color: #94a3b8;
+    line-height: 1.5;
+    margin-top: 6px;
+
+    strong {
+      color: #059669;
+      font-weight: 600;
+    }
+  }
 }
 
 .alert-emails-area {

@@ -28,6 +28,7 @@ def _serialize_email_config(cfg: EmailConfig, mask_password: bool = True) -> dic
         'daily_limit_per_email': cfg.daily_limit_per_email,
         'alert_enabled': cfg.alert_enabled,
         'alert_emails': cfg.alert_emails or '',
+        'blocked_email_domains': cfg.blocked_email_domains or '',
         'updated_at': cfg.updated_at.isoformat() if cfg.updated_at else None,
     }
 
@@ -47,7 +48,7 @@ class SystemSettingsViewSet(viewsets.GenericViewSet):
         data = request.data or {}
         # 字段白名单
         bool_fields = ['is_enabled', 'use_ssl', 'use_tls', 'alert_enabled']
-        str_fields = ['smtp_host', 'smtp_user', 'from_email', 'from_name', 'alert_emails']
+        str_fields = ['smtp_host', 'smtp_user', 'from_email', 'from_name', 'alert_emails', 'blocked_email_domains']
         int_fields = ['smtp_port', 'code_expire_minutes', 'code_resend_seconds', 'daily_limit_per_email']
 
         for f in bool_fields:

@@ -106,6 +106,7 @@ class Bill(models.Model):
         ('consume', '消费'),
         ('refund', '退款'),
         ('bonus', '赠送'),
+        ('adjust', '调整'),
     ]
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='bills')
@@ -303,6 +304,14 @@ class EmailConfig(models.Model):
                                         help_text='启用后当API调用返回非200状态码时发送告警邮件')
     alert_emails = models.TextField('告警邮箱列表', blank=True, default='',
                                     help_text='多个邮箱用英文逗号分隔')
+
+    # 邮箱黑名单（匿名邮箱域名，每行一个）
+    blocked_email_domains = models.TextField(
+        '邮箱域名黑名单',
+        blank=True,
+        default='',
+        help_text='每行一个域名，如：duck.com'
+    )
 
     updated_at = models.DateTimeField('更新时间', auto_now=True)
 
