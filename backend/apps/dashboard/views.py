@@ -42,18 +42,36 @@ class AdminDashboardViewSet(viewsets.GenericViewSet, AnalyticsViewSet):
             )
         )
 
+        # 本月利润统计
+        monthly_revenue = abs(float(
+            Bill.objects.filter(
+                created_at__gte=month_start, type="consume"
+            ).aggregate(total=Sum("amount"))["total"]
+            or 0
+        ))
+        monthly_upstream_cost = float(
+            UsageLog.objects.filter(
+                created_at__gte=month_start
+            ).aggregate(total=Sum("upstream_cost"))["total"]
+            or 0
+        )
+        monthly_profit = round(monthly_revenue - monthly_upstream_cost, 6)
+
         data = {
             "total_users": User.objects.count(),
             "total_apis": AIModel.objects.count(),
             "total_providers": ModelProvider.objects.count(),
             "total_models": AIModel.objects.count(),
             "total_requests": UsageLog.objects.count(),
-            "monthly_cost": float(
+            "monthly_cost": -float(
                 Bill.objects.filter(
                     created_at__gte=month_start, type="consume"
                 ).aggregate(total=Sum("amount"))["total"]
                 or 0
             ),
+            "monthly_revenue": monthly_revenue,
+            "monthly_upstream_cost": monthly_upstream_cost,
+            "monthly_profit": monthly_profit,
         }
 
         return APIResponse.success(data, "获取成功")
@@ -137,17 +155,21 @@ class AdminDashboardViewSet(viewsets.GenericViewSet, AnalyticsViewSet):
             .annotate(
                 total_tokens=Sum("total_tokens"),
                 total_cost=Sum("cost"),
+                total_upstream_cost=Sum("upstream_cost"),
+                total_profit=Sum("profit"),
                 request_count=Count("id")
             )
             .order_by("-total_tokens")[:10]
         )
-        
+
         model_stats = []
         for item in model_tokens:
             model_stats.append({
                 "model_name": item["model__name"] or item["model__code"],
                 "total_tokens": item["total_tokens"] or 0,
                 "total_cost": float(item["total_cost"] or 0),
+                "total_upstream_cost": float(item["total_upstream_cost"] or 0),
+                "total_profit": float(item["total_profit"] or 0),
                 "request_count": item["request_count"]
             })
         

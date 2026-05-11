@@ -223,7 +223,8 @@ class ResponsesView(APIView):
                 response_data = self._wrap_error(response_data, response.status_code)
 
             # 更新日志与计费
-            self._update_usage_log(usage_log, response, response_data, response_time, model_name)
+            self._update_usage_log(usage_log, response, response_data, response_time, model_name,
+                                  upstream_account=account)
             usage_log.refresh_from_db()
             update_upstream_usage(account, success=response.status_code < 400)
 
@@ -541,7 +542,8 @@ class ResponsesView(APIView):
     # 日志 & 计费
     # ------------------------------------------------------------------
 
-    def _update_usage_log(self, log, response, response_data, response_time, model_code):
+    def _update_usage_log(self, log, response, response_data, response_time, model_code,
+                          upstream_account=None):
         """更新使用日志并执行计费（非流式）"""
         log.response_time = response_time
         log.status_code = response.status_code
@@ -579,6 +581,7 @@ class ResponsesView(APIView):
                 log.user, model_code,
                 log.input_tokens, log.output_tokens, log,
                 cached_tokens=cached_tokens,
+                upstream_account=upstream_account,
             )
 
     def _finalize_stream(self, usage_log, user, api_key, model_name,
@@ -621,12 +624,14 @@ class ResponsesView(APIView):
                     user, model_name,
                     prompt_tokens, completion_tokens, usage_log,
                     cached_tokens=cached_tokens,
+                    upstream_account=account,
                 )
             except Exception as e:
                 logger.error(f"[Responses-Stream] charge failed: {e}")
 
         # 记录访问日志
         try:
+            usage_log.refresh_from_db()
             log_api_access(
                 api_key, user, 'POST', '/responses',
                 original_request,
@@ -643,6 +648,8 @@ class ResponsesView(APIView):
                 total_tokens=total_tokens,
                 cached_tokens=cached_tokens,
                 cost=cost_value,
+                upstream_cost=usage_log.upstream_cost,
+                profit=usage_log.profit,
             )
         except Exception as e:
             logger.error(f"[Responses-Stream] write access log failed: {e}")
@@ -662,6 +669,8 @@ class ResponsesView(APIView):
                 total_tokens=usage_log.total_tokens,
                 cached_tokens=usage_log.cached_tokens,
                 cost=usage_log.cost,
+                upstream_cost=usage_log.upstream_cost,
+                profit=usage_log.profit,
             )
         except Exception:
             pass

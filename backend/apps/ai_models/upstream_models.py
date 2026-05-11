@@ -56,6 +56,20 @@ class ModelUpstreamAccount(models.Model):
     account = models.ForeignKey(UpstreamAccount, on_delete=models.CASCADE,
                                  related_name='model_bindings', verbose_name='上游账号')
     
+    # 上游成本（单位：元 / 百万 tokens）
+    cost_input_price = models.DecimalField(
+        '上游输入成本(元/百万tokens)', max_digits=12, decimal_places=4, default=0,
+        help_text='上游供应商对该模型在此账号下的输入单价'
+    )
+    cost_output_price = models.DecimalField(
+        '上游输出成本(元/百万tokens)', max_digits=12, decimal_places=4, default=0,
+        help_text='上游供应商对该模型在此账号下的输出单价'
+    )
+    cost_cached_input_price = models.DecimalField(
+        '上游缓存输入成本(元/百万tokens)', max_digits=12, decimal_places=4, default=0,
+        help_text='上游供应商对该模型缓存命中部分的单价；为0时按 cost_input_price 计'
+    )
+
     # 负载均衡配置
     weight = models.IntegerField('权重', default=1,
                                   help_text='权重越高，被选中的概率越大')

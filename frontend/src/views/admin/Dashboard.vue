@@ -61,15 +61,27 @@
         </template>
         <el-table :data="tokenStats.model_stats || []" stripe size="small">
           <el-table-column prop="model_name" label="模型名称" min-width="120" />
-          <el-table-column prop="request_count" label="请求数" width="100" align="center" />
-          <el-table-column prop="total_tokens" label="Token消耗" width="120" align="center">
+          <el-table-column prop="request_count" label="请求数" width="80" align="center" />
+          <el-table-column prop="total_tokens" label="Token消耗" width="100" align="center">
             <template #default="{ row }">
               {{ formatNumber(row.total_tokens) }}
             </template>
           </el-table-column>
-          <el-table-column prop="total_cost" label="成本" width="100" align="center">
+          <el-table-column prop="total_cost" label="收入" width="100" align="center">
             <template #default="{ row }">
               ¥{{ Number(row.total_cost || 0).toFixed(4) }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="total_upstream_cost" label="成本" width="100" align="center">
+            <template #default="{ row }">
+              ¥{{ Number(row.total_upstream_cost || 0).toFixed(4) }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="total_profit" label="利润" width="100" align="center">
+            <template #default="{ row }">
+              <span :class="{ 'text-red': row.total_profit < 0 }">
+                ¥{{ Number(row.total_profit || 0).toFixed(4) }}
+              </span>
             </template>
           </el-table-column>
         </el-table>
@@ -174,6 +186,7 @@ const stats = reactive([
   { title: '总API数', value: '0', icon: markRaw(Connection), bgColor: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' },
   { title: '总请求数', value: '0', icon: markRaw(TrendCharts), bgColor: 'linear-gradient(135deg, #4ade80 0%, #22c55e 100%)' },
   { title: '本月消费', value: '¥0', icon: markRaw(Wallet), bgColor: 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)' },
+  { title: '本月利润', value: '¥0', icon: markRaw(TrendCharts), bgColor: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)' },
   { title: '今日Token', value: '0', icon: markRaw(Document), bgColor: 'linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)' },
   { title: '活跃用户', value: '0', icon: markRaw(Warning), bgColor: 'linear-gradient(135deg, #a855f7 0%, #9333ea 100%)' },
 ])
@@ -220,8 +233,9 @@ const loadDashboardData = async () => {
     stats[1].value = overview.total_apis || 0
     stats[2].value = overview.total_requests || 0
     stats[3].value = `¥${Number(overview.monthly_cost || 0).toFixed(2)}`
-    stats[4].value = formatNumber(tokenRes.today?.total_tokens || 0)
-    stats[5].value = activeRes.today_active || 0
+    stats[4].value = `¥${Number(overview.monthly_profit || 0).toFixed(2)}`
+    stats[5].value = formatNumber(tokenRes.today?.total_tokens || 0)
+    stats[6].value = activeRes.today_active || 0
     
     recentLogs.value = (logs.results || logs || []).map(log => ({
       ...log,
@@ -425,6 +439,10 @@ const getMethodType = (method) => {
 .admin-dashboard {
   padding: 0;
   min-width: 0;
+}
+
+.text-red {
+  color: #ef4444;
 }
 
 .quick-actions {

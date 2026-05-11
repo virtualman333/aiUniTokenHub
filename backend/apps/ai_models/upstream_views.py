@@ -297,6 +297,26 @@ class ModelUpstreamAccountViewSet(viewsets.GenericViewSet):
         binding.weight = max(1, min(100, weight))
         binding.save()
         return APIResponse.success({'weight': binding.weight})
+
+    @action(detail=True, methods=['patch'])
+    def update_cost(self, request, pk=None):
+        """更新上游成本"""
+        binding = self.get_object()
+        cost_input = request.data.get('cost_input_price')
+        cost_output = request.data.get('cost_output_price')
+        cost_cached = request.data.get('cost_cached_input_price')
+        if cost_input is not None:
+            binding.cost_input_price = max(0, float(cost_input))
+        if cost_output is not None:
+            binding.cost_output_price = max(0, float(cost_output))
+        if cost_cached is not None:
+            binding.cost_cached_input_price = max(0, float(cost_cached))
+        binding.save(update_fields=['cost_input_price', 'cost_output_price', 'cost_cached_input_price'])
+        return APIResponse.success({
+            'cost_input_price': float(binding.cost_input_price),
+            'cost_output_price': float(binding.cost_output_price),
+            'cost_cached_input_price': float(binding.cost_cached_input_price),
+        })
     
     @action(detail=True, methods=['post'])
     def toggle(self, request, pk=None):

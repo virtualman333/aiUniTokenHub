@@ -13,6 +13,7 @@ from django.utils import timezone
 from .models import (
     User, APIKey, Bill, CardPassword, InviteConfig, InviteReward,
     EmailConfig, EmailVerifyCode, RechargeChannel, RechargePackage,
+    UsageLog,
 )
 from .serializers import (
     UserRegisterSerializer, UserLoginSerializer, UserSerializer,
@@ -260,8 +261,8 @@ class BillingViewSet(viewsets.GenericViewSet):
         # 检查管理员权限
         if not request.user or not request.user.is_staff:
             return APIResponse.error('无权限访问', 403)
-        
-        queryset = Bill.objects.all().select_related('user')
+
+        queryset = Bill.objects.all().select_related('user', 'usage_log')
 
         # 过滤条件
         user_id = request.query_params.get('user')
@@ -287,7 +288,29 @@ class BillingViewSet(viewsets.GenericViewSet):
         bills = queryset[start:end]
 
         serializer = BillSerializer(bills, many=True)
-        return APIResponse.paginated(serializer.data, total, page, page_size)
+
+        # 计算利润汇总（消费账单）
+        from django.db.models import Sum
+        consume_qs = queryset.filter(type='consume')
+        total_revenue = abs(float(
+            consume_qs.aggregate(s=Sum('amount'))['s'] or 0
+        ))
+        total_upstream_cost = float(
+            UsageLog.objects.filter(
+                bills__in=consume_qs
+            ).aggregate(s=Sum('upstream_cost'))['s'] or 0
+        )
+        total_profit = round(total_revenue - total_upstream_cost, 6)
+
+        return APIResponse.success({
+            'results': serializer.data,
+            'total': total,
+            'page': page,
+            'page_size': page_size,
+            'total_revenue': total_revenue,
+            'total_upstream_cost': total_upstream_cost,
+            'total_profit': total_profit,
+        })
 
     @action(detail=False, methods=['post'])
     def recharge(self, request):

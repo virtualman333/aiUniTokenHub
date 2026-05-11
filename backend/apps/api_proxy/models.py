@@ -33,6 +33,10 @@ class APIAccessLog(models.Model):
     total_tokens = models.IntegerField('总Token', default=0)
     cached_tokens = models.IntegerField('缓存命中Token', default=0)
     cost = models.DecimalField('费用(元)', max_digits=12, decimal_places=6, default=0)
+    upstream_cost = models.DecimalField('上游成本(元)', max_digits=12, decimal_places=6, default=0,
+                                        help_text='实际支付给上游供应商的费用')
+    profit = models.DecimalField('利润(元)', max_digits=12, decimal_places=6, default=0,
+                                 help_text='用户支付费用与上游成本的差额')
 
     created_at = models.DateTimeField('访问时间', auto_now_add=True, db_index=True)
     

@@ -118,11 +118,25 @@ class BillSerializer(serializers.ModelSerializer):
     username = serializers.CharField(source='user.username', read_only=True, default='未知')
     amount = serializers.FloatField()
     balance = serializers.FloatField()
+    upstream_cost = serializers.SerializerMethodField()
+    profit = serializers.SerializerMethodField()
 
     class Meta:
         model = Bill
-        fields = ['id', 'username', 'type', 'type_display', 'amount', 'balance', 'description', 'created_at']
-        read_only_fields = ['id', 'username', 'type', 'amount', 'balance', 'description', 'created_at']
+        fields = ['id', 'username', 'type', 'type_display', 'amount', 'balance',
+                  'upstream_cost', 'profit', 'description', 'created_at']
+        read_only_fields = ['id', 'username', 'type', 'amount', 'balance',
+                            'upstream_cost', 'profit', 'description', 'created_at']
+
+    def get_upstream_cost(self, obj):
+        if obj.usage_log_id and obj.usage_log:
+            return float(obj.usage_log.upstream_cost or 0)
+        return 0.0
+
+    def get_profit(self, obj):
+        if obj.usage_log_id and obj.usage_log:
+            return float(obj.usage_log.profit or 0)
+        return 0.0
 
 
 class CardPasswordSerializer(serializers.ModelSerializer):

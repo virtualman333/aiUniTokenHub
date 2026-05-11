@@ -78,6 +78,26 @@
         </div>
       </div>
       <div class="stat-card">
+        <div class="stat-icon profit">
+          <el-icon><TrendCharts /></el-icon>
+        </div>
+        <div class="stat-info">
+          <div class="stat-label">总利润</div>
+          <div class="stat-value" :class="{ 'negative': stats.totalProfit < 0 }">
+            ¥{{ stats.totalProfit.toFixed(2) }}
+          </div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon cost">
+          <el-icon><Money /></el-icon>
+        </div>
+        <div class="stat-info">
+          <div class="stat-label">总上游成本</div>
+          <div class="stat-value">¥{{ stats.totalUpstreamCost.toFixed(2) }}</div>
+        </div>
+      </div>
+      <div class="stat-card">
         <div class="stat-icon count">
           <el-icon><Document /></el-icon>
         </div>
@@ -121,13 +141,31 @@
             </span>
           </template>
         </el-table-column>
-        
+
+        <el-table-column prop="upstream_cost" label="上游成本" width="120" align="right">
+          <template #default="{ row }">
+            <span v-if="row.type === 'consume'" class="upstream-cost">
+              ¥{{ Number(row.upstream_cost || 0).toFixed(4) }}
+            </span>
+            <span v-else>-</span>
+          </template>
+        </el-table-column>
+
+        <el-table-column prop="profit" label="利润" width="120" align="right">
+          <template #default="{ row }">
+            <span v-if="row.type === 'consume'" :class="['profit', { negative: row.profit < 0 }]">
+              ¥{{ Number(row.profit || 0).toFixed(4) }}
+            </span>
+            <span v-else>-</span>
+          </template>
+        </el-table-column>
+
         <el-table-column prop="balance" label="余额" width="120" align="right">
           <template #default="{ row }">
             <span class="balance">¥{{ Number(row.balance || 0).toFixed(4) }}</span>
           </template>
         </el-table-column>
-        
+
         <el-table-column prop="description" label="说明" min-width="200" show-overflow-tooltip />
         
         <el-table-column prop="created_at" label="时间" width="160">
@@ -182,6 +220,8 @@ const pagination = reactive({
 const stats = reactive({
   totalRecharge: 0,
   totalConsume: 0,
+  totalProfit: 0,
+  totalUpstreamCost: 0,
   totalCount: 0,
 })
 
@@ -193,7 +233,7 @@ const loadBills = async () => {
       page: pagination.page,
       page_size: pagination.pageSize,
     }
-    
+
     if (queryParams.user) params.user = queryParams.user
     if (queryParams.type) params.type = queryParams.type
     if (dateRange.value && dateRange.value[0]) {
@@ -206,9 +246,20 @@ const loadBills = async () => {
     if (res && res.results) {
       bills.value = res.results || []
       pagination.total = res.total || 0
-      
-      // 计算统计数据
-      calculateStats()
+
+      // 使用服务端返回的利润汇总
+      stats.totalRecharge = 0
+      stats.totalConsume = res.total_revenue || 0
+      stats.totalProfit = res.total_profit || 0
+      stats.totalUpstreamCost = res.total_upstream_cost || 0
+      stats.totalCount = res.total || 0
+
+      // 补充计算当前页充值金额
+      bills.value.forEach(bill => {
+        if (bill.type === 'recharge') {
+          stats.totalRecharge += Number(bill.amount || 0)
+        }
+      })
     }
   } catch (error) {
     console.error('加载账单失败:', error)
@@ -216,24 +267,6 @@ const loadBills = async () => {
   } finally {
     loading.value = false
   }
-}
-
-// 计算统计数据
-const calculateStats = () => {
-  let totalRecharge = 0
-  let totalConsume = 0
-  
-  bills.value.forEach(bill => {
-    if (bill.type === 'recharge') {
-      totalRecharge += Number(bill.amount || 0)
-    } else if (bill.type === 'consume') {
-      totalConsume += Number(bill.amount || 0)
-    }
-  })
-  
-  stats.totalRecharge = totalRecharge
-  stats.totalConsume = totalConsume
-  stats.totalCount = pagination.total
 }
 
 // 搜索用户
@@ -358,6 +391,16 @@ onMounted(() => {
   color: #fff;
 }
 
+.stat-icon.profit {
+  background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+  color: #fff;
+}
+
+.stat-icon.cost {
+  background: linear-gradient(135deg, #fc5c7d 0%, #6a82fb 100%);
+  color: #fff;
+}
+
 .stat-icon.count {
   background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
   color: #fff;
@@ -417,6 +460,26 @@ onMounted(() => {
 }
 
 .amount.refund {
+  color: #ef4444;
+}
+
+.upstream-cost {
+  font-weight: 500;
+  font-family: 'Courier New', monospace;
+  color: #6b7280;
+}
+
+.profit {
+  font-weight: 600;
+  font-family: 'Courier New', monospace;
+  color: #10b981;
+}
+
+.profit.negative {
+  color: #ef4444;
+}
+
+.stat-value.negative {
   color: #ef4444;
 }
 

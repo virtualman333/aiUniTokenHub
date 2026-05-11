@@ -27,6 +27,9 @@ urlpatterns = [
     path('model-upstream/<int:pk>/toggle/', ModelUpstreamAccountViewSet.as_view({
         'post': 'toggle',
     }), name='model-upstream-toggle'),
+    path('model-upstream/<int:pk>/cost/', ModelUpstreamAccountViewSet.as_view({
+        'patch': 'update_cost',
+    }), name='model-upstream-cost'),
     path('model-upstream/select/<int:model_id>/', ModelUpstreamAccountViewSet.as_view({
         'get': 'select_account',
     }), name='model-upstream-select'),

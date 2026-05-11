@@ -40,12 +40,16 @@ class ModelUpstreamAccountSerializer(serializers.ModelSerializer):
     account_name = serializers.CharField(source='account.name', read_only=True)
     account_url = serializers.CharField(source='account.base_url', read_only=True)
     account_active = serializers.BooleanField(source='account.is_active', read_only=True)
-    
+    cost_input_price = serializers.FloatField()
+    cost_output_price = serializers.FloatField()
+    cost_cached_input_price = serializers.FloatField()
+
     class Meta:
         model = ModelUpstreamAccount
         fields = [
-            'id', 'model', 'account', 'account_name', 'account_url', 
+            'id', 'model', 'account', 'account_name', 'account_url',
             'account_active', 'weight', 'is_enabled',
+            'cost_input_price', 'cost_output_price', 'cost_cached_input_price',
             'usage_count', 'error_count', 'last_used', 'created_at'
         ]
         read_only_fields = ['usage_count', 'error_count', 'last_used']

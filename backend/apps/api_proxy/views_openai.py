@@ -221,7 +221,8 @@ def update_upstream_usage(account: UpstreamAccount, success: bool = True):
 
 def log_api_access(api_key, user, method, path, request_body, response_data,
                    response_status, response_time, ip_address='', model=None, upstream_account=None,
-                   input_tokens=0, output_tokens=0, total_tokens=0, cached_tokens=0, cost=0):
+                   input_tokens=0, output_tokens=0, total_tokens=0, cached_tokens=0, cost=0,
+                   upstream_cost=0, profit=0):
     """记录API访问日志"""
     try:
         APIAccessLog.objects.create(
@@ -241,6 +242,8 @@ def log_api_access(api_key, user, method, path, request_body, response_data,
             total_tokens=int(total_tokens or 0),
             cached_tokens=int(cached_tokens or 0),
             cost=cost or 0,
+            upstream_cost=upstream_cost or 0,
+            profit=profit or 0,
         )
     except Exception:
         pass
@@ -255,7 +258,8 @@ def get_client_ip(request) -> str:
 
 
 def calculate_and_deduct_cost(user, model_code, input_tokens, output_tokens,
-                              usage_log=None, cached_tokens: int = 0):
+                              usage_log=None, cached_tokens: int = 0,
+                              upstream_account=None):
     """
     根据 token 用量和模型定价计算费用并扣减用户余额。
     单价单位：元 / 百万 tokens
@@ -263,6 +267,7 @@ def calculate_and_deduct_cost(user, model_code, input_tokens, output_tokens,
     - input_tokens: 总的提示 tokens（包含缓存命中部分）
     - cached_tokens: 其中命中缓存的 tokens；按 cached_input_price 计费
     - output_tokens: 输出 tokens
+    - upstream_account: 上游账号对象，用于计算上游成本
     返回 (cost, success)
     """
     try:
@@ -291,12 +296,35 @@ def calculate_and_deduct_cost(user, model_code, input_tokens, output_tokens,
     output_cost = (output_tokens / PER_MILLION) * output_price
     cost = round(input_cost + cached_cost + output_cost, 6)
 
+    # 计算上游成本
+    upstream_cost = 0.0
+    profit = 0.0
+    if upstream_account is not None:
+        try:
+            binding = ModelUpstreamAccount.objects.filter(
+                model=model, account=upstream_account, is_enabled=True
+            ).first()
+            if binding:
+                cost_input = float(binding.cost_input_price or 0)
+                cost_output = float(binding.cost_output_price or 0)
+                cost_cached = float(binding.cost_cached_input_price or 0)
+                effective_cost_cached = cost_cached if cost_cached > 0 else cost_input
+                upstream_input = (non_cached_input / PER_MILLION) * cost_input
+                upstream_cached = (cached_tokens / PER_MILLION) * effective_cost_cached
+                upstream_output = (output_tokens / PER_MILLION) * cost_output
+                upstream_cost = round(upstream_input + upstream_cached + upstream_output, 6)
+        except Exception:
+            pass
+    profit = round(cost - upstream_cost, 6)
+
     # 把成本回写到 usage_log（即使不扣款也记录费用）
     if usage_log is not None:
         try:
             usage_log.cost = cost
             usage_log.cached_tokens = cached_tokens
-            usage_log.save(update_fields=['cost', 'cached_tokens'])
+            usage_log.upstream_cost = upstream_cost
+            usage_log.profit = profit
+            usage_log.save(update_fields=['cost', 'cached_tokens', 'upstream_cost', 'profit'])
         except Exception:
             pass
 
@@ -521,13 +549,14 @@ class ChatCompletionsView(APIView):
                 response_data = anthropic_to_openai(response_data)
             
             # 更新日志（含计费）
-            self._update_usage_log(usage_log, response, response_data, response_time, model_name)
+            self._update_usage_log(usage_log, response, response_data, response_time, model_name,
+                                  upstream_account=account)
             usage_log.refresh_from_db()  # 拿到计费后的最新值
             
             # 更新上游账号使用统计
             update_upstream_usage(account, success=response.status_code < 400)
             
-            # 记录访问日志（带 token / cost）
+            # 记录访问日志（带 token / cost / profit）
             log_api_access(
                 api_key, user, 'POST', '/chat/completions',
                 request.data, response_data, response.status_code,
@@ -538,6 +567,8 @@ class ChatCompletionsView(APIView):
                 total_tokens=usage_log.total_tokens,
                 cached_tokens=usage_log.cached_tokens,
                 cost=usage_log.cost,
+                upstream_cost=usage_log.upstream_cost,
+                profit=usage_log.profit,
             )
             
             # 如果是错误响应，确保返回完整的错误信息
@@ -850,12 +881,14 @@ class ChatCompletionsView(APIView):
                                 user, model_name,
                                 prompt_tokens, completion_tokens, usage_log,
                                 cached_tokens=cached_tokens,
+                                upstream_account=account,
                             )
                         except Exception as e:
                             logger.error(f"[ChatCompletions-Stream] charge failed: {e}")
 
-                    # 写 APIAccessLog（带 token + cost）
+                    # 写 APIAccessLog（带 token + cost + profit）
                     try:
+                        usage_log.refresh_from_db()
                         log_api_access(
                             api_key, user, 'POST', '/chat/completions',
                             request_data_copy,
@@ -872,6 +905,8 @@ class ChatCompletionsView(APIView):
                             total_tokens=total_tokens,
                             cached_tokens=cached_tokens,
                             cost=cost_value,
+                            upstream_cost=usage_log.upstream_cost,
+                            profit=usage_log.profit,
                         )
                     except Exception as e:
                         logger.error(f"[ChatCompletions-Stream] write access log failed: {e}")
@@ -927,7 +962,8 @@ class ChatCompletionsView(APIView):
             headers['Accept'] = 'text/event-stream'
         return headers
     
-    def _update_usage_log(self, log, response, response_data, response_time, model_code=''):
+    def _update_usage_log(self, log, response, response_data, response_time, model_code='',
+                          upstream_account=None):
         """更新使用日志并执行计费"""
         log.response_time = response_time
         log.status_code = response.status_code
@@ -959,6 +995,7 @@ class ChatCompletionsView(APIView):
                 log.user, model_code,
                 log.input_tokens, log.output_tokens, log,
                 cached_tokens=cached_tokens,
+                upstream_account=upstream_account,
             )
             if not success and cost > 0:
                 # 余额不足，记录警告但不影响响应

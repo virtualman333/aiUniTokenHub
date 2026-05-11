@@ -339,26 +339,64 @@
           <el-table :data="boundAccounts" v-loading="accountsLoading" stripe size="small">
             <el-table-column prop="account_name" label="账号名称" min-width="150" />
             <el-table-column prop="provider_name" label="供应商" width="120" />
-            <el-table-column label="权重" width="120">
+            <el-table-column label="权重" width="100">
               <template #default="{ row }">
                 <el-input-number
                   v-model="row.weight"
                   :min="1"
                   :max="100"
                   size="small"
-                  style="width: 100px"
+                  style="width: 80px"
                   @change="updateAccountWeight(row)"
                 />
               </template>
             </el-table-column>
-            <el-table-column label="状态" width="100" align="center">
+            <el-table-column label="上游输入成本" width="130">
+              <template #default="{ row }">
+                <el-input-number
+                  v-model="row.cost_input_price"
+                  :min="0"
+                  :precision="4"
+                  :step="0.1"
+                  size="small"
+                  style="width: 110px"
+                  @change="updateAccountCost(row)"
+                />
+              </template>
+            </el-table-column>
+            <el-table-column label="上游输出成本" width="130">
+              <template #default="{ row }">
+                <el-input-number
+                  v-model="row.cost_output_price"
+                  :min="0"
+                  :precision="4"
+                  :step="0.1"
+                  size="small"
+                  style="width: 110px"
+                  @change="updateAccountCost(row)"
+                />
+              </template>
+            </el-table-column>
+            <el-table-column label="上游缓存成本" width="130">
+              <template #default="{ row }">
+                <el-input-number
+                  v-model="row.cost_cached_input_price"
+                  :min="0"
+                  :precision="4"
+                  :step="0.1"
+                  size="small"
+                  style="width: 110px"
+                  @change="updateAccountCost(row)"
+                />
+              </template>
+            </el-table-column>
+            <el-table-column label="状态" width="80" align="center">
               <template #default="{ row }">
                 <el-tag :type="row.is_enabled ? 'success' : 'info'" size="small">
                   {{ row.is_enabled ? '启用' : '禁用' }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="usage_count" label="使用次数" width="100" align="center" sortable />
             <el-table-column label="操作" width="120" align="center">
               <template #default="{ row }">
                 <el-button size="small" link @click="toggleAccount(row)">
@@ -604,6 +642,24 @@ async function updateAccountWeight(row) {
     ElMessage.error('更新权重失败')
     await fetchBoundAccounts() // 刷新恢复
   }
+}
+
+const costTimers = {}
+function updateAccountCost(row) {
+  if (costTimers[row.id]) clearTimeout(costTimers[row.id])
+  costTimers[row.id] = setTimeout(async () => {
+    try {
+      await api.patch(`/models/model-upstream/${row.id}/cost/`, {
+        cost_input_price: row.cost_input_price || 0,
+        cost_output_price: row.cost_output_price || 0,
+        cost_cached_input_price: row.cost_cached_input_price || 0,
+      })
+      ElMessage.success('成本已更新')
+    } catch (e) {
+      ElMessage.error('更新成本失败')
+      await fetchBoundAccounts() // 刷新恢复
+    }
+  }, 500)
 }
 
 async function toggleAccount(row) {
