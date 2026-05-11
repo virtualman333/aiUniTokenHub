@@ -105,6 +105,7 @@ class Bill(models.Model):
         ('recharge', '充值'),
         ('consume', '消费'),
         ('refund', '退款'),
+        ('bonus', '赠送'),
     ]
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='bills')

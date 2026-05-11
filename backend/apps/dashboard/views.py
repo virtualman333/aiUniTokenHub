@@ -648,7 +648,7 @@ class InviteAdminViewSet(viewsets.GenericViewSet):
             inviter.save()
             Bill.objects.create(
                 user=inviter,
-                type="recharge",
+                type="bonus",
                 amount=reward.reward_amount,
                 balance=inviter.balance,
                 description=f"邀请返利审核通过（来自{reward.invitee.username}充值）",

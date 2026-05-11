@@ -33,6 +33,7 @@
             <el-option label="充值" value="recharge" />
             <el-option label="消费" value="consume" />
             <el-option label="退款" value="refund" />
+            <el-option label="赠送" value="bonus" />
           </el-select>
         </el-form-item>
         <el-form-item label="日期范围">
@@ -124,9 +125,9 @@
         
         <el-table-column prop="type" label="类型" width="100" align="center">
           <template #default="{ row }">
-            <el-tag 
-              :type="row.type === 'recharge' ? 'success' : row.type === 'consume' ? 'warning' : 'danger'" 
-              size="small" 
+            <el-tag
+              :type="row.type === 'recharge' ? 'success' : row.type === 'consume' ? 'warning' : row.type === 'refund' ? 'danger' : 'success'"
+              size="small"
               round
             >
               {{ row.type_display }}
@@ -461,6 +462,10 @@ onMounted(() => {
 
 .amount.refund {
   color: #ef4444;
+}
+
+.amount.bonus {
+  color: #10b981;
 }
 
 .upstream-cost {

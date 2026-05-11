@@ -6,7 +6,7 @@ import api from '@/stores'
 
 export interface Bill {
   id: number
-  type: 'recharge' | 'consume' | 'refund'
+  type: 'recharge' | 'consume' | 'refund' | 'bonus'
   amount: number
   balance: number
   description: string
