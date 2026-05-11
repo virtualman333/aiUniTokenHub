@@ -163,6 +163,7 @@ class AIModelViewSet(viewsets.ModelViewSet):
         search = self.request.query_params.get('search')
         featured = self.request.query_params.get('featured')
         has_accounts = self.request.query_params.get('has_accounts')
+        capability = self.request.query_params.get('capability')
 
         if provider:
             queryset = queryset.filter(provider__code=provider)
@@ -178,6 +179,16 @@ class AIModelViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(_account_count__gt=0)
         elif has_accounts == 'false':
             queryset = queryset.filter(_account_count=0)
+        if capability:
+            capability_filter = {
+                'streaming': 'supports_streaming',
+                'vision': 'supports_vision',
+                'tools': 'supports_tools',
+                'json': 'supports_json',
+            }
+            field = capability_filter.get(capability)
+            if field:
+                queryset = queryset.filter(**{field: True})
         if search:
             queryset = queryset.filter(
                 Q(name__icontains=search) | 

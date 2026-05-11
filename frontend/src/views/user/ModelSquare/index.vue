@@ -97,7 +97,8 @@ const {
   total,
   allTotal,
   fetchFilters,
-  fetchModels
+  fetchModels,
+  debounceSearch
 } = useModels()
 
 // 筛选状态
@@ -120,25 +121,25 @@ onMounted(() => {
 // 监听筛选变化
 import { watch } from 'vue'
 
-watch([searchQuery, selectedProvider, selectedCategory], () => {
-  debounceFetch()
-})
-
-function debounceFetch() {
+watch([searchQuery, selectedProvider, selectedCategory, selectedCapability], () => {
   currentPage.value = 1
   const params: Record<string, string> = {}
   if (searchQuery.value) params.search = searchQuery.value
   if (selectedProvider.value) params.provider = selectedProvider.value
   if (selectedCategory.value) params.category = selectedCategory.value
+  if (selectedCapability.value) params.capability = selectedCapability.value
   
-  fetchModels(params)
-}
+  debounceSearch(() => {
+    fetchModels(params)
+  }, 300)
+})
 
 function onPageChange() {
   const params: Record<string, string> = {}
   if (searchQuery.value) params.search = searchQuery.value
   if (selectedProvider.value) params.provider = selectedProvider.value
   if (selectedCategory.value) params.category = selectedCategory.value
+  if (selectedCapability.value) params.capability = selectedCapability.value
   fetchModels(params)
 }
 
@@ -149,7 +150,16 @@ function toggleTag(tag: string) {
   } else {
     selectedTags.value.push(tag)
   }
-  debounceFetch()
+  currentPage.value = 1
+  const params: Record<string, string> = {}
+  if (searchQuery.value) params.search = searchQuery.value
+  if (selectedProvider.value) params.provider = selectedProvider.value
+  if (selectedCategory.value) params.category = selectedCategory.value
+  if (selectedCapability.value) params.capability = selectedCapability.value
+  
+  debounceSearch(() => {
+    fetchModels(params)
+  }, 300)
 }
 
 function showModelDetail(model: Record<string, any>) {

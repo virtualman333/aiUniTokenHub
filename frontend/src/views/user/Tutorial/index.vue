@@ -164,7 +164,16 @@
             <CodeBlock :code="continueConfig" language="json" />
             
             <el-divider />
-
+            <h3>PyCharm\VSCode等大部分主流编辑器 接入方法</h3>
+            <ol>
+              <li>打开扩展商店</li>
+              <li>在商店中搜索kilo code插件</li>
+              <el-image :src="kiloCode1" alt="kilo code插件" />
+              <el-image :src="kiloCode" alt="kilo code插件" />
+              <li>在kilo code中新建配置</li>
+              <el-image :src="kiloCode2" alt="kilo code配置" />
+            </ol>
+            <el-divider />
             <h3>其他兼容工具通用配置</h3>
             <p>对于任何支持自定义 Base URL 的开发工具，通用配置如下：</p>
             <ul>
@@ -183,6 +192,10 @@
 import { ref, computed } from 'vue'
 import CodeBlock from '@/components/CodeBlock.vue'
 import traeModel from '@/assets/image/doc/trae-model.png'
+import kiloCode from '@/assets/image/doc/kilo.png'
+import kiloCode1 from '@/assets/image/doc/kilo1.png'
+import kiloCode2 from '@/assets/image/doc/kilo2.png'
+
 const activeTab = ref('claudecode')
 const apiBaseUrl = ref(window.location.origin + '/api/proxy/v1')
 
