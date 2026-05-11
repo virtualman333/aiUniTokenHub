@@ -441,59 +441,102 @@ class UserDashboardViewSet(viewsets.GenericViewSet):
         return APIResponse.success(result, "获取成功")
 
     @action(detail=False, methods=["get"])
+    def debug_db(self, request):
+        """诊断端点：检查数据库表结构"""
+        from django.db import connection
+        
+        result = {
+            "table_exists": False,
+            "columns": [],
+            "model_field_exists": False,
+            "sample_query": None,
+            "error": None,
+        }
+        
+        try:
+            with connection.cursor() as cursor:
+                # 检查表是否存在
+                cursor.execute("""
+                    SELECT EXISTS (
+                        SELECT FROM information_schema.tables 
+                        WHERE table_name = 'api_access_logs'
+                    )
+                """)
+                result["table_exists"] = cursor.fetchone()[0]
+                
+                # 获取所有列
+                cursor.execute("""
+                    SELECT column_name, data_type 
+                    FROM information_schema.columns 
+                    WHERE table_name = 'api_access_logs'
+                """)
+                result["columns"] = [
+                    {"name": row[0], "type": row[1]}
+                    for row in cursor.fetchall()
+                ]
+                
+                # 检查 model_id 列是否存在
+                result["model_field_exists"] = any(
+                    col["name"] == "model_id" 
+                    for col in result["columns"]
+                )
+                
+                # 尝试简单查询
+                if result["model_field_exists"]:
+                    cursor.execute("""
+                        SELECT COUNT(*) 
+                        FROM api_access_logs 
+                        WHERE model_id IS NOT NULL
+                    """)
+                    result["sample_query"] = {
+                        "model_id_not_null_count": cursor.fetchone()[0]
+                    }
+                    
+        except Exception as e:
+            result["error"] = str(e)
+            import traceback
+            result["error_detail"] = traceback.format_exc()
+        
+        return APIResponse.success(result, "诊断完成")
+
+    @action(detail=False, methods=["get"])
     def top_models(self, request):
-        """热门模型 - 所有用户最常用的模型统计（Redis缓存30分钟）"""
-        from django.core.cache import cache
-        
-        limit = int(request.query_params.get("limit", 5))
-        cache_key = f"top_models_{limit}"
-        
-        # 尝试从缓存获取
-        cached_data = cache.get(cache_key)
-        if cached_data:
-            return APIResponse.success(cached_data, "获取成功")
+        """热门模型 - 用户最常用的模型统计"""
+        try:
+            limit = int(request.query_params.get("limit", 5))
 
-        # 按模型统计调用次数和成功率（所有用户）
-        # 过滤：只统计已上架且有可用账号的模型
-        has_account = Exists(
-            ModelUpstreamAccount.objects.filter(
-                model=OuterRef('model'),
-                is_enabled=True
+            # 按模型统计调用次数和成功率
+            top_models_data = (
+                APIAccessLog.objects.filter(user=request.user, model__isnull=False)
+                .values("model__code", "model__name")
+                .annotate(
+                    count=Count("id"),
+                    success_count=Count("id", filter=Q(response_status__gte=200, response_status__lt=300))
+                )
+                .order_by("-count")[:limit]
             )
-        )
-        top_models_data = (
-            APIAccessLog.objects.filter(
-                has_account,
-                model__isnull=False,
-                model__status='active',
-            )
-            .values("model__code", "model__name")
-            .annotate(
-                count=Count("id"),
-                success_count=Count("id", filter=Q(response_status__gte=200, response_status__lt=300))
-            )
-            .order_by("-count")[:limit]
-        )
 
-        result = []
-        for item in top_models_data:
-            model_name = item["model__name"] or item["model__code"]
-            count = item["count"]
-            success_count = item["success_count"]
-            success_rate = round(success_count / count * 100, 1) if count > 0 else 0
+            result = []
+            for item in top_models_data:
+                model_name = item["model__name"] or item["model__code"]
+                count = item["count"]
+                success_count = item["success_count"]
+                success_rate = round(success_count / count * 100, 1) if count > 0 else 0
 
-            result.append({
-                "name": model_name,
-                "model_code": item["model__code"],
-                "count": count,
-                "success_rate": success_rate,
-            })
+                result.append({
+                    "name": model_name,
+                    "model_code": item["model__code"],
+                    "count": count,
+                    "success_rate": success_rate,
+                })
 
-        # 缓存30分钟（1800秒）
-        cache.set(cache_key, result, 1800)
-
-        # 如果没有数据，返回空列表（前端有模拟数据兜底）
-        return APIResponse.success(result, "获取成功")
+            # 如果没有数据，返回空列表（前端有模拟数据兜底）
+            return APIResponse.success(result, "获取成功")
+        except Exception as e:
+            import traceback
+            error_detail = traceback.format_exc()
+            print(f"top_models error: {error_detail}")  # 输出到控制台
+            return APIResponse.error(f"服务器错误: {str(e)}", 500)
 
     @action(detail=False, methods=["get"])
     def request_stats(self, request):
