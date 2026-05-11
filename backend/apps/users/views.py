@@ -42,6 +42,11 @@ class AuthViewSet(viewsets.GenericViewSet):
         if '@' not in email or '.' not in email:
             return APIResponse.error('邮箱格式不正确', 400)
 
+        # 检查是否为匿名邮箱
+        from .utils import is_disposable_email
+        if is_disposable_email(email):
+            return APIResponse.error('不支持该邮箱域名注册，请使用正规邮箱', 400)
+
         cfg = EmailConfig.get_config()
         if not cfg.is_enabled:
             return APIResponse.error('邮箱服务未启用，请联系管理员', 503)
@@ -110,6 +115,11 @@ class AuthViewSet(viewsets.GenericViewSet):
         if not code:
             return APIResponse.error('请填写邮箱验证码', 400)
 
+        # 检查是否为匿名邮箱
+        from .utils import is_disposable_email
+        if is_disposable_email(email):
+            return APIResponse.error('不支持该邮箱域名注册，请使用正规邮箱', 400)
+
         # 校验验证码
         record = (
             EmailVerifyCode.objects
@@ -139,7 +149,7 @@ class AuthViewSet(viewsets.GenericViewSet):
         user.save(update_fields=['balance'])
         Bill.objects.create(
             user=user,
-            type='recharge',
+            type='bonus',
             amount=welcome_amount,
             balance=user.balance,
             description='新用户注册赠送'

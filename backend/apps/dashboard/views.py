@@ -358,14 +358,44 @@ class AdminDashboardViewSet(viewsets.GenericViewSet, AnalyticsViewSet):
             user = User.objects.get(pk=pk)
             amount = request.data.get("amount", 0)
             note = request.data.get("note", "")
-
-            user.balance += Decimal(str(amount))
+            
+            # 如果是设置余额（而非增减），前端会传 set_balance=true
+            set_balance = request.data.get("set_balance", False)
+            
+            old_balance = user.balance
+            if set_balance:
+                # 直接设置余额
+                new_balance = Decimal(str(amount))
+                amount_changed = new_balance - old_balance
+                user.balance = new_balance
+            else:
+                # 增减余额
+                amount_changed = Decimal(str(amount))
+                user.balance += amount_changed
+            
             user.save()
+
+            # 创建账单记录
+            description = f"系统调整余额"
+            if note:
+                description += f"：{note}"
+            if set_balance:
+                description += f"（设为 ¥{user.balance:.6f}）"
+            else:
+                description += f"（{'+' if amount_changed >= 0 else ''}¥{amount_changed:.6f}）"
+
+            Bill.objects.create(
+                user=user,
+                type='adjust',  # 需要先在 Bill 模型中添加这个类型
+                amount=amount_changed,
+                balance=user.balance,
+                description=description
+            )
 
             return APIResponse.success(
                 {
-                    "balance": user.balance,
-                    "message": f'余额已{"增加" if amount >= 0 else "减少"} {abs(amount)} 元',
+                    "balance": float(user.balance),
+                    "message": f'余额已调整为 ¥{user.balance:.6f}',
                 },
                 "调整成功",
             )
@@ -648,7 +678,7 @@ class InviteAdminViewSet(viewsets.GenericViewSet):
             inviter.save()
             Bill.objects.create(
                 user=inviter,
-                type="recharge",
+                type="bonus",
                 amount=reward.reward_amount,
                 balance=inviter.balance,
                 description=f"邀请返利审核通过（来自{reward.invitee.username}充值）",

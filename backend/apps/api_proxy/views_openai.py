@@ -549,9 +549,19 @@ class ChatCompletionsView(APIView):
                 response_data = anthropic_to_openai(response_data)
             
             # 更新日志（含计费）
-            self._update_usage_log(usage_log, response, response_data, response_time, model_name,
+            billing_success = self._update_usage_log(usage_log, response, response_data, response_time, model_name,
                                   upstream_account=account)
             usage_log.refresh_from_db()  # 拿到计费后的最新值
+            
+            # 检查扣款是否成功，失败则返回402错误
+            if not billing_success and response.status_code < 400:
+                return Response({
+                    'error': {
+                        'message': '余额不足，请充值后再试。',
+                        'type': 'billing_error',
+                        'code': 'insufficient_balance'
+                    }
+                }, status=402)  # 402 Payment Required
             
             # 更新上游账号使用统计
             update_upstream_usage(account, success=response.status_code < 400)
@@ -648,6 +658,17 @@ class ChatCompletionsView(APIView):
     
     def _handle_streaming(self, request, api_key, user, account, model_name, start_time):
         """处理流式请求"""
+        # 检查余额是否充足，余额为0或负数时拒绝请求
+        if user.balance <= 0:
+            logger.warning(f"[ChatCompletions-Stream] 用户 {user.username}(ID:{user.id}) 余额为0，拒绝流式请求")
+            return Response({
+                'error': {
+                    'message': '余额不足，请充值后再试。',
+                    'type': 'billing_error',
+                    'code': 'insufficient_balance'
+                }
+            }, status=402)
+        
         protocol = protocol_of(account)
         headers = self._build_headers(request)
         headers['Authorization'] = f'Bearer {account.api_key}'
@@ -990,6 +1011,7 @@ class ChatCompletionsView(APIView):
         log.save()
 
         # 计费扣费（仅在请求成功时）
+        billing_success = True
         if response.status_code < 400 and log.total_tokens > 0:
             cost, success = calculate_and_deduct_cost(
                 log.user, model_code,
@@ -998,8 +1020,11 @@ class ChatCompletionsView(APIView):
                 upstream_account=upstream_account,
             )
             if not success and cost > 0:
-                # 余额不足，记录警告但不影响响应
-                pass
+                # 余额不足，记录警告
+                logger.warning(f"[Billing] 用户 {log.user.username}(ID:{log.user.id}) 余额不足，费用: {cost}元，余额: {log.user.balance}元")
+                billing_success = False
+        
+        return billing_success
 
 
 class CompletionsView(APIView):

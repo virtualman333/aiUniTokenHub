@@ -102,7 +102,8 @@ function getTypeTag(type: string) {
   const map: Record<string, any> = {
     recharge: 'success',
     consume: 'warning',
-    refund: 'info'
+    refund: 'info',
+    bonus: 'success'
   }
   return map[type] || ''
 }
@@ -111,7 +112,8 @@ function getTypeText(type: string) {
   const map: Record<string, string> = {
     recharge: '充值',
     consume: '消费',
-    refund: '退款'
+    refund: '退款',
+    bonus: '赠送'
   }
   return map[type] || type
 }

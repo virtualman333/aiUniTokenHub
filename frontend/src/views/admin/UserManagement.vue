@@ -153,16 +153,37 @@
     </el-dialog>
 
     <!-- 调整余额对话框 -->
-    <el-dialog v-model="showBalanceDialog" title="调整余额" width="400px">
-      <el-form label-width="80px">
+    <el-dialog v-model="showBalanceDialog" title="调整余额" width="500px">
+      <el-form label-width="100px">
         <el-form-item label="用户名">
           <span>{{ currentUser?.username }}</span>
         </el-form-item>
         <el-form-item label="当前余额">
-          <span class="balance">¥{{ Number(currentUser?.balance || 0).toFixed(4) }}</span>
+          <span class="balance">¥{{ Number(currentUser?.balance || 0).toFixed(6) }}</span>
         </el-form-item>
-        <el-form-item label="调整金额">
-          <el-input-number v-model="balanceAmount" :precision="2" :step="10" />
+        <el-form-item label="调整方式">
+          <el-radio-group v-model="balanceMode">
+            <el-radio value="add">增减金额</el-radio>
+            <el-radio value="set">直接设置</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item :label="balanceMode === 'add' ? '调整金额' : '设置金额'">
+          <el-input-number 
+            v-model="balanceAmount" 
+            :precision="6" 
+            :step="1" 
+            :min="-999999" 
+            :max="999999"
+            style="width: 200px"
+          />
+          <div class="quick-options" style="margin-left: 10px">
+            <el-button-group>
+              <el-button size="small" @click="balanceAmount = 0">清零</el-button>
+              <el-button size="small" @click="setBalanceTo(0.01)">设为0.01</el-button>
+              <el-button size="small" @click="setBalanceTo(1)">设为1</el-button>
+              <el-button size="small" @click="setBalanceTo(10)">设为10</el-button>
+            </el-button-group>
+          </div>
         </el-form-item>
         <el-form-item label="说明">
           <el-input v-model="balanceNote" placeholder="调整原因（可选）" />
@@ -222,8 +243,15 @@ const showBalanceDialog = ref(false)
 const currentUser = ref(null)
 const balanceAmount = ref(0)
 const balanceNote = ref('')
+const balanceMode = ref('add')  // 'add' 或 'set'
 const editFormRef = ref()
 const addFormRef = ref()
+
+// 设置余额的快捷方法
+const setBalanceTo = (value) => {
+  balanceMode.value = 'set'
+  balanceAmount.value = value
+}
 
 const queryParams = reactive({
   search: '',
@@ -340,13 +368,14 @@ const saveBalance = async () => {
   try {
     const data = await api.patch(`/dashboard/admin/users/${currentUser.value.id}/balance/`, {
       amount: balanceAmount.value,
-      note: balanceNote.value
+      note: balanceNote.value,
+      set_balance: balanceMode.value === 'set'
     })
     ElMessage.success(data?.message || '余额调整成功')
     showBalanceDialog.value = false
     loadUsers()
   } catch (error) {
-    ElMessage.error('调整失败')
+    ElMessage.error('调整失败: ' + (error.response?.data?.detail || error.message || ''))
   }
 }
 
