@@ -94,7 +94,7 @@
     
     <template #footer>
       <el-button @click="$emit('update:visible', false)">关闭</el-button>
-      <el-button type="primary" @click="$emit('use')">
+      <el-button v-if="!isImageModel" type="primary" @click="$emit('use')">
         <el-icon><ChatRound /></el-icon>
         开始对话
       </el-button>
@@ -103,9 +103,10 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { ChatRound } from '@element-plus/icons-vue'
 
-defineProps<{
+const props = defineProps<{
   visible: boolean
   model: Record<string, any> | null
 }>()
@@ -114,6 +115,10 @@ defineEmits<{
   'update:visible': [value: boolean]
   'use': []
 }>()
+
+const isImageModel = computed(() => {
+  return Number(props.model?.per_image_price) > 0
+})
 
 function formatPrice(price: number | string | null): string {
   if (price === null || price === undefined || price === '' || Number(price) === 0) return '0'
