@@ -142,18 +142,17 @@ class AIModelViewSet(viewsets.ModelViewSet):
             )
         )
         
-        # 非管理员只能看到已上架且有可用账号的
-        if not is_admin:
-            queryset = queryset.filter(status='active', _account_count__gt=0)
-        
-        # 使用 annotate 添加 has_accounts 和 account_count 字段（始终执行）
-        # 统计启用的账号数量
+        # 先 annotate 统计启用的账号数量，以便后续过滤可以使用 _account_count
         queryset = queryset.annotate(
             _account_count=Count(
                 'upstream_accounts',
                 filter=Q(upstream_accounts__is_enabled=True)
             )
         )
+
+        # 非管理员只能看到已上架且有可用账号的
+        if not is_admin:
+            queryset = queryset.filter(status='active', _account_count__gt=0)
         
         # 筛选参数
         provider = self.request.query_params.get('provider')
