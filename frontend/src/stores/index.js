@@ -38,8 +38,8 @@ api.interceptors.response.use(
         setTimeout(() => {
           window.location.href = '/login'
         }, 1500)
+        return Promise.reject(error)
       }
-      return Promise.reject(error)
     }
     
     // 尝试从后端响应中提取错误信息
