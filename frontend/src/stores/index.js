@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import axios from 'axios'
 import Cookies from 'js-cookie'
+import { ElMessage } from 'element-plus'
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
@@ -27,10 +28,18 @@ api.interceptors.response.use(
     return response.data
   },
   error => {
-    if (error.response?.status === 401) {
-      Cookies.remove('token')
-      Cookies.remove('userRole')
-      window.location.href = '/login'
+    // 处理 401 认证失败（HTTP 状态码或业务状态码）
+    if (error.response?.status === 401 || error.code === 401) {
+      // 避免在登录页重复提示和重定向
+      if (!window.location.pathname.startsWith('/login')) {
+        Cookies.remove('token')
+        Cookies.remove('userRole')
+        ElMessage.warning('登录信息已过期，正在重定向至登录页')
+        setTimeout(() => {
+          window.location.href = '/login'
+        }, 1500)
+      }
+      return Promise.reject(error)
     }
     
     // 尝试从后端响应中提取错误信息
