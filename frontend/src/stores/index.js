@@ -8,6 +8,18 @@ const api = axios.create({
   timeout: 30000,
 })
 
+// 处理认证/鉴权失败，跳转登录页
+function handleAuthRedirect() {
+  if (!window.location.pathname.startsWith('/login')) {
+    Cookies.remove('token')
+    Cookies.remove('userRole')
+    ElMessage.warning('登录信息已过期，正在重定向至登录页')
+    setTimeout(() => {
+      window.location.href = '/login'
+    }, 1500)
+  }
+}
+
 // 响应拦截器 - 处理统一响应格式 {code, msg, data}
 api.interceptors.response.use(
   response => {
@@ -17,6 +29,10 @@ api.interceptors.response.use(
       // 成功且有业务数据，直接返回 data
       if (res.code >= 200 && res.code < 300) {
         return res.data
+      }
+      // 认证/鉴权失败场景，跳转登录页
+      if (res.code === 401 || res.code === 403) {
+        handleAuthRedirect()
       }
       // 错误情况，抛出带有消息的错误
       const error = new Error(res.msg || '操作失败')
@@ -28,18 +44,9 @@ api.interceptors.response.use(
     return response.data
   },
   error => {
-    // 处理 401 认证失败（HTTP 状态码或业务状态码）
-    if (error.response?.status === 401 || error.code === 401) {
-      // 避免在登录页重复提示和重定向
-      if (!window.location.pathname.startsWith('/login')) {
-        Cookies.remove('token')
-        Cookies.remove('userRole')
-        ElMessage.warning('登录信息已过期，正在重定向至登录页')
-        setTimeout(() => {
-          window.location.href = '/login'
-        }, 1500)
-        return Promise.reject(error)
-      }
+    // 处理 401/403 认证鉴权失败（HTTP 状态码）
+    if (error.response?.status === 401 || error.response?.status === 403) {
+      handleAuthRedirect()
     }
     
     // 尝试从后端响应中提取错误信息
