@@ -211,6 +211,10 @@ class ImageGenerationView(APIView):
             if resp.status_code >= 400:
                 raise Exception(f'上游API错误: {resp.status_code} {resp.text[:300]}')
             data = resp.json()
+            # 上游返回200但body里包含错误信息
+            if 'error' in data:
+                err_msg = data['error'].get('message', str(data['error']))
+                raise Exception(f'上游API错误: {err_msg}')
 
         images = []
         for item in data.get('data', []):
@@ -257,6 +261,10 @@ class ImageGenerationView(APIView):
             if resp.status_code >= 400:
                 raise Exception(f'上游API错误: {resp.status_code} {resp.text[:300]}')
             result = resp.json()
+            # 上游返回200但body里包含错误信息
+            if 'error' in result:
+                err_msg = result['error'].get('message', str(result['error']))
+                raise Exception(f'上游API错误: {err_msg}')
 
         images = []
         for item in result.get('data', []):
