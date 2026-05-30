@@ -131,6 +131,13 @@ class ImageGenerationView(APIView):
             generation.save(update_fields=['status', 'error_message'])
             return APIResponse.error(f'图像生成失败: {str(e)[:200]}', 500)
 
+        # 上游返回为空，不扣费，提示重试
+        if not result_images:
+            generation.status = 'failed'
+            generation.error_message = '上游API未返回有效图片内容'
+            generation.save(update_fields=['status', 'error_message'])
+            return APIResponse.error('图像生成失败，未获取到图片内容，请稍后重试', 500)
+
         # 保存图片
         for img_data in result_images:
             img_bytes = img_data['bytes']
@@ -210,15 +217,23 @@ class ImageGenerationView(APIView):
             if 'b64_json' in item:
                 img_bytes = base64.b64decode(item['b64_json'])
             elif 'url' in item:
-                with httpx.Client(timeout=60) as client:
-                    img_resp = client.get(item['url'])
-                    img_bytes = img_resp.content
+                try:
+                    with httpx.Client(timeout=60) as client:
+                        img_resp = client.get(item['url'])
+                        img_resp.raise_for_status()
+                        img_bytes = img_resp.content
+                except Exception as dl_err:
+                    logger.error(f'[ImageGen] 下载图片URL失败: {item["url"]}, error: {dl_err}')
+                    continue
             else:
+                logger.warning(f'[ImageGen] 上游返回的数据项缺少 b64_json 和 url: {list(item.keys())}')
                 continue
             images.append({
                 'bytes': img_bytes,
                 'revised_prompt': item.get('revised_prompt', ''),
             })
+        if not images:
+            logger.error(f'[ImageGen] 上游API返回了 {len(data.get("data", []))} 项，但全部解析失败。原始响应: {str(data)[:500]}')
         return images
 
     def _call_edit_api(self, account, prompt, image_file, size, quality, n):
@@ -248,15 +263,23 @@ class ImageGenerationView(APIView):
             if 'b64_json' in item:
                 img_bytes = base64.b64decode(item['b64_json'])
             elif 'url' in item:
-                with httpx.Client(timeout=60) as client:
-                    img_resp = client.get(item['url'])
-                    img_bytes = img_resp.content
+                try:
+                    with httpx.Client(timeout=60) as client:
+                        img_resp = client.get(item['url'])
+                        img_resp.raise_for_status()
+                        img_bytes = img_resp.content
+                except Exception as dl_err:
+                    logger.error(f'[ImageGen] 下载图片URL失败(edit): {item["url"]}, error: {dl_err}')
+                    continue
             else:
+                logger.warning(f'[ImageGen] 上游返回的数据项缺少 b64_json 和 url(edit): {list(item.keys())}')
                 continue
             images.append({
                 'bytes': img_bytes,
                 'revised_prompt': item.get('revised_prompt', ''),
             })
+        if not images:
+            logger.error(f'[ImageGen] 上游API返回了 {len(result.get("data", []))} 项，但全部解析失败(edit)。原始响应: {str(result)[:500]}')
         return images
 
 

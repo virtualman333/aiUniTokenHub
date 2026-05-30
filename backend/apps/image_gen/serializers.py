@@ -12,7 +12,11 @@ class GeneratedImageSerializer(serializers.ModelSerializer):
     def get_image_url(self, obj):
         request = self.context.get('request')
         if obj.image and request:
-            return request.build_absolute_uri(obj.image.url)
+            url = request.build_absolute_uri(obj.image.url)
+            # 确保使用 HTTPS，避免 Mixed Content 导致图片加载失败
+            if url.startswith('http://'):
+                url = 'https://' + url[7:]
+            return url
         return ''
 
 
