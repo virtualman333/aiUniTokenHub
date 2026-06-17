@@ -298,7 +298,7 @@ const continueConfig = computed(() => `{
 
 const codexConfigToml = computed(() => `model_provider = "uni"
 # 可配置模型广场中的模型
-model = "deepseek-v4-pro"
+model = "gpt-5.5"  # 优先使用GPT模型, 其他模型可能会报错
 # 可配置high medium low
 model_reasoning_effort = "high"
 disable_response_storage = true
