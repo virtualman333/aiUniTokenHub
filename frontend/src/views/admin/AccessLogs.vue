@@ -343,7 +343,7 @@ const loadLogs = async () => {
     
     const res = await api.get('/proxy/access_logs/', { params })
     logs.value = res.results || res
-    pagination.total = res.count || logs.value.length
+    pagination.total = res.total ?? res.count ?? logs.value.length
   } catch (error) {
     ElMessage.error('加载日志失败: ' + (error.message || ''))
   } finally {
