@@ -45,7 +45,8 @@ def convert_request(data: Dict[str, Any]) -> Dict[str, Any]:
     _PASS_THROUGH_KEYS = [
         'stream', 'temperature', 'top_p', 'presence_penalty',
         'frequency_penalty', 'stop', 'seed', 'tool_choice',
-        'parallel_tool_calls', 'response_format',
+        'parallel_tool_calls', 'response_format', 'n',
+        'logit_bias', 'user',
     ]
     for key in _PASS_THROUGH_KEYS:
         if key in data:
@@ -61,8 +62,13 @@ def convert_request(data: Dict[str, Any]) -> Dict[str, Any]:
 
     # reasoning → reasoning_effort（仅 o1/o3 系列）
     reasoning = data.get('reasoning')
-    if isinstance(reasoning, dict):
-        chat_data['reasoning_effort'] = reasoning.get('effort', 'medium')
+    if isinstance(reasoning, dict) and reasoning.get('effort'):
+        effort = reasoning['effort']
+        # 钳位到上游支持的值
+        if effort in ('low', 'medium', 'high'):
+            chat_data['reasoning_effort'] = effort
+        elif effort == 'xhigh':
+            chat_data['reasoning_effort'] = 'high'
 
     return chat_data
 
@@ -241,6 +247,24 @@ def _convert_input_item(item: Dict[str, Any]) -> Optional[Dict[str, Any]]:
                 content = converted_content
 
         return {'role': role, 'content': content}
+
+    elif item_type == 'function_call':
+        # Response API 的 function_call → Chat API 的 assistant message with tool_calls
+        call_id = item.get('call_id') or item.get('id')
+        return {
+            'role': 'assistant',
+            'content': None,
+            'tool_calls': [
+                {
+                    'id': call_id,
+                    'type': 'function',
+                    'function': {
+                        'name': item.get('name', ''),
+                        'arguments': item.get('arguments', '{}'),
+                    },
+                }
+            ],
+        }
 
     elif item_type == 'function_call_output':
         # Response API 的 tool 结果 → Chat API 的 tool message

@@ -24,6 +24,8 @@ class StreamingConverter:
         self.text_done = False
         self.output_item_done = False
         self.completed = False
+        self.next_output_index = 0
+        self.message_output_index: Optional[int] = None
 
         self.resp_id = ''
         self.msg_id = ''
@@ -110,8 +112,10 @@ class StreamingConverter:
 
         role = role or self.message_role
         self.output_item_added = True
+        if self.message_output_index is None:
+            self.message_output_index = self._allocate_output_index()
         events.append(_sse_event('response.output_item.added', {
-            'output_index': 0,
+            'output_index': self.message_output_index,
             'item': {
                 'type': 'message',
                 'id': self.msg_id,
@@ -131,7 +135,7 @@ class StreamingConverter:
         events.extend(self._ensure_message_item())
         events.append(_sse_event('response.content_part.added', {
             'item_id': self.msg_id,
-            'output_index': 0,
+            'output_index': self._message_output_index(),
             'content_index': 0,
             'part': {
                 'type': 'output_text',
@@ -141,8 +145,23 @@ class StreamingConverter:
         }))
         return events
 
+    def _allocate_output_index(self) -> int:
+        output_index = self.next_output_index
+        self.next_output_index += 1
+        return output_index
+
+    def _message_output_index(self) -> int:
+        if self.message_output_index is None:
+            self.message_output_index = self._allocate_output_index()
+        return self.message_output_index
+
     def _tool_output_index(self, tool_index: int) -> int:
-        return (1 if self.output_item_added else 0) + tool_index
+        tool_call = self.tool_calls.get(tool_index)
+        if tool_call is None:
+            return self._allocate_output_index()
+        if tool_call.get('output_index') is None:
+            tool_call['output_index'] = self._allocate_output_index()
+        return int(tool_call['output_index'])
 
     def _tool_item_id(self, call_id: Optional[str], index: int) -> str:
         if call_id:
@@ -163,6 +182,7 @@ class StreamingConverter:
                 'name': '',
                 'arguments': '',
                 'added': False,
+                'output_index': None,
             }
 
         entry = self.tool_calls[idx]
@@ -209,13 +229,13 @@ class StreamingConverter:
             self.text_done = True
             events.append(_sse_event('response.output_text.done', {
                 'item_id': self.msg_id,
-                'output_index': 0,
+                'output_index': self._message_output_index(),
                 'content_index': 0,
                 'text': self.full_text,
             }))
             events.append(_sse_event('response.content_part.done', {
                 'item_id': self.msg_id,
-                'output_index': 0,
+                'output_index': self._message_output_index(),
                 'content_index': 0,
                 'part': {
                     'type': 'output_text',
@@ -316,7 +336,7 @@ class StreamingConverter:
             events.extend(self._finish_text_events())
             if self.output_item_added:
                 events.append(_sse_event('response.output_item.done', {
-                    'output_index': 0,
+                    'output_index': self._message_output_index(),
                     'item': {
                         'type': 'message',
                         'id': self.msg_id,
@@ -365,7 +385,7 @@ class StreamingConverter:
             self.full_text += content
             events.append(_sse_event('response.output_text.delta', {
                 'item_id': self.msg_id,
-                'output_index': 0,
+                'output_index': self._message_output_index(),
                 'content_index': 0,
                 'delta': content,
             }))
