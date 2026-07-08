@@ -11,7 +11,9 @@
         <el-tab-pane label="ClaudeCode 教程" name="claudecode">
           <div class="tutorial-content">
             <p>以下是 Windows、macOS 和 Linux 系统下设置 <code>ANTHROPIC_BASE_URL</code> 和 <code>ANTHROPIC_AUTH_TOKEN</code> 环境变量的详细方法：</p>
-            
+            <h3>CC switch</h3>
+            <el-image :src="ccSwitch" alt="CC switch" />
+            <el-divider />
             <h3>Windows 系统</h3>
             <h4>方法1：配置 settings.json</h4>
             <p>创建 <code>~/.claude/settings.json</code> 文件，内容如下：</p>
@@ -195,7 +197,7 @@ import traeModel from '@/assets/image/doc/trae-model.png'
 import kiloCode from '@/assets/image/doc/kilo.png'
 import kiloCode1 from '@/assets/image/doc/kilo1.png'
 import kiloCode2 from '@/assets/image/doc/kilo2.png'
-
+import ccSwitch from '@/assets/image/doc/cc-switch.png'
 const activeTab = ref('claudecode')
 const apiBaseUrl = ref(window.location.origin + '/api/proxy/v1')
 
