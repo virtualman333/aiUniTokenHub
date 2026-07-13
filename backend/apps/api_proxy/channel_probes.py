@@ -14,14 +14,16 @@ def protocol_of(channel: Any) -> str:
 
 
 def endpoint_url(base_url: str, endpoint: str, protocol: str = 'openai') -> str:
+    """
+    构建 API 端点 URL
+    直接拼接 base_url 和 endpoint，不自动添加 /v1
+    用户需在配置 base_url 时包含完整路径（如 https://api.anthropic.com/v1）
+    """
     if protocol == 'anthropic' and not base_url:
-        base_url = ANTHROPIC_DEFAULT_BASE_URL
+        base_url = f'{ANTHROPIC_DEFAULT_BASE_URL}/v1'
 
     base = (base_url or '').rstrip('/')
     endpoint = endpoint.strip('/')
-
-    if not base.lower().endswith('/v1'):
-        base = f'{base}/v1'
 
     return f'{base}/{endpoint}'
 
