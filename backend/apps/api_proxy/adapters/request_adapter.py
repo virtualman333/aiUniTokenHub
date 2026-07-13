@@ -95,16 +95,70 @@ def openai_to_anthropic(payload: Dict[str, Any], model: Optional[str] = None) ->
                 system_parts.append(text)
             continue
 
-        if role not in ('user', 'assistant'):
+        if role == 'tool':
+            # OpenAI tool result → Anthropic user message with tool_result content
+            tool_call_id = message.get('tool_call_id', '')
+            tool_content = _content_to_text(content)
+            messages.append({
+                'role': 'user',
+                'content': [
+                    {
+                        'type': 'tool_result',
+                        'tool_use_id': tool_call_id,
+                        'content': tool_content,
+                    }
+                ],
+            })
             continue
 
-        messages.append({
-            'role': role,
-            'content': _openai_content_to_anthropic(content),
-        })
+        if role == 'assistant':
+            # Build Anthropic content blocks: text + tool_use
+            anthr_content = []
+            # Text content (may be null when assistant only does tool_calls)
+            text_content = _openai_content_to_anthropic(content)
+            if text_content:
+                anthr_content.append({'type': 'text', 'text': text_content})
+
+            # Convert OpenAI tool_calls → Anthropic tool_use blocks
+            for tc in (message.get('tool_calls') or []):
+                if not isinstance(tc, dict) or tc.get('type') != 'function':
+                    continue
+                fn = tc.get('function') or {}
+                arguments = fn.get('arguments', '{}')
+                try:
+                    import json as _json
+                    inp = _json.loads(arguments) if isinstance(arguments, str) else arguments
+                except Exception:
+                    inp = {}
+                anthr_content.append({
+                    'type': 'tool_use',
+                    'id': tc.get('id', ''),
+                    'name': fn.get('name', ''),
+                    'input': inp,
+                })
+
+            if anthr_content:
+                messages.append({'role': 'assistant', 'content': anthr_content})
+            continue
+
+        if role == 'user':
+            messages.append({
+                'role': 'user',
+                'content': _openai_content_to_anthropic(content),
+            })
+            continue
+
+        # Unknown role – skip
+        continue
 
     if system_parts:
         anthropic_payload['system'] = '\n\n'.join(system_parts)
+
+    # Safety: Anthropic rejects requests with no user message.
+    # This can happen when all messages were system-only (e.g. Claude Code
+    # sending tool-call chain without an explicit user turn).
+    if not messages:
+        messages.append({'role': 'user', 'content': '(continuing conversation)'})
 
     anthropic_payload['messages'] = messages
 
