@@ -70,7 +70,9 @@ def build_endpoint_url(base_url: str, endpoint: str = 'chat/completions') -> str
 
 def build_protocol_endpoint_url(base_url: str, endpoint: str, protocol: str) -> str:
     if protocol == 'anthropic':
-        return endpoint_url(base_url, endpoint, protocol)
+        # Anthropic SDK 直接拼 base_url/messages，不加 /v1
+        base = base_url.rstrip('/')
+        return f"{base}/{endpoint.strip('/')}"
     return build_endpoint_url(base_url, endpoint)
 
 def get_api_key_from_request(request) -> tuple:
@@ -975,7 +977,7 @@ class ChatCompletionsView(APIView):
 
     def _build_anthropic_headers(self, api_key: str = '', stream: bool = False) -> dict:
         headers = {
-            **_anthropic_auth_headers(api_key),
+            'x-api-key': api_key,
             'anthropic-version': ANTHROPIC_VERSION,
             'content-type': 'application/json',
         }
