@@ -10,11 +10,12 @@
         <!-- ClaudeCode 教程 -->
         <el-tab-pane label="ClaudeCode 教程" name="claudecode">
           <div class="tutorial-content">
-            <p>以下是 Windows、macOS 和 Linux 系统下设置 <code>ANTHROPIC_BASE_URL</code> 和 <code>ANTHROPIC_AUTH_TOKEN</code> 环境变量的详细方法：</p>
+            <p>以下是 Windows、macOS系统下设置的详细方法：</p>
             <h3>CC switch</h3>
             <el-image :src="ccSwitch" alt="CC switch" />
+            <p>更新设置后, 需要重启claude code才能生效</p>
             <el-divider />
-            <h3>Windows 系统</h3>
+            <!-- <h3>Windows 系统</h3>
             <h4>方法1：配置 settings.json</h4>
             <p>创建 <code>~/.claude/settings.json</code> 文件，内容如下：</p>
             <CodeBlock :code="claudeWindowsSettings" language="json" />
@@ -83,14 +84,19 @@
 
             <h3>通用验证方法</h3>
             <p>在所有系统中，可以通过以下命令验证是否设置成功：</p>
-            <CodeBlock :code="claudeVerify" language="bash" />
+            <CodeBlock :code="claudeVerify" language="bash" /> -->
           </div>
         </el-tab-pane>
 
         <!-- Codex 教程 -->
         <el-tab-pane label="Codex 教程" name="codex">
           <div class="tutorial-content">
-            <h3>1、安装Codex</h3>
+            <p>以下是 Windows、macOS系统下设置的详细方法：</p>
+            <h3>CC switch</h3>
+            <el-image :src="ccSwitch_codex" alt="CC switch" />
+            <p>更新设置后, 需要重启Codex才能生效</p>
+            <el-divider />
+            <!-- <h3>1、安装Codex</h3>
             <p>使用 npm 进行安装</p>
             <CodeBlock code="npm install -g @openai/codex" language="bash" />
             
@@ -99,7 +105,7 @@
             <CodeBlock :code="codexConfigToml" language="ini" />
             
             <p>编辑文件 <code>~/.codex/auth.json</code></p>
-            <CodeBlock :code="codexAuthJson" language="json" />
+            <CodeBlock :code="codexAuthJson" language="json" /> -->
             
             <!-- <h3>常见问题</h3>
             <h4>报错 <code>wire_api = chat is no longer supported</code> 怎么办？</h4>
@@ -109,7 +115,7 @@
         </el-tab-pane>
 
         <!-- Gemini 教程 -->
-        <el-tab-pane label="Gemini 教程" name="gemini">
+        <!-- <el-tab-pane label="Gemini 教程" name="gemini">
           <div class="tutorial-content">
             <h3>1、安装Gemini Cli</h3>
             <p>使用 npm 进行安装</p>
@@ -125,7 +131,7 @@
             <h3>若出现401</h3>
             <p>输入 <code>/auth</code>，然后填上key</p>
           </div>
-        </el-tab-pane>
+        </el-tab-pane> -->
 
         <!-- 编程工具接入 -->
         <el-tab-pane label="编程工具接入" name="tools">
@@ -198,6 +204,7 @@ import kiloCode from '@/assets/image/doc/kilo.png'
 import kiloCode1 from '@/assets/image/doc/kilo1.png'
 import kiloCode2 from '@/assets/image/doc/kilo2.png'
 import ccSwitch from '@/assets/image/doc/cc-switch.png'
+import ccSwitch_codex from '@/assets/image/doc/codex_ccSwitch.png'
 const activeTab = ref('claudecode')
 const apiBaseUrl = ref(window.location.origin + '/api/proxy/v1')
 
