@@ -137,6 +137,19 @@ class ResponsesView(APIView):
         logger.info(f"[Responses] Original request body: {json.dumps(original_request, ensure_ascii=False)}")
         logger.info(f"[Responses] Converted Chat request: {json.dumps(chat_request, ensure_ascii=False)}")
 
+        # 余额校验：余额为 0 或负数时拒绝，避免消耗上游成本并阻止透支扩大
+        if user.balance <= 0:
+            logger.warning(
+                f"[Responses] 用户 {user.username}(ID:{user.id}) 余额不足"
+                f"(余额:{user.balance})，拒绝请求"
+            )
+            return self._error_response(
+                '余额不足，请充值后再试。',
+                'billing_error',
+                'insufficient_balance',
+                status_code=402,
+            )
+
         # 8. 分流式 / 非流式
         is_streaming = original_request.get('stream', False)
 
