@@ -473,14 +473,20 @@ class AnthropicStreamToOpenAIConverter:
         self.stop_reason: Optional[str] = None
         self.input_tokens = 0
         self.output_tokens = 0
+        # Anthropic 缓存 token（不含在 input_tokens 内，需单独累计）
+        self.cache_creation_tokens = 0
+        self.cache_read_tokens = 0
         self.tool_calls: Dict[int, Dict[str, Any]] = {}
 
     @property
-    def usage(self) -> Dict[str, int]:
+    def usage(self) -> Dict[str, Any]:
+        # Anthropic 的 input_tokens 不含缓存部分，需并入 prompt_tokens 才能正确计费
+        prompt_tokens = self.input_tokens + self.cache_creation_tokens + self.cache_read_tokens
         return {
-            'prompt_tokens': self.input_tokens,
+            'prompt_tokens': prompt_tokens,
             'completion_tokens': self.output_tokens,
-            'total_tokens': self.input_tokens + self.output_tokens,
+            'total_tokens': prompt_tokens + self.output_tokens,
+            'prompt_tokens_details': {'cached_tokens': self.cache_read_tokens},
         }
 
     def feed(self, chunk: bytes) -> List[str]:
@@ -535,6 +541,12 @@ class AnthropicStreamToOpenAIConverter:
             usage = message.get('usage') or {}
             self.input_tokens = int(usage.get('input_tokens') or self.input_tokens or 0)
             self.output_tokens = int(usage.get('output_tokens') or self.output_tokens or 0)
+            self.cache_creation_tokens = int(
+                usage.get('cache_creation_input_tokens') or self.cache_creation_tokens or 0
+            )
+            self.cache_read_tokens = int(
+                usage.get('cache_read_input_tokens') or self.cache_read_tokens or 0
+            )
             return [self._chunk({'role': 'assistant'})]
 
         if event_type == 'content_block_start':
@@ -582,6 +594,10 @@ class AnthropicStreamToOpenAIConverter:
             usage = data.get('usage') or {}
             if 'output_tokens' in usage:
                 self.output_tokens = int(usage.get('output_tokens') or 0)
+            if 'cache_creation_input_tokens' in usage:
+                self.cache_creation_tokens = int(usage.get('cache_creation_input_tokens') or 0)
+            if 'cache_read_input_tokens' in usage:
+                self.cache_read_tokens = int(usage.get('cache_read_input_tokens') or 0)
             return [self._chunk({}, finish_reason=_map_anthropic_stream_stop_reason(self.stop_reason), usage=self.usage)]
 
         if event_type == 'message_stop':

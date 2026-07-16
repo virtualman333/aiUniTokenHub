@@ -574,10 +574,15 @@ class ResponsesView(APIView):
             # 优先从 Response API 格式提取
             resp_usage = response_data.get('usage', {}) or {}
             if resp_usage.get('input_tokens') is not None:
+                # Response API 格式：缓存明细在 input_tokens_details 中，需一并保留
+                itd = resp_usage.get('input_tokens_details') or {}
                 usage = {
                     'prompt_tokens': resp_usage.get('input_tokens', 0),
                     'completion_tokens': resp_usage.get('output_tokens', 0),
                     'total_tokens': resp_usage.get('total_tokens', 0),
+                    'prompt_tokens_details': {
+                        'cached_tokens': int(itd.get('cached_tokens') or 0) if isinstance(itd, dict) else 0,
+                    },
                 }
             else:
                 usage = response_data.get('usage', {}) or {}
