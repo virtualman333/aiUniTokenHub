@@ -137,6 +137,19 @@ class ResponsesView(APIView):
         logger.info(f"[Responses] Original request body: {json.dumps(original_request, ensure_ascii=False)}")
         logger.info(f"[Responses] Converted Chat request: {json.dumps(chat_request, ensure_ascii=False)}")
 
+        # 余额校验：余额为 0 或负数时拒绝，避免消耗上游成本并阻止透支扩大
+        if user.balance <= 0:
+            logger.warning(
+                f"[Responses] 用户 {user.username}(ID:{user.id}) 余额不足"
+                f"(余额:{user.balance})，拒绝请求"
+            )
+            return self._error_response(
+                '余额不足，请充值后再试。',
+                'billing_error',
+                'insufficient_balance',
+                status_code=402,
+            )
+
         # 8. 分流式 / 非流式
         is_streaming = original_request.get('stream', False)
 
@@ -574,10 +587,15 @@ class ResponsesView(APIView):
             # 优先从 Response API 格式提取
             resp_usage = response_data.get('usage', {}) or {}
             if resp_usage.get('input_tokens') is not None:
+                # Response API 格式：缓存明细在 input_tokens_details 中，需一并保留
+                itd = resp_usage.get('input_tokens_details') or {}
                 usage = {
                     'prompt_tokens': resp_usage.get('input_tokens', 0),
                     'completion_tokens': resp_usage.get('output_tokens', 0),
                     'total_tokens': resp_usage.get('total_tokens', 0),
+                    'prompt_tokens_details': {
+                        'cached_tokens': int(itd.get('cached_tokens') or 0) if isinstance(itd, dict) else 0,
+                    },
                 }
             else:
                 usage = response_data.get('usage', {}) or {}

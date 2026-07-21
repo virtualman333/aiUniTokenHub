@@ -89,6 +89,11 @@ def anthropic_to_openai(resp: Dict[str, Any]) -> Dict[str, Any]:
     usage = resp.get('usage') or {}
     input_tokens = int(usage.get('input_tokens') or 0)
     output_tokens = int(usage.get('output_tokens') or 0)
+    # Anthropic 的 input_tokens 不含缓存部分，缓存写入/读取单独计数，
+    # 需一并计入 prompt_tokens，否则会漏计费。
+    cache_creation_tokens = int(usage.get('cache_creation_input_tokens') or 0)
+    cache_read_tokens = int(usage.get('cache_read_input_tokens') or 0)
+    prompt_tokens = input_tokens + cache_creation_tokens + cache_read_tokens
 
     return {
         'id': resp.get('id'),
@@ -101,9 +106,11 @@ def anthropic_to_openai(resp: Dict[str, Any]) -> Dict[str, Any]:
             'finish_reason': map_anthropic_stop_reason(resp.get('stop_reason')),
         }],
         'usage': {
-            'prompt_tokens': input_tokens,
+            'prompt_tokens': prompt_tokens,
             'completion_tokens': output_tokens,
-            'total_tokens': input_tokens + output_tokens,
+            'total_tokens': prompt_tokens + output_tokens,
+            # 暴露缓存命中 token，供计费按缓存折扣价单独计算
+            'prompt_tokens_details': {'cached_tokens': cache_read_tokens},
         },
     }
 

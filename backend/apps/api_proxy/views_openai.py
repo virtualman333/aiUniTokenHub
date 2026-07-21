@@ -20,8 +20,9 @@ from rest_framework.views import APIView
 
 from django.http import StreamingHttpResponse
 from django.core.cache import cache
+from django.db import transaction
 
-from apps.users.models import APIKey, UsageLog, Bill
+from apps.users.models import APIKey, UsageLog, Bill, User
 from apps.users.mailer import send_alert_email
 from apps.ai_models.models import AIModel
 from apps.ai_models.upstream_models import UpstreamAccount, ModelUpstreamAccount
@@ -333,27 +334,35 @@ def calculate_and_deduct_cost(user, model_code, input_tokens, output_tokens,
     if cost <= 0:
         return 0, True
 
-    # 余额不足：仍记录费用，但不扣款（业务可调整）
-    if user.balance < Decimal(str(cost)):
-        return cost, False
-
-    user.balance -= Decimal(str(cost))
-    user.save(update_fields=['balance'])
-
+    cost_decimal = Decimal(str(cost))
     desc_parts = [f'输入{input_tokens}tokens']
     if cached_tokens > 0:
         desc_parts.append(f'其中缓存{cached_tokens}')
     desc_parts.append(f'输出{output_tokens}tokens')
     description = f'API调用 {model_code} ({", ".join(desc_parts)})'
 
-    Bill.objects.create(
-        user=user,
-        type='consume',
-        amount=-cost,
-        balance=user.balance,
-        description=description,
-        usage_log=usage_log
-    )
+    # 原子扣费：加行锁重新读取余额，避免并发下的“读-改-写”竞态导致少扣。
+    # 请求已消耗上游资源，必须计费；允许本次扣成负数（一次性透支），
+    # 后续请求由入口的前置余额校验（balance<=0）拦截，从而杜绝白嫖。
+    try:
+        with transaction.atomic():
+            locked_user = User.objects.select_for_update().get(pk=user.id)
+            locked_user.balance = locked_user.balance - cost_decimal
+            locked_user.save(update_fields=['balance'])
+            Bill.objects.create(
+                user=locked_user,
+                type='consume',
+                amount=-cost,
+                balance=locked_user.balance,
+                description=description,
+                usage_log=usage_log,
+            )
+        # 同步内存对象余额，供上层日志/展示使用
+        user.balance = locked_user.balance
+    except Exception as e:
+        logger.error(f"[Billing] 扣费失败 user_id={getattr(user, 'id', None)}: {e}")
+        return cost, False
+
     return cost, True
 
 
@@ -429,7 +438,21 @@ class ChatCompletionsView(APIView):
                     'code': 'quota_exceeded'
                 }
             }, status=status.HTTP_429_TOO_MANY_REQUESTS)
-        
+
+        # 检查余额：余额为 0 或负数时拒绝，避免消耗上游成本并阻止透支扩大
+        if user.balance <= Decimal('0'):
+            logger.warning(
+                f"[ChatCompletions] 用户 {user.username}(ID:{user.id}) 余额不足"
+                f"(余额:{user.balance})，拒绝请求"
+            )
+            return Response({
+                'error': {
+                    'message': '余额不足，请充值后再试。',
+                    'type': 'billing_error',
+                    'code': 'insufficient_balance'
+                }
+            }, status=402)  # 402 Payment Required
+
         # 选择上游账号
         account = select_upstream_account(model_name)
         if not account:
