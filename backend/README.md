@@ -31,5 +31,19 @@ python manage.py createsuperuser
 python manage.py runserver
 ```
 
+## 测试
+
+`apps/api_proxy/tests/` 是协议适配层（OpenAI ↔ Anthropic 转换）的单元测试。
+纯 Python，**不需要数据库、不需要 Django settings**，秒级跑完：
+
+```bash
+cd backend
+python -m unittest discover -s apps/api_proxy/tests -t . -v
+```
+
+重点覆盖计费口径：`anthropic_to_openai` 必须把 `cache_creation_input_tokens` 与
+`cache_read_input_tokens` 一并计入 `prompt_tokens`，否则缓存命中会漏计费。改动
+`apps/api_proxy/adapters/` 下任何文件后都应跑通这组测试。
+
 ## API文档
 启动服务后访问: http://localhost:8000/admin/

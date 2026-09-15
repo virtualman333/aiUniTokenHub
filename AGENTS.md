@@ -11,7 +11,9 @@
 - Create migrations only when model changes require them: `python manage.py makemigrations`, then run `python manage.py migrate`.
 - Frontend setup/run/build from `frontend/`: `npm install`, `npm run dev`, `npm run build`, `npm run preview`.
 - `npm run build` runs `vite build && node scripts/zip-dist.js`, so it creates both `frontend/dist/` and `frontend/dist.zip`.
-- There are no configured frontend lint/test/typecheck scripts and no backend test files discovered; use focused smoke checks such as `python manage.py check` or `npm run build` when appropriate.
+- There are no configured frontend lint/test/typecheck scripts; use `npm run build` as the frontend smoke check.
+- Backend has one test package: `backend/apps/api_proxy/tests/` — pure-Python unit tests for the OpenAI↔Anthropic protocol adapters and the token/billing accounting they produce. It needs neither a database nor Django settings; run it from `backend/` with `python -m unittest discover -s apps/api_proxy/tests -t . -v`. Any change under `apps/api_proxy/adapters/` must keep it green.
+- Beyond that package there are no backend test files; use focused smoke checks such as `python manage.py check` when appropriate.
 
 ## Environment
 - Backend reads `.env` via `python-dotenv`; start from `backend/.env.example` and provide MySQL settings plus optional Redis.
