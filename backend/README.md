@@ -2,7 +2,7 @@
 
 ## 环境要求
 - Python 3.10+
-- MySQL 8+
+- MySQL 5.7+
 - Redis 6+
 
 ## 安装

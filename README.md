@@ -70,8 +70,10 @@ uniTokenHub/
 
 - Python 3.10+
 - Node.js 18+
-- PostgreSQL 14+
+- MySQL 5.7+
 - Redis 6+
+
+> 数据库口径以 `backend/config/settings.py` 的 `REQUIRED_DATABASE` 为准（代码里专门绕过了 Django 的版本检查来兼容 5.7，所以别把它写成 8+，也不必去装别的数据库）。
 
 ### 1. 后端部署
 
@@ -139,10 +141,11 @@ npm run dev
 
 # 生产构建
 npm run build
-
-# 构建并打包为 zip
-npm run build:zip
 ```
+
+`npm run build` 跑的是 `vite build && node scripts/zip-dist.js`，**一次就把两件事都做了**：产出 `frontend/dist/`，并打成 `frontend/dist.zip`（两个都在 `.gitignore` 里）。想单独预览构建结果用 `npm run preview`。
+
+前端脚本清单以 `frontend/package.json` 的 `scripts` 为准 —— 文档里写下的每条 `npm run` 命令是否真实存在，由 `backend/apps/docs/tests/test_docs_contract.py` 检查（此前这里写着 `npm run build:zip`，而那个脚本从来没有过，照抄只会得到 `Missing script`）。
 
 ## 🔧 配置说明
 

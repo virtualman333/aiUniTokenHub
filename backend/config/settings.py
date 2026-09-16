@@ -80,7 +80,18 @@ DB_PASSWORD = os.getenv('DB_PASSWORD', 'unitokenhub')
 DB_HOST = os.getenv('DB_HOST', '127.0.0.1')
 DB_PORT = os.getenv('DB_PORT', '3306')
 
-# 允许 MySQL 5.7（绕过版本检查）
+# 运行这个服务需要什么数据库 —— **唯一一处定义**。
+#
+# 文档（README.md / AGENTS.md / backend/README.md …）里凡是要自建者去装数据库的
+# 地方，口径都必须来这一行。此前四份文档给出三种说法：README 的技术栈表写
+# MySQL 5.7+、**同一份 README 的环境要求写 PostgreSQL 14+**、backend/README 写
+# MySQL 8+，而这里的 ENGINE 是第四种 —— 照环境要求走的人会去装 PostgreSQL，
+# 以为非得 8.0 不可的人会白白升级一次数据库。没有任何东西会因为它们报错。
+# 由 apps/docs/tests/test_docs_contract.py 守着。
+REQUIRED_DATABASE = 'MySQL 5.7+'
+
+# 允许 MySQL 5.7（绕过版本检查）—— REQUIRED_DATABASE 里那个 5.7 就是这条依据：
+# 代码是**刻意**支持 5.7 的，所以文档不该要求 8+。
 import django.db.backends.mysql.base
 django.db.backends.mysql.base.Database.check_database_version_supported = lambda self: None
 
