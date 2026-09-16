@@ -32,8 +32,8 @@ from .views_openai import (
     check_rate_limit,
     update_upstream_usage,
     update_usage_log,
+    finalize_stream_usage,
     log_api_access,
-    calculate_and_deduct_cost,
     get_client_ip,
     build_endpoint_url,
     build_protocol_endpoint_url,
@@ -48,12 +48,9 @@ from .channel_probes import ANTHROPIC_VERSION, protocol_of
 # '余额不足，请充值后再试。'，并把服务端扣费出错回成同一句话。
 from apps.utils.billing import (
     CHAT_ERROR_TYPE,
-    DEDUCT_OK,
     DEDUCT_ERROR,
     deduct_failure_payload,
-    parse_usage_dict,
     precheck_failure,
-    unbilled_stream_note,
 )
 
 logger = logging.getLogger('api_proxy')
@@ -479,11 +476,17 @@ class ResponsesView(APIView):
                     yield self._error_sse('error', str(e), 'internal_error')
 
                 finally:
-                    # 流结束后：更新 UsageLog、计费、记录访问日志
-                    self._finalize_stream(
-                        usage_log, user, api_key, model_name,
-                        original_request, final_status, final_error_msg,
-                        final_usage, start_time, client_ip, model_obj, account,
+                    # 流结束后统一收尾。实现只有一份（views_openai.finalize_stream_usage），
+                    # /chat/completions 那条流式路径调的是同一个函数 —— 以前两边各写了一份
+                    # 逐行相同、只有端点名与日志前缀不同的副本。
+                    finalize_stream_usage(
+                        endpoint='/responses',
+                        log_tag='[Responses-Stream]',
+                        usage_log=usage_log, user=user, api_key=api_key,
+                        model_name=model_name, request_body=original_request,
+                        client_ip=client_ip, model_obj=model_obj, account=account,
+                        start_time=start_time, final_status=final_status,
+                        final_error_msg=final_error_msg, final_usage=final_usage,
                     )
 
             streaming_response = StreamingHttpResponse(
@@ -590,82 +593,6 @@ class ResponsesView(APIView):
     # 日志 & 计费
     # ------------------------------------------------------------------
 
-    def _finalize_stream(self, usage_log, user, api_key, model_name,
-                         original_request, final_status, final_error_msg,
-                         final_usage, start_time, client_ip, model_obj, account):
-        """流式结束后统一记录日志和计费"""
-        response_time_ms = int((time.time() - start_time) * 1000)
-
-        # 用量解析只有一处（`apps/utils/billing.parse_usage_dict`），这里以前
-        # 自己写了一份 —— 而它不认 Responses 形态的 `input_tokens` 与
-        # `input_tokens_details`。同一个上游换个端点算出不同用量，收的钱就不同。
-        prompt_tokens, completion_tokens, total_tokens, cached_tokens = parse_usage_dict(final_usage)
-
-        # 成功却一个 token 都没收到 = 这笔没收钱。与 /chat/completions 同一个
-        # 判据、同一句话（apps/utils/billing.py），两边不许各写一份。
-        note = unbilled_stream_note(
-            '/responses', final_status, total_tokens,
-            user_id=getattr(user, 'id', None), usage_log_id=getattr(usage_log, 'id', None),
-        )
-        if note:
-            logger.warning(note)
-
-        # 更新 UsageLog
-        try:
-            usage_log.status_code = final_status or 200
-            usage_log.response_time = response_time_ms
-            usage_log.input_tokens = prompt_tokens
-            usage_log.output_tokens = completion_tokens
-            usage_log.total_tokens = total_tokens
-            usage_log.cached_tokens = cached_tokens
-            usage_log.save()
-        except Exception as e:
-            logger.error(f"[Responses-Stream] update usage_log failed: {e}")
-
-        # 计费
-        cost_value = 0
-        if (final_status and final_status < 400) and total_tokens > 0:
-            try:
-                cost_value, charge_status = calculate_and_deduct_cost(
-                    user, model_name,
-                    prompt_tokens, completion_tokens, usage_log,
-                    cached_tokens=cached_tokens,
-                    upstream_account=account,
-                )
-                if charge_status != DEDUCT_OK:
-                    # 流式响应头已经发出去了，改不了 HTTP 状态码 —— 只能如实记日志
-                    # （带金额，好对账）。这条路径上的失败同样是服务端问题。
-                    logger.error(
-                        f"[Responses-Stream] 扣费未成功（服务端） "
-                        f"user_id={user.id} cost={cost_value} status={charge_status}"
-                    )
-            except Exception as e:
-                logger.error(f"[Responses-Stream] charge failed: {e}")
-
-        # 记录访问日志
-        try:
-            usage_log.refresh_from_db()
-            log_api_access(
-                api_key, user, 'POST', '/responses',
-                original_request,
-                final_usage if final_usage else (
-                    {'error': {'message': final_error_msg}} if final_error_msg else {'streamed': True}
-                ),
-                final_status or 200,
-                response_time_ms,
-                client_ip,
-                model=model_obj,
-                upstream_account=account,
-                input_tokens=prompt_tokens,
-                output_tokens=completion_tokens,
-                total_tokens=total_tokens,
-                cached_tokens=cached_tokens,
-                cost=cost_value,
-                upstream_cost=usage_log.upstream_cost,
-                profit=usage_log.profit,
-            )
-        except Exception as e:
-            logger.error(f"[Responses-Stream] write access log failed: {e}")
 
     def _log_access(self, api_key, user, request_body, response_data,
                     status_code, response_time, model_obj, account,

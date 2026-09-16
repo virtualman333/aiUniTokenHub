@@ -474,6 +474,94 @@ def update_usage_log(log, response, response_data, response_time, model_code,
     return charge_usage(log, model_code, response.status_code, cached_tokens, upstream_account)
 
 
+def finalize_stream_usage(*, endpoint, log_tag, usage_log, user, api_key, model_name,
+                          request_body, client_ip, model_obj, account, start_time,
+                          final_status, final_error_msg, final_usage):
+    """**流式**请求收尾：解析用量 → 更新 UsageLog → 计费 → 写 APIAccessLog。
+
+    为什么流式不能复用上面那条 `update_usage_log`：它按 `response.status_code`
+    写日志，而流式走到这里时 HTTP 响应头**早就发出去了**，改不了状态码，失败也只能
+    如实记日志（带金额，好对账）。这是两条不同的收尾路径，不是两份可以合并的实现。
+
+    但「两条路径」不等于「每个端点各写一份」：`/chat/completions` 与 `/responses`
+    此前各有一份逐行相同的收尾，差异只有端点名与日志前缀 —— 于是任何一处改了对
+    另一处都不会提醒。现在只有这一份，两个端点都调它。
+
+    `endpoint` 同时用于 `unbilled_stream_note` 的文案与 APIAccessLog 的 path，
+    `log_tag` 是日志前缀（`[ChatCompletions-Stream]` / `[Responses-Stream]`）。
+    """
+    response_time_ms = int((time.time() - start_time) * 1000)
+    # 用量解析只有一处（`apps/utils/billing.parse_usage_dict`）——这里以前每个端点
+    # 自己写了一份，只认 OpenAI 与 Anthropic 的缓存字段。
+    prompt_tokens, completion_tokens, total_tokens, cached_tokens = parse_usage_dict(final_usage)
+
+    # 成功却一个 token 都没收到 = 这笔没收钱。以前是静默的：余额不动、用量全 0，
+    # 与「这次真的免费」看不出区别。
+    note = unbilled_stream_note(
+        endpoint, final_status, total_tokens,
+        user_id=getattr(user, 'id', None), usage_log_id=getattr(usage_log, 'id', None),
+    )
+    if note:
+        logger.warning(note)
+
+    try:
+        usage_log.status_code = final_status or 200
+        usage_log.response_time = response_time_ms
+        usage_log.input_tokens = prompt_tokens
+        usage_log.output_tokens = completion_tokens
+        usage_log.total_tokens = total_tokens
+        usage_log.cached_tokens = cached_tokens
+        usage_log.save()
+    except Exception as e:
+        logger.error(f"{log_tag} update usage_log failed: {e}")
+
+    # 计费（仅成功且有 token 数据时）：会把 cost 写回 usage_log
+    cost_value = 0
+    if (final_status and final_status < 400) and total_tokens > 0:
+        try:
+            cost_value, charge_status = calculate_and_deduct_cost(
+                user, model_name,
+                prompt_tokens, completion_tokens, usage_log,
+                cached_tokens=cached_tokens,
+                upstream_account=account,
+            )
+            if charge_status != DEDUCT_OK:
+                # 流式响应头早就发出去了，改不了 HTTP 状态码 —— 这里只能如实记日志
+                # （含金额，好对账）。入口那道前置余额校验保证透支不会扩大，所以这条
+                # 路径上的失败同样是服务端问题，绝不是「用户没充钱」。
+                logger.error(
+                    f"{log_tag} 扣费未成功（服务端） "
+                    f"user_id={getattr(user, 'id', None)} cost={cost_value} status={charge_status}"
+                )
+        except Exception as e:
+            logger.error(f"{log_tag} charge failed: {e}")
+
+    # 写 APIAccessLog（带 token + cost + profit）
+    try:
+        usage_log.refresh_from_db()
+        log_api_access(
+            api_key, user, 'POST', endpoint,
+            request_body,
+            final_usage if final_usage else (
+                {'error': {'message': final_error_msg}} if final_error_msg else {'streamed': True}
+            ),
+            final_status or 200,
+            response_time_ms,
+            client_ip,
+            model=model_obj,
+            upstream_account=account,
+            input_tokens=prompt_tokens,
+            output_tokens=completion_tokens,
+            total_tokens=total_tokens,
+            cached_tokens=cached_tokens,
+            cost=cost_value,
+            upstream_cost=usage_log.upstream_cost,
+            profit=usage_log.profit,
+        )
+    except Exception as e:
+        logger.error(f"{log_tag} write access log failed: {e}")
+
+
 # ============== OpenAI 兼容接口 ==============
 
 class ChatCompletionsView(APIView):
@@ -1007,79 +1095,17 @@ class ChatCompletionsView(APIView):
                         + '\n\n'
                     ).encode('utf-8')
                 finally:
-                    # 流结束后：统一记录 APIAccessLog、更新 UsageLog、计费
-                    response_time_ms = int((time.time() - start_time) * 1000)
-                    # 用量解析只有一处（`apps/utils/billing.parse_usage_dict`）——
-                    # 这里以前自己写了一份，只认 OpenAI 与 Anthropic 的缓存字段。
-                    prompt_tokens, completion_tokens, total_tokens, cached_tokens = parse_usage_dict(final_usage)
-
-                    # 成功却一个 token 都没收到 = 这笔没收钱。以前是静默的：
-                    # 余额不动、用量全 0，与「这次真的免费」看不出区别。
-                    note = unbilled_stream_note(
-                        '/chat/completions', final_status, total_tokens,
-                        user_id=user.id, usage_log_id=getattr(usage_log, 'id', None),
+                    # 流结束后统一收尾。实现只有一份（views_openai.finalize_stream_usage），
+                    # /responses 那条流式路径调的是同一个函数 —— 以前两边各写了一份。
+                    finalize_stream_usage(
+                        endpoint='/chat/completions',
+                        log_tag='[ChatCompletions-Stream]',
+                        usage_log=usage_log, user=user, api_key=api_key,
+                        model_name=model_name, request_body=request_data_copy,
+                        client_ip=client_ip, model_obj=model_obj, account=account,
+                        start_time=start_time, final_status=final_status,
+                        final_error_msg=final_error_msg, final_usage=final_usage,
                     )
-                    if note:
-                        logger.warning(note)
-
-                    # 更新 UsageLog
-                    try:
-                        usage_log.status_code = final_status or 200
-                        usage_log.response_time = response_time_ms
-                        usage_log.input_tokens = prompt_tokens
-                        usage_log.output_tokens = completion_tokens
-                        usage_log.total_tokens = total_tokens
-                        usage_log.cached_tokens = cached_tokens
-                        usage_log.save()
-                    except Exception as e:
-                        logger.error(f"[ChatCompletions-Stream] update usage_log failed: {e}")
-
-                    # 计费（仅成功且有 token 数据时）：会把 cost 写回 usage_log
-                    cost_value = 0
-                    if (final_status and final_status < 400) and total_tokens > 0:
-                        try:
-                            cost_value, charge_status = calculate_and_deduct_cost(
-                                user, model_name,
-                                prompt_tokens, completion_tokens, usage_log,
-                                cached_tokens=cached_tokens,
-                                upstream_account=account,
-                            )
-                            if charge_status != DEDUCT_OK:
-                                # 流式响应头早就发出去了，改不了 HTTP 状态码 ——
-                                # 这里只能如实记日志（含金额，好对账）。入口那道
-                                # 前置余额校验保证透支不会扩大，所以这条路径上的
-                                # 失败同样是服务端问题，绝不是「用户没充钱」。
-                                logger.error(
-                                    f"[ChatCompletions-Stream] 扣费未成功（服务端） "
-                                    f"user_id={user.id} cost={cost_value} status={charge_status}"
-                                )
-                        except Exception as e:
-                            logger.error(f"[ChatCompletions-Stream] charge failed: {e}")
-
-                    # 写 APIAccessLog（带 token + cost + profit）
-                    try:
-                        usage_log.refresh_from_db()
-                        log_api_access(
-                            api_key, user, 'POST', '/chat/completions',
-                            request_data_copy,
-                            final_usage if final_usage else (
-                                {'error': {'message': final_error_msg}} if final_error_msg else {'streamed': True}
-                            ),
-                            final_status or 200,
-                            response_time_ms,
-                            client_ip,
-                            model=model_obj,
-                            upstream_account=account,
-                            input_tokens=prompt_tokens,
-                            output_tokens=completion_tokens,
-                            total_tokens=total_tokens,
-                            cached_tokens=cached_tokens,
-                            cost=cost_value,
-                            upstream_cost=usage_log.upstream_cost,
-                            profit=usage_log.profit,
-                        )
-                    except Exception as e:
-                        logger.error(f"[ChatCompletions-Stream] write access log failed: {e}")
 
             streaming_response = StreamingHttpResponse(
                 generate(),

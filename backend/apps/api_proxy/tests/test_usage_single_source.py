@@ -44,6 +44,7 @@ SINGLE_SOURCE_FUNCTIONS = (
     'update_usage_log',
     'charge_usage',
     'apply_usage_to_log',
+    'finalize_stream_usage',
 )
 
 
@@ -95,6 +96,31 @@ def _defined_names(src: str) -> set:
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             names.add(node.name)
     return names
+
+
+def _function_callers_of(src: str, target: str) -> set:
+    """哪些**函数 / 方法体**里直接调了 `target`（不往下钻进内层函数）。
+
+    为什么不能用 `_called_names`：它只回答「这个文件里调过没有」，分不出是哪个函数
+    调的。而这一轮要锁的恰恰是「只剩下共用的那一份在调它」—— 用文件级的判据，
+    「某条端点又内联了一份收尾」这种情况完全测不出来。
+    """
+    owners = set()
+
+    def scan(node, owner):
+        for child in ast.iter_child_nodes(node):
+            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                scan(child, child.name)
+                continue
+            if isinstance(child, ast.Call):
+                func = child.func
+                name = func.id if isinstance(func, ast.Name) else getattr(func, 'attr', None)
+                if name == target and owner:
+                    owners.add(owner)
+            scan(child, owner)
+
+    scan(ast.parse(src), None)
+    return owners
 
 
 class UsageParsingLivesInOnePlaceTest(unittest.TestCase):
@@ -172,6 +198,53 @@ class UsageParsingLivesInOnePlaceTest(unittest.TestCase):
                     field, assigned,
                     f'apply_usage_to_log 不再写 log.{field} —— '
                     f'四个 token 字段必须在同一处落盘，漏一个就是「钱收了、账对不上」',
+                )
+
+
+class StreamingFinalizeLivesInOnePlaceTest(unittest.TestCase):
+    """**流式**收尾也只有一份。
+
+    为什么单独立一节：上面那条 `test_两个端点都必须走共用的收尾实现` 断言的是
+    「文件里调过 update_usage_log」—— 而两个文件里都有**非流式**路径，所以它一直
+    是绿的，**从来没有覆盖流式**。于是 `/chat/completions` 与 `/responses` 的流式
+    收尾各自长了一份逐行相同、只有端点名与日志前缀不同的副本，谁也管不着。
+
+    「一条锁看起来覆盖了某件事、其实没有」比没有锁更贵：它会让人以为这块已经守住了。
+    """
+
+    def test_两个端点的流式收尾都走共用的那一份(self):
+        for path in (OPENAI_VIEWS, RESPONSES_VIEWS):
+            with self.subTest(file=path.name):
+                self.assertIn(
+                    'finalize_stream_usage', _called_names(_read(path)),
+                    f'{path.name} 没调 views_openai.finalize_stream_usage —— '
+                    f'这条流式端点既不记用量、也不计费、更不会告警',
+                )
+
+    def test_流式收尾之外没人在解析用量(self):
+        # 这条才是真正防「又内联一份收尾」的判据：按**函数**归因，不是按文件。
+        # 只断言「文件里调过」的话，某条端点自己内联一份、同时别处还留着旧调用，
+        # 照样能绿。
+        self.assertEqual(
+            _function_callers_of(_read(OPENAI_VIEWS), 'parse_usage_dict'),
+            {'finalize_stream_usage'},
+            'views_openai 里除了共用的流式收尾，还有别处在解析上游用量 —— '
+            '又长出了一条收尾路径',
+        )
+        self.assertEqual(
+            _function_callers_of(_read(RESPONSES_VIEWS), 'parse_usage_dict'),
+            set(),
+            'views_responses 里又有人在解析上游用量 —— 它应当只调共用的收尾实现',
+        )
+
+    def test_流式收尾不许再长回各自的方法(self):
+        # 结构性回退：把 `_finalize_stream` 写回视图里，就又会变成两份。
+        for path in (OPENAI_VIEWS, RESPONSES_VIEWS):
+            with self.subTest(file=path.name):
+                self.assertNotIn(
+                    '_finalize_stream', _defined_names(_read(path)),
+                    f'{path.name} 里又定义了 _finalize_stream —— '
+                    f'流式收尾只有视图外那一处（views_openai.finalize_stream_usage）',
                 )
 
 

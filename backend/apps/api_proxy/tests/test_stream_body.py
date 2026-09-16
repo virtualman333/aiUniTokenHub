@@ -174,15 +174,30 @@ class 两条流式端点共用一个入口(unittest.TestCase):
                     f'{path.name} 又在自己拼流式请求体了 —— 请走 build_stream_body',
                 )
 
-    def test_两个视图都调用了未计费告警(self):
-        """成功却没收到 usage = 这笔没收钱，必须两边都留得下痕迹。"""
+    def test_两个流式端点都经过未计费告警(self):
+        """成功却没收到 usage = 这笔没收钱，必须两边都留得下痕迹。
+
+        判据跟着「收尾实现」走，不跟着「文件里有没有这行字」走：这条锁原本断言
+        `unbilled_stream_note` 在**每个**视图文件里各出现一次 —— 它想守的是
+        「两条流式端点都留得下痕迹」，只是当时唯一能表达这件事的方式就是各写一次。
+
+        第 12 轮把两个端点各自的流式收尾并成了
+        `views_openai.finalize_stream_usage` 一份，于是「每条端点各出现一次」不再成立
+        （/responses 那边已经不直接调它了），而意图仍然成立。所以改成锁两件真正的事：
+        告警写在唯一那一份收尾里（恰好一次），且两个端点都必须调那一份。
+        继续按文件计次的话，收敛之后会红，而它守的东西其实还在。
+        """
+        self.assertEqual(
+            _called_names(_read(OPENAI_VIEWS)).count('unbilled_stream_note'), 1,
+            '唯一的流式收尾实现（views_openai.finalize_stream_usage）里没有（或不止一次）'
+            '调用 unbilled_stream_note —— 「成功但没收到 usage」会一声不响地不收钱',
+        )
         for path in (OPENAI_VIEWS, RESPONSES_VIEWS):
             with self.subTest(path=path.name):
-                called = _called_names(_read(path))
-                self.assertEqual(
-                    called.count('unbilled_stream_note'), 1,
-                    f'{path.name} 没调用 unbilled_stream_note —— 这条端点「成功但没收到 usage」'
-                    f'时会一声不响地不收钱',
+                self.assertIn(
+                    'finalize_stream_usage', _called_names(_read(path)),
+                    f'{path.name} 没走 views_openai.finalize_stream_usage —— '
+                    f'这条流式端点既不记用量、也不计费、更不会告警',
                 )
 
 
