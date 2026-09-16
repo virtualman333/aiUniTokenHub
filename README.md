@@ -117,6 +117,8 @@ python run_tests.py
 
 - **定价格只允许有一个来源**：图像单张价格（含「模型没配单价时用多少」）在 `apps/image_gen/pricing.py`；`chatcmpl… → resp…` 的 id 映射在 `apps/api_proxy/adapters/ids.py`，流式与非流式共用。别在 `views.py` 里再写一遍。
 - **扣费必须是原子的**：`transaction.atomic()` + `select_for_update()`，余额在锁内重读；图片生成要**先扣费再保存图片**，否则一次「余额不足」的请求会把图留在库里，用户照样能下载。
+- **扣了钱没给货必须退**：正因为是先扣费再保存图片，保存图片失败（磁盘/COS 写不进去）就得原路退回、并写一条 `type='refund'` 账单，退完把本次 `cost` 归零当幂等标记。退款和扣费要拿同一把锁、顺序也一致（先 `User` 再 `ImageGeneration`），否则并发下会互相等锁。退款本身失败时不抛异常 —— 已经是最坏的情况，该如实写进日志和返回信息说「没退成」，而不是再抛一个异常把真正的失败原因盖掉。
+- **扣费失败的原因要分档**：`_deduct_cost()` 返回 `(cost, DEDUCT_OK | DEDUCT_INSUFFICIENT | DEDUCT_ERROR)` 三档结果，不再是布尔值。服务端自己出错（查库/写库异常）不能报成「余额不足」—— 那会诱导用户去充值，还把 500 伪装成 400 让人以为是请求写错了。所有面向用户的计费文案（余额不足、扣费失败、退款到账/未到账）都由 `apps/image_gen/billing.py` 生成，别在 `views.py` 里另写一份。
 
 `run_tests.py` 扫的是 `apps/*/tests/`，不是写死的清单 —— 清单必然会漂移：`apps/dashboard/` 没有 `__init__.py`，`python -m unittest discover -s apps -t .` 会**不报错地**跳过整个包，曾有 21 个用例因此长期没被跑过。现在某个 `tests/` 目录缺 `__init__.py` 就会直接失败，不允许静默少跑。
 
