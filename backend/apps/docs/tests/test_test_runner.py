@@ -1,0 +1,310 @@
+# -*- coding: utf-8 -*-
+"""测试入口自己也要被锁住 —— `run_tests.py` 是全仓 282 条断言唯一的执行入口。
+
+为什么要有它
+------------
+`README.md` 第 129 行对 `run_tests.py` 有两条明确承诺：
+
+  1. 「扫的是 `apps/*/tests/`，**不是写死的清单** —— 清单必然会漂移」
+  2. 「某个 `tests/` 目录缺 `__init__.py` 就会**直接失败**，不允许静默少跑」
+
+而在此之前，全仓没有一条用例测过这个脚本本身。它一旦回归，**症状是"全绿"**：
+
+  - `apps/*/tests` 换成写死的清单 → 新加的包静默不参与，`OK —— N 例全部通过`，
+    而 N 少了多少没人知道；
+  - `__init__.py` 那道检查被删 → 少了它正是历史上 21 个 dashboard 用例长期没被
+    跑过的原因（见 `run_tests.py` 的说明）；
+  - `pattern='test_*.py'` 改动 → 整个文件静默不收集。
+
+跑 `python run_tests.py` 的人只会看到一行 `OK`。所以这一层必须由**行为**钉住，
+而不是读源码断言（`.py` 里那两句话是长是短都拦不住回归）。
+
+锁什么
+------
+- **真跑一遍临时 backend 根**（子进程启动副本脚本）：造两个包 → 必须都收到；
+  改动目录数 → 结果必须跟着变。这一条同时证明了"不是写死的清单"——
+  凭空造的目录不可能出现在任何清单里。
+- **缺 `__init__.py` 必须失败**：退出码非 0，且消息点名那个目录。
+- **真仓库的每个包都参与**——收上来的包集合必须等于 `apps/*/tests` 的实际集合。
+- **扫描面收窄时 `run_tests.py` 自己必须失败**——这条判据在 `collect()` 里无条件
+  执行，不能只放在本文件里：本文件里的用例本身就在被扫的范围内，扫描面一收窄
+  它们跟着消失（实测：glob 换成写死的单包清单，全仓从 295 例悄悄变成 116 例，
+  输出仍是 `OK`、退出码仍是 0）。这里只验证那道守卫还活着。
+- **失败时退出码非 0**——CI 只认这一个数字；返回 0 的失败是最彻底的假绿。
+- **扫描面自证**：空的临时根必须失败、名字不匹配的文件不得算作用例、
+  `find_test_packages` 缺哪几个 `__init__.py` 就点名哪几个。没有这几条，
+  上面的断言可能只是恒真。
+
+跑法（在 backend/ 下）：python run_tests.py
+"""
+import shutil
+import subprocess
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+from unittest import mock
+
+BACKEND = Path(__file__).resolve().parents[3]
+ROOT = BACKEND.parent
+RUNNER = BACKEND / 'run_tests.py'
+
+sys.path.insert(0, str(BACKEND))
+import run_tests  # noqa: E402  （放在 sys.path 处理之后，与脚本自身的做法一致）
+
+#: 临时 backend 根里的最小可跑用例
+MINIMAL_TEST = (
+    "import unittest\n"
+    "\n"
+    "class TestTrivial(unittest.TestCase):\n"
+    "    def test_ok(self):\n"
+    "        self.assertEqual(1 + 1, 2)\n"
+)
+
+#: 一定会失败的一条 —— 用来验证「失败时退出码非 0」
+FAILING_TEST = (
+    "import unittest\n"
+    "\n"
+    "class TestBroken(unittest.TestCase):\n"
+    "    def test_fails(self):\n"
+    "        self.assertEqual(1, 2)\n"
+)
+
+
+def real_test_packages():
+    """独立重算一遍「该有哪些包」—— 不用被测实现自己算。"""
+    apps = BACKEND / 'apps'
+    return sorted(
+        (p / 'tests').relative_to(BACKEND).as_posix()
+        for p in apps.iterdir()
+        if p.is_dir() and (p / 'tests').is_dir()
+    )
+
+
+def test_file_count(package_rel):
+    """包里有几个 `test_*.py`。"""
+    return len(list((BACKEND / package_rel).glob('test_*.py')))
+
+
+class TestRunnerSeesEveryPackage(unittest.TestCase):
+    """真仓库：每个包都参与，每个 `test_*.py` 都贡献了用例。"""
+
+    def setUp(self):
+        self.suite, self.packages = run_tests.collect()
+        self.counts = dict(self.packages)
+
+    def test_packages_match_reality(self):
+        self.assertEqual(
+            sorted(self.counts),
+            real_test_packages(),
+            'run_tests.py 收上来的包和 apps/*/tests 的实际集合不一致 —— '
+            '少一个包就意味着那个包里的用例从此不会被执行，而输出仍然是 OK',
+        )
+
+    def test_totals_add_up(self):
+        self.assertGreater(self.suite.countTestCases(), 0, '一条用例都没收到')
+        self.assertEqual(
+            self.suite.countTestCases(), sum(self.counts.values()),
+            '总数与各包之和对不上 —— 收集过程有重复或遗漏',
+        )
+
+
+class TestRunnerRefusesToUnderCollect(unittest.TestCase):
+    """扫描面收窄时，`run_tests.py` **自己**必须失败。
+
+    这一节存在的理由：`apps/docs/tests/` 里的用例本身就在被扫的范围内 —— 扫描面一
+    收窄，它们跟着一起消失。实测把 `find_test_packages` 的 glob 换成写死的单包清单，
+    全仓从 295 例悄悄变成 **116 例**，而输出是 `OK`、退出码是 0：守卫和它守卫的东西
+    一起静默失效了。所以判据必须待在 `collect()` 里无条件执行，这里只验证它还活着。
+    """
+
+    def setUp(self):
+        # 这一节**不**用临时根：进程内那个 `apps` 包已经指向真仓库了，临时根里的模块名
+        # 会撞在上面，discovery 收上来的是「导入失败的占位用例」而不是真用例 ——
+        # 初版就是这样，`countTestCases() == 2` 看着对，其实两条都是导入错误。
+        # 临时根交给上面那个**子进程**测试类（那边没有已加载的同名包）。
+        # 这里改为在真仓库上**把清单收窄**，直接模拟那个回归。
+        pass
+
+    def test_narrowed_package_list_is_fatal(self):
+        """收集清单被收窄 → `collect()` 必须报出「有文件掉在扫描面外」。"""
+        only_api_proxy = BACKEND / 'apps' / 'api_proxy' / 'tests'
+        with mock.patch.object(
+            run_tests, 'find_test_packages', lambda root=None: [only_api_proxy]
+        ):
+            with self.assertRaises(SystemExit) as ctx:
+                run_tests.collect()
+        msg = str(ctx.exception)
+        self.assertIn(
+            'apps/docs/tests/test_test_runner.py', msg,
+            '必须点名是哪个文件掉队了 —— 否则没人知道少了什么',
+        )
+        self.assertIn('glob', msg, '报错要说清「清单必须是 glob」')
+
+    def test_full_package_list_passes_the_same_check(self):
+        """反向对照：清单没被动过时不该报错（否则这条守卫会被当成误报而关掉）。"""
+        _suite, packages = run_tests.collect()
+        self.assertGreaterEqual(len(packages), 5, '真仓库的包不可能这么少')
+
+    def test_barren_discovery_is_fatal(self):
+        """discovery 什么都收不上来（等价于 pattern 被改）→ 必须失败。"""
+        with mock.patch.object(
+            run_tests.unittest.TestLoader, 'discover',
+            lambda *a, **k: run_tests.unittest.TestSuite(),
+        ):
+            with self.assertRaises(SystemExit) as ctx:
+                run_tests.collect()
+        msg = str(ctx.exception)
+        self.assertIn('apps/api_proxy/tests', msg, '必须点名是哪个包')
+        self.assertIn('只收到 0 例', msg, '要说清"几个文件、收到几例"')
+
+
+class TestRunnerOnAFreshBackendRoot(unittest.TestCase):
+    """凭空造一个 backend 根跑一遍 —— 证明它真的在扫 glob。"""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix='unitokenhub-runner-'))
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        shutil.copy(RUNNER, self.tmp / 'run_tests.py')
+        # 与真仓库一致：apps/ 与各应用目录都**没有** __init__.py（靠 namespace package），
+        # 只有 tests/ 里才有 —— 别在这里补上，否则测的就不是真形状了。
+        self.add_package('alpha', 'test_alpha.py')
+        self.add_package('beta', 'test_beta.py')
+
+    def add_package(self, app, filename):
+        d = self.tmp / 'apps' / app / 'tests'
+        d.mkdir(parents=True, exist_ok=True)
+        (d / '__init__.py').write_text('', encoding='utf-8')
+        (d / filename).write_text(MINIMAL_TEST, encoding='utf-8')
+        return d
+
+    def run_runner(self):
+        return subprocess.run(
+            [sys.executable, 'run_tests.py'],
+            cwd=str(self.tmp), capture_output=True, text=True,
+            encoding='utf-8', errors='replace',
+        )
+
+    def test_both_packages_are_collected(self):
+        r = self.run_runner()
+        self.assertEqual(
+            r.returncode, 0,
+            f'临时根跑不起来：\n{r.stdout}\n{r.stderr}',
+        )
+        for app in ('alpha', 'beta'):
+            self.assertIn(f'apps/{app}/tests', r.stdout, f'{app} 没被收到')
+        self.assertIn('2 例全部通过', r.stdout, '两个包各一条用例，应收到 2 例')
+        self.assertIn('测试包 2 个', r.stdout)
+
+    def test_new_package_changes_the_result(self):
+        """再加一个包，收到的就必须跟着变 —— 写死的清单过不了这一关。"""
+        self.add_package('gamma', 'test_gamma.py')
+        r = self.run_runner()
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn('测试包 3 个', r.stdout, '凭空造出来的第三个包没被扫到 —— 扫描面是写死的？')
+        self.assertIn('3 例全部通过', r.stdout)
+
+    def test_non_matching_filename_is_not_collected(self):
+        """名字不匹配 `test_*.py` 的文件不算用例 —— 包在、里面的文件不算数。"""
+        d = self.add_package('delta', 'test_delta.py')
+        (d / 'test_delta.py').unlink()
+        (d / 'mytest.py').write_text(MINIMAL_TEST, encoding='utf-8')
+        r = self.run_runner()
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn('测试包 3 个', r.stdout, 'delta 有 tests/ 目录，应被算作一个包')
+        self.assertIn(
+            '2 例全部通过', r.stdout,
+            'delta 里只有 mytest.py（不匹配 test_*.py），不该贡献用例',
+        )
+
+    def test_a_failing_case_makes_it_exit_nonzero(self):
+        """有失败时退出码必须非 0 —— CI 靠这一个数字判断过没过。"""
+        d = self.add_package('omega', 'test_broken.py')
+        (d / 'test_broken.py').write_text(FAILING_TEST, encoding='utf-8')
+        r = self.run_runner()
+        self.assertNotEqual(
+            r.returncode, 0,
+            '有用例失败了，脚本却返回 0 —— 接进 CI 就是一条永远绿的流水线',
+        )
+        self.assertIn('FAILED', r.stdout)
+
+    def test_missing_init_is_fatal_not_silent(self):
+        """缺 `__init__.py` 必须失败并点名目录 —— 静默少跑是最坏的结果。"""
+        (self.tmp / 'apps' / 'beta' / 'tests' / '__init__.py').unlink()
+        r = self.run_runner()
+        self.assertNotEqual(r.returncode, 0, f'缺 __init__.py 竟然跑成了：\n{r.stdout}')
+        self.assertIn('apps/beta/tests', r.stdout + r.stderr,
+                      '报错必须点名是哪个目录，否则没人知道该补哪里的 __init__.py')
+
+    def test_init_missing_in_any_package_is_fatal(self):
+        """两个包同时缺，两个都要被点名（不能报一个就收工）。"""
+        for app in ('alpha', 'beta'):
+            (self.tmp / 'apps' / app / 'tests' / '__init__.py').unlink()
+        r = self.run_runner()
+        self.assertNotEqual(r.returncode, 0)
+        out = r.stdout + r.stderr
+        for app in ('alpha', 'beta'):
+            self.assertIn(f'apps/{app}/tests', out, f'{app} 没被点名')
+
+
+class TestScanSurfaceOfTheRunnerContract(unittest.TestCase):
+    """扫描面自证 —— 没有这一段，上面几条可能只是恒真。"""
+
+    def test_a_fresh_root_really_changes_things(self):
+        """反向自证：空的临时根必须**失败**，否则「扫到了」可能只是脚本里写死的。"""
+        tmp = Path(tempfile.mkdtemp(prefix='unitokenhub-empty-'))
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        shutil.copy(RUNNER, tmp / 'run_tests.py')
+        r = subprocess.run(
+            [sys.executable, 'run_tests.py'], cwd=str(tmp),
+            capture_output=True, text=True, encoding='utf-8', errors='replace',
+        )
+        self.assertNotEqual(r.returncode, 0, '空根竟然也 OK —— 这个脚本没在扫目录')
+        self.assertIn('没找到任何 apps/*/tests 目录', r.stdout + r.stderr)
+
+    def test_find_test_packages_names_every_missing_init(self):
+        """直接调函数：缺哪几个就点名哪几个，且不误伤已经补好的那个。
+
+        （子进程测试只看得到退出码和输出，看不到这个返回值。）
+        """
+        tmp = Path(tempfile.mkdtemp(prefix='unitokenhub-find-'))
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        for app in ('one', 'two', 'three'):
+            (tmp / 'apps' / app / 'tests').mkdir(parents=True)
+        (tmp / 'apps' / 'one' / 'tests' / '__init__.py').write_text('', encoding='utf-8')
+
+        def find():
+            return run_tests.find_test_packages(tmp)
+
+        with self.assertRaises(SystemExit) as ctx:
+            find()
+        msg = str(ctx.exception)
+        for app in ('two', 'three'):
+            self.assertIn(f'apps/{app}/tests', msg, f'{app} 缺 __init__.py 却没被点名')
+        self.assertNotIn(
+            'apps/one/tests', msg,
+            'one 已经补好了 __init__.py，不该出现在报错里 —— 那会让人以为它也有问题',
+        )
+
+        (tmp / 'apps' / 'two' / 'tests' / '__init__.py').write_text('', encoding='utf-8')
+        with self.assertRaises(SystemExit) as ctx:
+            find()
+        self.assertNotIn('apps/two/tests', str(ctx.exception), '补好的那个不该再被点名')
+        self.assertIn('apps/three/tests', str(ctx.exception))
+
+        (tmp / 'apps' / 'three' / 'tests' / '__init__.py').write_text('', encoding='utf-8')
+        found = find()
+        self.assertEqual(
+            sorted(d.parent.name for d in found), ['one', 'three', 'two'],
+            '都补好之后应把三个目录都返回',
+        )
+
+    def test_collect_counts_match_the_files_on_disk(self):
+        """扫描面自证：真仓库里收到的包数必须等于 apps/*/tests 的实际个数。"""
+        _suite, packages = run_tests.collect()
+        self.assertEqual(len(packages), len(real_test_packages()))
+        self.assertGreaterEqual(len(packages), 5, '包太少了 —— 扫描面坏了？')
+
+
+if __name__ == '__main__':
+    unittest.main()

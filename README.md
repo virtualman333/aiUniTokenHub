@@ -126,7 +126,7 @@ python run_tests.py
 
 > 为什么文案模块在 `apps/utils/` 而不是 `apps/image_gen/`：它现在服务三条路径（图片、chat/completions、responses）。`apps/utils/__init__.py` 因此**不做任何 re-export** —— 一旦在里面 `from .response import ...`，`from apps.utils import billing` 就会连带把 Django/DRF 拖进来，纯 Python 测试立刻跑不起来。
 
-`run_tests.py` 扫的是 `apps/*/tests/`，不是写死的清单 —— 清单必然会漂移：`apps/dashboard/` 没有 `__init__.py`，`python -m unittest discover -s apps -t .` 会**不报错地**跳过整个包，曾有 21 个用例因此长期没被跑过。现在某个 `tests/` 目录缺 `__init__.py` 就会直接失败，不允许静默少跑。
+`run_tests.py` 扫的是 `apps/*/tests/`，不是写死的清单 —— 清单必然会漂移：`apps/dashboard/` 没有 `__init__.py`，`python -m unittest discover -s apps -t .` 会**不报错地**跳过整个包，曾有 21 个用例因此长期没被跑过。现在某个 `tests/` 目录缺 `__init__.py` 就会直接失败，不允许静默少跑。另外，有 `test_*.py` 掉在收集范围之外、或某个包一条用例都没收到，也会直接失败；这两道自证写在 `run_tests.py` 自己里，不能只放在 `apps/docs/tests/` —— 那里的用例本身就在被扫的范围内，扫描面一收窄它们跟着一起消失（实测：把收集清单换成写死的单包，全仓从 296 例悄悄变成 116 例，输出仍是 `OK`）。
 
 ### 3. 前端部署
 
