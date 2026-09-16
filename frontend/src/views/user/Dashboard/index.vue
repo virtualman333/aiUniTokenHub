@@ -26,6 +26,29 @@
       </div>
     </div>
 
+    <!-- 低余额预警：只在需要提醒时出现（余额已空 / 告急 / 留意消耗）。
+         余额充足与「还没产生消耗」都不占首屏位置。等级判定与文案全部来自
+         后端 runway 接口，这里不重算任何口径。 -->
+    <div v-if="balanceAlert" :class="['balance-alert', `tone-${alertTone}`]" v-loading="runwayLoading">
+      <el-icon :size="22" class="alert-icon"><WarningFilled /></el-icon>
+      <div class="alert-body">
+        <div class="alert-title">
+          {{ balanceAlert.level_text }}
+          <span v-if="balanceAlert.runway_days !== null" class="alert-chip">
+            还能用约 {{ balanceAlert.runway_days }} 天
+          </span>
+          <span v-if="balanceAlert.exhaust_date" class="alert-chip">
+            预计 {{ balanceAlert.exhaust_date }} 见底
+          </span>
+        </div>
+        <p class="alert-advice">{{ balanceAlert.advice }}</p>
+      </div>
+      <el-button :type="alertTone === 'danger' ? 'danger' : 'warning'" @click="showRecharge = true">
+        <el-icon><Wallet /></el-icon>
+        立即充值
+      </el-button>
+    </div>
+
     <!-- 统计卡片 -->
     <div class="stat-grid">
       <StatCard
@@ -197,12 +220,13 @@ import {
   DocumentCopy,
   Refresh,
   Wallet,
-  Coin
+  Coin,
+  WarningFilled
 } from '@element-plus/icons-vue'
 import StatCard from './components/StatCard.vue'
 import RechargeDialog from '@/components/RechargeDialog.vue'
 import { useDashboard } from './composables/useDashboard'
-import { useBilling } from '@/views/user/Billing/composables/useBilling'
+import { useBilling, needsBalanceAlert, runwayTone } from '@/views/user/Billing/composables/useBilling'
 import { copyToClipboard } from '@/utils/clipboard'
 
 const {
@@ -216,9 +240,19 @@ const {
 } = useDashboard()
 
 // 余额相关
-const { balance, loadBalance } = useBilling()
+const { balance, runway, runwayLoading, loadBalance, loadRunway } = useBilling()
 const balanceLoading = ref(false)
 const showRecharge = ref(false)
+
+/**
+ * 低余额预警：只在 empty / critical / watch 三档出现。
+ * 这是用户登录后看到的第一屏 —— 余额见底却要自己点进账单页才发现，
+ * 那这条信息就等于没有。判定与话术都来自后端 runway 接口（单一口径）。
+ */
+const balanceAlert = computed(() =>
+  runway.value && needsBalanceAlert(runway.value.level) ? runway.value : null
+)
+const alertTone = computed(() => runwayTone(balanceAlert.value?.level))
 
 const inviteLink = computed(() => {
   const code = inviteInfo.value.invite_code
@@ -268,6 +302,7 @@ function formatTokenCount(count: number): string {
 onMounted(() => {
   loadData()
   loadBalance()
+  loadRunway()
 })
 </script>
 
@@ -328,6 +363,73 @@ onMounted(() => {
 
 .header-actions {
   flex-shrink: 0;
+}
+
+/* 低余额预警条 */
+.balance-alert {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-6);
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--border-light);
+  margin-bottom: var(--space-6);
+  animation: fadeIn 0.35s ease-out;
+}
+
+.balance-alert .alert-icon {
+  flex-shrink: 0;
+}
+
+.balance-alert .alert-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.alert-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  font-size: var(--text-base);
+  font-weight: var(--font-semibold);
+  color: var(--text-primary);
+}
+
+.alert-chip {
+  font-size: var(--text-xs);
+  font-weight: var(--font-medium);
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.6);
+  color: var(--text-secondary);
+}
+
+.alert-advice {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  line-height: var(--leading-relaxed);
+}
+
+.balance-alert.tone-danger {
+  background: linear-gradient(135deg, var(--error-50) 0%, var(--error-100) 100%);
+  border-color: var(--error-200);
+}
+
+.balance-alert.tone-danger .alert-icon,
+.balance-alert.tone-danger .alert-title {
+  color: var(--error-700, #c92a2a);
+}
+
+.balance-alert.tone-warning {
+  background: linear-gradient(135deg, var(--warning-50) 0%, var(--warning-100) 100%);
+  border-color: var(--warning-200);
+}
+
+.balance-alert.tone-warning .alert-icon,
+.balance-alert.tone-warning .alert-title {
+  color: var(--warning-800, #f08c00);
 }
 
 /* 统计卡片网格 */
@@ -626,6 +728,18 @@ onMounted(() => {
   .header {
     flex-direction: column;
     gap: var(--space-4);
+  }
+
+  /* 窄屏下预警条竖排：按钮撑满一行，不然会被挤成两个字一行 */
+  .balance-alert {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-3);
+    padding: var(--space-4);
+  }
+
+  .balance-alert .el-button {
+    width: 100%;
   }
 
   .header-actions,

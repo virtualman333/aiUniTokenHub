@@ -52,7 +52,10 @@ def estimate_runway(daily_costs, balance, *, today=None, window_days=DEFAULT_WIN
 
     rows = [(d, _to_float(c)) for d, c in (daily_costs or []) if d is not None]
     if not rows:
-        return _result(balance_f, 0, 0, 0.0, None, "idle")
+        # 没有流水不等于「没事」：余额已经为 0 的新用户同样什么都调不了，
+        # 只是他连一条消耗记录都还没有。这里若报 idle，首屏的低余额预警
+        # 就恰好对最该提醒的那批人（充了 0 元 / 已扣光但删过记录）不显示。
+        return _result(balance_f, 0, 0, 0.0, None, "empty" if balance_f <= 0 else "idle")
 
     # 窗口不能超过「账户产生第一条消耗到现在」的跨度：
     # 刚用两天的用户拿 7 天去摊，日均会被摊薄成三分之一，续航虚高。

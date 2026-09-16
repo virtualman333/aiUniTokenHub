@@ -32,6 +32,28 @@ class TestEstimateRunway(unittest.TestCase):
         r = estimate_runway(None, 100, today=TODAY)
         self.assertEqual(r["level"], "idle")
 
+    def test_没有消耗记录但余额为零_返回_empty_而不是_idle(self):
+        # 新注册、还没调用过一次、余额 0 的用户：一条流水都没有，但他什么也调不了。
+        # 报 idle 会让首屏预警对他完全不显示 —— 恰是最该提醒的那批人。
+        r = estimate_runway([], 0, today=TODAY)
+        self.assertEqual(r["level"], "empty")
+        self.assertEqual(r["level_text"], "余额已用完")
+        self.assertIn("充值", r["advice"])
+        self.assertIsNone(r["runway_days"])
+        # 窗口为 0：没有可观察的消耗，不要编出一个日均
+        self.assertEqual(r["avg_daily_cost"], 0)
+        self.assertEqual(r["window_days"], 0)
+
+    def test_没有消耗记录且余额为负_同样_empty(self):
+        r = estimate_runway(None, Decimal("-0.0001"), today=TODAY)
+        self.assertEqual(r["level"], "empty")
+
+    def test_没有消耗记录但余额为正_仍是_idle(self):
+        # 反向锁：这条修正不能把「有余额但还没用过」的账号也报成余额已用完
+        r = estimate_runway([], 0.01, today=TODAY)
+        self.assertEqual(r["level"], "idle")
+        self.assertIsNone(r["runway_days"])
+
     def test_余额为零_返回_empty(self):
         r = estimate_runway(days_back([(0, 1), (1, 1)]), 0, today=TODAY)
         self.assertEqual(r["level"], "empty")

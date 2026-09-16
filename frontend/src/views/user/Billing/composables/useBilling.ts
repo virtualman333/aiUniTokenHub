@@ -29,6 +29,29 @@ export interface Runway {
   advice: string
 }
 
+export type RunwayTone = 'danger' | 'warning' | 'success' | 'info'
+
+/**
+ * 续航分级 → 提醒强度。账单页的标签配色与看板首屏的预警条都取这一份，
+ * 免得两处各写一遍「critical 该算危险还是警告」—— 那两处必然漂移。
+ */
+export function runwayTone(level?: string): RunwayTone {
+  if (level === 'empty' || level === 'critical') return 'danger'
+  if (level === 'watch') return 'warning'
+  if (level === 'safe') return 'success'
+  return 'info'
+}
+
+/**
+ * 该不该主动提醒。只有这三档需要：余额已空 / 告急 / 留意消耗。
+ * `safe`（余额充足）与 `idle`（还没产生消耗）不打扰 —— 首屏位置很贵。
+ */
+export const RUNWAY_ALERT_LEVELS = ['empty', 'critical', 'watch'] as const
+
+export function needsBalanceAlert(level?: string): boolean {
+  return !!level && (RUNWAY_ALERT_LEVELS as readonly string[]).includes(level)
+}
+
 export function useBilling() {
   const loading = ref(false)
   const balance = ref(0)

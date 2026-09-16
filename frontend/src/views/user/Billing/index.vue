@@ -103,7 +103,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import dayjs from 'dayjs'
-import { useBilling } from './composables/useBilling'
+import { useBilling, runwayTone } from './composables/useBilling'
 import RechargeDialog from '@/components/RechargeDialog.vue'
 
 const {
@@ -118,14 +118,8 @@ const {
   loadRunway
 } = useBilling()
 
-/** 续航分级 → 标签配色（与后端 level 字段一一对应） */
-const runwayTagType = computed(() => {
-  const lv = runway.value?.level
-  if (lv === 'empty' || lv === 'critical') return 'danger'
-  if (lv === 'watch') return 'warning'
-  if (lv === 'safe') return 'success'
-  return 'info'
-})
+/** 续航分级 → 标签配色（映射与看板首屏预警条共用 useBilling 里那一份） */
+const runwayTagType = computed(() => runwayTone(runway.value?.level))
 
 const showRecharge = ref(false)
 

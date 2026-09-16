@@ -52,5 +52,14 @@ python -m unittest discover -s apps/api_proxy/tests -t . -v
 
 改动 `apps/api_proxy/adapters/` 或 `views_openai.py` / `views_responses.py` 的流式分支后都应跑通这组测试。
 
+`apps/dashboard/tests/` 是余额续航预测（`apps/dashboard/runway.py`）的单元测试，同样纯 Python、无需数据库：
+
+```bash
+cd backend
+python -m unittest discover -s apps/dashboard/tests -t . -v
+```
+
+它算的是一句「你的钱还能用几天」，用户会直接照着它决定要不要充值，所以边界钉得很死：余额为 0（**包括一条消耗记录都还没有的新用户**）、窗口内没消耗、账号刚用两天（窗口被摊薄会让续航虚高）、分级临界值。改 `runway.py` 的窗口或分级逻辑前先看这组测试。
+
 ## API文档
 启动服务后访问: http://localhost:8000/admin/
