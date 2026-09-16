@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>uniTokenHub · API 中转站 / 统一网关</title>
+<meta name="description" content="开箱即用的 API 聚合平台框架">
+<meta property="og:title" content="uniTokenHub · API 中转站 / 统一网关">
+<meta property="og:description" content="开箱即用的 API 聚合平台框架">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://virtualman333.github.io/aiUniTokenHub/">
+<meta name="theme-color" content="#7166F0">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%237166F0'/%3E%3Cstop offset='1' stop-color='%239C8CFF'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='15' fill='url(%23g)'/%3E%3Ctext x='32' y='45' font-size='34' font-weight='700' fill='%23fff' font-family='system-ui,-apple-system,Segoe UI,sans-serif' text-anchor='middle'%3EU%3C/text%3E%3C/svg%3E">
+<script>(function(){var K='vui-site-theme',r=document.documentElement,s=null;
+try{s=localStorage.getItem(K)}catch(e){}
+r.setAttribute('data-theme',(s==='light'||s==='dark')?s:(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'));})();</script>
+<style>
+*,*::before,*::after{box-sizing:border-box}
+:root{
+  --brand:#7166F0;--brand-2:#9C8CFF;
+  --bg:#FBFAFF;--bg-soft:#F4F2FE;
+  --nav-bg:rgba(251,250,255,.78);
+  --panel:rgba(255,255,255,.70);--panel-solid:#fff;
+  --border:rgba(23,17,60,.10);--border-strong:rgba(23,17,60,.18);
+  --text:#161233;--text-soft:#5B5580;--text-dim:#8B86A8;
+  --code-bg:#1A1730;--code-text:#E8E5FF;--code-dim:#9A93C8;
+  --glow-1:rgba(113,102,240,.20);--glow-2:rgba(156,140,255,.16);
+  --shadow:0 20px 44px -22px rgba(41,28,120,.34);
+  --radius:18px;
+}
+html[data-theme="dark"]{
+  --bg:#0B0918;--bg-soft:#100E24;
+  --nav-bg:rgba(11,9,24,.76);
+  --panel:rgba(30,26,60,.58);--panel-solid:#171334;
+  --border:rgba(255,255,255,.10);--border-strong:rgba(255,255,255,.20);
+  --text:#F3F1FF;--text-soft:#B9B3DC;--text-dim:#8E88B4;
+  --code-bg:#07061A;--code-text:#DDD9FF;--code-dim:#8F88BE;
+  --glow-1:rgba(113,102,240,.30);--glow-2:rgba(156,140,255,.20);
+  --shadow:0 22px 48px -24px rgba(0,0,0,.8);
+}
+html{color-scheme:light}
+html[data-theme="dark"]{color-scheme:dark}
+html{scroll-behavior:smooth}
+body{
+  margin:0;background:var(--bg);color:var(--text);line-height:1.68;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+  overflow-x:hidden;
+}
+body::before{
+  content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background:
+    radial-gradient(58rem 32rem at 10% -10%,var(--glow-1),transparent 62%),
+    radial-gradient(46rem 28rem at 94% 2%,var(--glow-2),transparent 64%);
+}
+a{color:inherit;text-decoration:none}
+.wrap{width:100%;max-width:1080px;margin:0 auto;padding:0 24px}
+
+/* nav */
+.nav{position:sticky;top:0;z-index:30;background:var(--nav-bg);
+  -webkit-backdrop-filter:blur(16px) saturate(160%);backdrop-filter:blur(16px) saturate(160%);
+  border-bottom:1px solid var(--border)}
+.nav-in{display:flex;align-items:center;gap:14px;height:62px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:.2px}
+.mark{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;
+  background:linear-gradient(135deg,var(--brand),var(--brand-2));color:#fff;
+  font-size:15px;font-weight:800;box-shadow:0 6px 16px -6px rgba(113,102,240,.9)}
+.nav-links{display:flex;gap:4px;margin-left:auto;align-items:center}
+.nav-links a{padding:7px 12px;border-radius:10px;font-size:14px;color:var(--text-soft);
+  transition:background .18s,color .18s}
+.nav-links a:hover{background:var(--bg-soft);color:var(--text)}
+.ghost-btn{border:1px solid var(--border-strong);background:transparent;color:var(--text-soft);
+  width:36px;height:36px;border-radius:11px;cursor:pointer;font-size:15px;line-height:1;
+  display:grid;place-items:center;transition:background .18s,color .18s}
+.ghost-btn:hover{background:var(--bg-soft);color:var(--text)}
+@media(max-width:720px){.nav-links a.hide-s{display:none}}
+
+/* hero */
+.hero{padding:76px 0 56px}
+.eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:600;
+  color:var(--brand);background:color-mix(in srgb,var(--brand) 12%,transparent);
+  border:1px solid color-mix(in srgb,var(--brand) 26%,transparent);
+  padding:5px 12px;border-radius:999px;margin-bottom:20px}
+html[data-theme="dark"] .eyebrow{background:rgba(113,102,240,.16)}
+h1{margin:0 0 18px;font-size:clamp(32px,5.4vw,54px);line-height:1.16;letter-spacing:-1px;font-weight:800;
+  background:linear-gradient(115deg,var(--text) 22%,var(--brand) 62%,var(--brand-2));
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+  background-size:180% 100%}
+.lead{margin:0;font-size:clamp(15px,1.6vw,17.5px);color:var(--text-soft);max-width:62ch}
+.cta{display:flex;flex-wrap:wrap;gap:12px;margin-top:30px}
+.btn{display:inline-flex;align-items:center;gap:9px;padding:12px 22px;border-radius:13px;
+  font-size:15px;font-weight:600;border:1px solid transparent;cursor:pointer;
+  transition:transform .18s,box-shadow .18s,background .18s}
+.btn-primary{background:linear-gradient(135deg,var(--brand),var(--brand-2));color:#fff;
+  box-shadow:0 14px 30px -14px rgba(113,102,240,.95)}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 18px 36px -14px rgba(113,102,240,1)}
+.btn-ghost{border-color:var(--border-strong);color:var(--text-soft);background:var(--panel)}
+.btn-ghost:hover{color:var(--text);transform:translateY(-2px)}
+.stats{display:flex;flex-wrap:wrap;gap:34px;margin-top:46px;padding-top:30px;border-top:1px solid var(--border)}
+.stat b{display:block;font-size:25px;font-weight:800;letter-spacing:-.5px;
+  background:linear-gradient(120deg,var(--brand),var(--brand-2));
+  -webkit-background-clip:text;background-clip:text;color:transparent}
+.stat span{font-size:13px;color:var(--text-dim)}
+
+/* sections */
+section{padding:56px 0}
+.sec-head{margin-bottom:30px}
+.sec-head h2{margin:0 0 8px;font-size:clamp(21px,2.6vw,28px);letter-spacing:-.4px;font-weight:750}
+.sec-head p{margin:0;color:var(--text-dim);font-size:14.5px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(258px,1fr));gap:16px}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
+  padding:22px 22px 20px;-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);
+  box-shadow:var(--shadow);transition:transform .2s,border-color .2s}
+.card:hover{transform:translateY(-3px);border-color:color-mix(in srgb,var(--brand) 42%,transparent)}
+.card h3{margin:12px 0 7px;font-size:16px;font-weight:700;letter-spacing:-.1px}
+.card p{margin:0;font-size:14px;color:var(--text-soft)}
+.ico{font-size:22px;line-height:1;display:inline-grid;place-items:center;width:42px;height:42px;
+  border-radius:12px;background:color-mix(in srgb,var(--brand) 12%,transparent);
+  border:1px solid color-mix(in srgb,var(--brand) 22%,transparent)}
+html[data-theme="dark"] .ico{background:rgba(113,102,240,.16)}
+
+/* stack pills */
+.pills{display:flex;flex-wrap:wrap;gap:9px}
+.pill{padding:7px 15px;border-radius:999px;font-size:13.5px;color:var(--text-soft);
+  background:var(--panel-solid);border:1px solid var(--border);box-shadow:var(--shadow)}
+
+/* quickstart */
+.steps{display:flex;flex-direction:column;gap:16px}
+.step{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
+  overflow:hidden;-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);box-shadow:var(--shadow)}
+.step-head{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--border);
+  font-size:13.5px;font-weight:600;color:var(--text-soft)}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--brand);box-shadow:0 0 0 3px color-mix(in srgb,var(--brand) 22%,transparent)}
+pre{margin:0;padding:16px;overflow-x:auto;background:var(--code-bg);color:var(--code-text);
+  font-size:13px;line-height:1.72;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Cascadia Mono",monospace}
+pre .cmt{color:var(--code-dim)}
+.copy{margin-left:auto;border:1px solid var(--border);background:transparent;color:var(--text-dim);
+  font-size:12px;padding:3px 10px;border-radius:8px;cursor:pointer;transition:color .18s,border-color .18s}
+.copy:hover{color:var(--brand);border-color:color-mix(in srgb,var(--brand) 46%,transparent)}
+
+/* footer */
+footer{border-top:1px solid var(--border);padding:34px 0 46px;margin-top:24px}
+.foot{display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between;
+  font-size:13.5px;color:var(--text-dim)}
+.foot a{color:var(--text-soft)}
+.foot a:hover{color:var(--brand)}
+.note{font-size:12.5px;color:var(--text-dim);margin-top:14px}
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <div class="wrap nav-in">
+    <a class="brand" href="./"><span class="mark">U</span>uniTokenHub</a>
+    <nav class="nav-links">
+      <a class="hide-s" href="#features">功能</a><a class="hide-s" href="#stack">技术栈</a><a class="hide-s" href="#start">快速开始</a>
+      <a href="https://github.com/virtualman333/aiUniTokenHub">GitHub</a>
+      <button class="ghost-btn" id="theme-toggle" type="button" aria-label="切换主题">☾</button>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div class="wrap hero">
+    <span class="eyebrow">●  API 中转站 / 统一网关 · v1.0.0</span>
+    <h1>开箱即用的 API 聚合平台框架</h1>
+    <p class="lead">AI API 中转、OpenAI 兼容服务、通用 API 网关 —— 密钥、计费、统计、看板、管理后台都齐了，开箱就能搭起自己的 API 售卖平台。</p>
+    <div class="cta"><a class="btn btn-primary" href="https://github.com/virtualman333/aiUniTokenHub">在 GitHub 上查看 →</a><a class="btn btn-ghost" href="https://github.com/virtualman333/aiUniTokenHub/releases">Releases</a></div>
+    <div class="stats"><div class="stat"><b>176</b><span>后端单元测试</span></div><div class="stat"><b>纯 Python</b><span>测试不连库不读配置</span></div><div class="stat"><b>3 档</b><span>扣费结果</span></div></div>
+  </div>
+
+  <section id="features"><div class="wrap">
+    <div class="sec-head"><h2>核心能力</h2><p>从实际使用出发，而不是从功能清单出发</p></div>
+    <div class="grid"><div class="card"><span class="ico">🔀</span><h3>代理转发</h3><p>多种上游提供商统一入口，OpenAI 与 Anthropic 协议双向适配，流式与非流式共用一套 id 映射。</p></div><div class="card"><span class="ico">🔑</span><h3>密钥管理</h3><p>用户自助创建 / 删除 API Key，JWT 认证，越权路径统一拦截。</p></div><div class="card"><span class="ico">💰</span><h3>计费与退款</h3><p>余额在行锁内重读后原子扣费；扣费失败分三档（成功 / 余额不足 / 服务端出错），「钱扣了图没存下」自动原路退回并写退款账单。</p></div><div class="card"><span class="ico">📈</span><h3>统计与看板</h3><p>请求趋势、消费明细、余额续航预测、首屏低余额预警。</p></div><div class="card"><span class="ico">🖼️</span><h3>图像生成计费</h3><p>按张计价的图像生成，定价口径单一来源，草稿与生成记录都留痕。</p></div><div class="card"><span class="ico">🛠️</span><h3>管理后台</h3><p>用户 / 模型 / 上游账户 / 访问日志 / 卡密 / 充值渠道，一个后台管完。</p></div></div>
+  </div></section>
+
+  <section id="stack"><div class="wrap">
+    <div class="sec-head"><h2>技术栈</h2><p>最新版本：v1.0.0</p></div>
+    <div class="pills"><span class="pill">Django 4.2</span><span class="pill">DRF</span><span class="pill">MySQL</span><span class="pill">Redis</span><span class="pill">JWT</span><span class="pill">Vue 3</span><span class="pill">Vite</span><span class="pill">Element Plus</span><span class="pill">ECharts</span></div>
+  </div></section>
+
+  <section id="start"><div class="wrap">
+    <div class="sec-head"><h2>快速开始</h2><p>复制即可跑，不需要先读完整文档</p></div>
+    <div class="steps"><div class="step"><div class="step-head"><span class="dot"></span>后端<button class="copy" type="button">复制</button></div><pre><code>cd backend
+python -m venv venv
+.\venv\Scripts\activate        <span class="cmt"># Windows</span>
+pip install -r requirements.txt
+cp .env.example .env
+python manage.py migrate</code></pre></div><div class="step"><div class="step-head"><span class="dot"></span>跑测试（不需要数据库）<button class="copy" type="button">复制</button></div><pre><code>python run_tests.py     <span class="cmt"># 176 例：适配器 / 流式状态机 / 计费口径</span></code></pre></div><div class="step"><div class="step-head"><span class="dot"></span>启动<button class="copy" type="button">复制</button></div><pre><code>python manage.py runserver</code></pre></div></div>
+  </div></section>
+</main>
+
+<footer><div class="wrap">
+  <div class="foot">
+    <span>uniTokenHub · <a href="https://github.com/virtualman333/aiUniTokenHub">virtualman333/aiUniTokenHub</a></span>
+    <span><a href="https://github.com/virtualman333/aiUniTokenHub">GitHub</a> · <a href="https://github.com/virtualman333/aiUniTokenHub/releases">Releases</a></span>
+  </div>
+  <p class="note">本页面由「全自主迭代闭环」自动化维护；发现内容与实际不符，以仓库 README 为准。</p>
+</div></footer>
+
+<script>
+(function(){
+  var KEY='vui-site-theme';
+  var root=document.documentElement;
+  function resolve(){
+    var s=null;
+    try{s=localStorage.getItem(KEY)}catch(e){}
+    if(s==='light'||s==='dark')return s;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';
+  }
+  function apply(t){
+    root.setAttribute('data-theme',t);
+    var b=document.getElementById('theme-toggle');
+    if(b){b.textContent=t==='dark'?'☀':'☾';b.setAttribute('aria-label',t==='dark'?'切到亮色':'切到暗色');}
+  }
+  apply(resolve());
+  document.addEventListener('DOMContentLoaded',function(){
+    apply(resolve());
+    var b=document.getElementById('theme-toggle');
+    if(b){b.addEventListener('click',function(){
+      var next=root.getAttribute('data-theme')==='dark'?'light':'dark';
+      try{localStorage.setItem(KEY,next)}catch(e){}
+      apply(next);
+    });}
+    Array.prototype.forEach.call(document.querySelectorAll('.copy'),function(btn){
+      btn.addEventListener('click',function(){
+        var pre=btn.closest('.step-head').parentNode.querySelector('pre');
+        var text=pre?pre.innerText:'';
+        var done=function(){btn.textContent='已复制';setTimeout(function(){btn.textContent='复制';},1400);};
+        if(navigator.clipboard&&navigator.clipboard.writeText){
+          navigator.clipboard.writeText(text).then(done,function(){btn.textContent='请手动复制';});
+        }else{
+          var ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);
+          ta.select();try{document.execCommand('copy');done();}catch(e){}document.body.removeChild(ta);
+        }
+      });
+    });
+  });
+})();
+</script>
+</body>
+</html>
