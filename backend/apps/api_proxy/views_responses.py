@@ -42,6 +42,15 @@ from .adapters.request_adapter import convert_request as convert_req_to_chat, op
 from .adapters.response_adapter import convert_response as convert_resp_to_response, anthropic_to_openai
 from .adapters.streaming_adapter import AnthropicStreamToOpenAIConverter, IncrementalUtf8Decoder, StreamingConverter
 from .channel_probes import ANTHROPIC_VERSION, protocol_of
+# 计费结果语义 / 文案 / 状态码只从这一处来。这个文件此前也自己写着
+# '余额不足，请充值后再试。'，并把服务端扣费出错回成同一句话。
+from apps.utils.billing import (
+    CHAT_ERROR_TYPE,
+    DEDUCT_OK,
+    DEDUCT_ERROR,
+    deduct_failure_payload,
+    precheck_failure,
+)
 
 logger = logging.getLogger('api_proxy')
 
@@ -143,12 +152,10 @@ class ResponsesView(APIView):
                 f"[Responses] 用户 {user.username}(ID:{user.id}) 余额不足"
                 f"(余额:{user.balance})，拒绝请求"
             )
-            return self._error_response(
-                '余额不足，请充值后再试。',
-                'billing_error',
-                'insufficient_balance',
-                status_code=402,
-            )
+            # 这里是**真的**余额不足（按 balance<=0 判的），文案/ code / 状态码由
+            # billing 统一给 —— 与扣费失败那条分支不同，那条不能说这四个字。
+            msg, code, http_status = precheck_failure(user.balance)
+            return self._error_response(msg, CHAT_ERROR_TYPE, code, status_code=http_status)
 
         # 8. 分流式 / 非流式
         is_streaming = original_request.get('stream', False)
@@ -235,20 +242,26 @@ class ResponsesView(APIView):
                 )
                 response_data = self._wrap_error(response_data, response.status_code)
 
-            # 更新日志与计费
-            billing_success = self._update_usage_log(usage_log, response, response_data, response_time, model_name,
-                                  upstream_account=account)
+            # 更新日志与计费。返回值是 (状态, 金额)：状态是三档而不是布尔值 ——
+            # 布尔值会把「余额不足」与「服务端出错」压成同一句话。
+            billing_status, billing_cost = self._update_usage_log(
+                usage_log, response, response_data, response_time, model_name,
+                upstream_account=account)
             usage_log.refresh_from_db()
             update_upstream_usage(account, success=response.status_code < 400)
-            
-            # 检查扣款是否成功，失败则返回402错误
-            if not billing_success and response.status_code < 400:
-                return self._error_response(
-                    '余额不足，请充值后再试。',
-                    'billing_error',
-                    'insufficient_balance',
-                    status_code=402,
+
+            # 扣费没成功且这一笔本该收费：上游成本已花、用户也拿到了回答，但账没记上。
+            # 这是平台的问题（余额不足在扣费这一步不可能发生，见
+            # calculate_and_deduct_cost 的说明），必须回 5xx 且文案里不能提余额。
+            if (billing_status == DEDUCT_ERROR and billing_cost > 0
+                    and response.status_code < 400):
+                msg, code, http_status = deduct_failure_payload(
+                    billing_status, billing_cost, user.balance)
+                logger.error(
+                    f"[Responses] 扣费未成功，按服务端故障回 {http_status} "
+                    f"user_id={user.id} cost={billing_cost} status={billing_status}"
                 )
+                return self._error_response(msg, CHAT_ERROR_TYPE, code, status_code=http_status)
 
             # 记录访问日志
             self._log_access(
@@ -288,12 +301,8 @@ class ResponsesView(APIView):
         # 检查余额是否充足，余额为0或负数时拒绝请求
         if user.balance <= 0:
             logger.warning(f"[Responses-Stream] 用户 {user.username}(ID:{user.id}) 余额为0，拒绝流式请求")
-            return self._error_response(
-                '余额不足，请充值后再试。',
-                'billing_error',
-                'insufficient_balance',
-                status_code=402,
-            )
+            msg, code, http_status = precheck_failure(user.balance)
+            return self._error_response(msg, CHAT_ERROR_TYPE, code, status_code=http_status)
         
         protocol = protocol_of(account)
         headers = self._build_headers()
@@ -618,20 +627,25 @@ class ResponsesView(APIView):
         log.save()
 
         # 计费扣费（仅在请求成功时）
-        billing_success = True
+        billing_status = DEDUCT_OK
+        billing_cost = 0
         if response.status_code < 400 and log.total_tokens > 0:
-            cost, success = calculate_and_deduct_cost(
+            cost, status = calculate_and_deduct_cost(
                 log.user, model_code,
                 log.input_tokens, log.output_tokens, log,
                 cached_tokens=cached_tokens,
                 upstream_account=upstream_account,
             )
-            if not success and cost > 0:
-                # 余额不足
-                logger.warning(f"[Billing] 用户 {log.user.username}(ID:{log.user.id}) 余额不足，费用: {cost}元，余额: {log.user.balance}元")
-                billing_success = False
-        
-        return billing_success
+            billing_status, billing_cost = status, cost
+            if status != DEDUCT_OK:
+                # 同 views_openai：扣费这条路径上失败只可能是服务端出错，
+                # 余额不足在扣费这一步不可能发生（余额允许被扣成负数）。
+                logger.error(
+                    f"[Billing] 用户 {log.user.username}(ID:{log.user.id}) 扣费未成功（服务端），"
+                    f"费用: {cost}元，余额: {log.user.balance}元，原因: {status}"
+                )
+
+        return billing_status, billing_cost
 
     def _finalize_stream(self, usage_log, user, api_key, model_name,
                          original_request, final_status, final_error_msg,
@@ -669,12 +683,19 @@ class ResponsesView(APIView):
         cost_value = 0
         if (final_status and final_status < 400) and total_tokens > 0:
             try:
-                cost_value, _ok = calculate_and_deduct_cost(
+                cost_value, charge_status = calculate_and_deduct_cost(
                     user, model_name,
                     prompt_tokens, completion_tokens, usage_log,
                     cached_tokens=cached_tokens,
                     upstream_account=account,
                 )
+                if charge_status != DEDUCT_OK:
+                    # 流式响应头已经发出去了，改不了 HTTP 状态码 —— 只能如实记日志
+                    # （带金额，好对账）。这条路径上的失败同样是服务端问题。
+                    logger.error(
+                        f"[Responses-Stream] 扣费未成功（服务端） "
+                        f"user_id={user.id} cost={cost_value} status={charge_status}"
+                    )
             except Exception as e:
                 logger.error(f"[Responses-Stream] charge failed: {e}")
 

@@ -16,7 +16,7 @@ from apps.users.models import Bill, UsageLog, User
 from apps.api_proxy.models import APIAccessLog
 from apps.utils.response import APIResponse
 
-from .billing import DEDUCT_OK, deduct_failure, insufficient_message, refund_amount_of, refund_message
+from apps.utils.billing import DEDUCT_OK, deduct_failure, insufficient_message, refund_amount_of, refund_message
 from .models import GeneratedImage, ImageGeneration
 from .pricing import image_cost
 from .serializers import (

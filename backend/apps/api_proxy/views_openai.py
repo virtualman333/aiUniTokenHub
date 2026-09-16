@@ -26,6 +26,16 @@ from apps.users.models import APIKey, UsageLog, Bill, User
 from apps.users.mailer import send_alert_email
 from apps.ai_models.models import AIModel
 from apps.ai_models.upstream_models import UpstreamAccount, ModelUpstreamAccount
+# 计费结果语义 / 文案 / HTTP 状态码 / 错误信封只从这一处来（纯 Python，不 import Django）。
+# 此前这个文件自己写着 '余额不足，请充值后再试。'，并且把**服务端扣费出错**也回成
+# 同一句话 —— 见 calculate_and_deduct_cost 的说明。
+from apps.utils.billing import (
+    DEDUCT_OK,
+    DEDUCT_ERROR,
+    deduct_failure_payload,
+    openai_error,
+    precheck_failure,
+)
 from .models import APIAccessLog
 from .adapters.request_adapter import openai_to_anthropic
 from .adapters.response_adapter import anthropic_to_openai
@@ -271,14 +281,32 @@ def calculate_and_deduct_cost(user, model_code, input_tokens, output_tokens,
     - cached_tokens: 其中命中缓存的 tokens；按 cached_input_price 计费
     - output_tokens: 输出 tokens
     - upstream_account: 上游账号对象，用于计算上游成本
-    返回 (cost, success)
+    返回 (cost, status)
+    - status 是 billing.DEDUCT_OK / DEDUCT_ERROR 两档之一，**不是布尔值**。
+
+    ⚠ 这里**永远不会**返回 DEDUCT_INSUFFICIENT，这是有意的：
+
+    本函数允许把余额扣成负数（`locked_user.balance - cost_decimal`）—— 请求已经
+    消耗了上游成本，这一笔必须记账；透支由**下一次**请求入口的前置校验
+    （`balance <= 0`）拦住，从而杜绝白嫖。所以「余额不足导致扣费失败」这件事在
+    这条路径上不可能发生，返回 DEDUCT_ERROR 的三条路径（模型查不到、查模型时抛
+    异常、写余额/记账时抛异常）**全是服务端问题**。
+
+    以前这里返回布尔值，调用方于是把 `False` 统一回成「余额不足，请充值后再试。」
+    并给 402 + `insufficient_balance`：用户余额明明够，却被引去充值，而客户端看到
+    402 也不会重试一次平台故障。现在失败一律经 `billing.deduct_failure_payload`
+    翻译成「500 + 服务端出错，本次未产生费用」。
     """
     try:
         model = AIModel.objects.filter(code=model_code, status='active').first()
         if not model:
-            return 0, False
-    except Exception:
-        return 0, False
+            # 认不出模型 = 我们算不出这笔账，是服务端问题；报「余额不足」会把人
+            # 引去充值（充值当然没用）。日志里带上 model_code 才好定位。
+            logger.error(f"[Billing] 模型不可计费 model_code={model_code}，本次不计费")
+            return 0, DEDUCT_ERROR
+    except Exception as e:
+        logger.error(f"[Billing] 查模型失败 model_code={model_code}: {e}")
+        return 0, DEDUCT_ERROR
 
     PER_MILLION = 1_000_000.0
 
@@ -332,7 +360,7 @@ def calculate_and_deduct_cost(user, model_code, input_tokens, output_tokens,
             pass
 
     if cost <= 0:
-        return 0, True
+        return 0, DEDUCT_OK
 
     cost_decimal = Decimal(str(cost))
     desc_parts = [f'输入{input_tokens}tokens']
@@ -360,10 +388,15 @@ def calculate_and_deduct_cost(user, model_code, input_tokens, output_tokens,
         # 同步内存对象余额，供上层日志/展示使用
         user.balance = locked_user.balance
     except Exception as e:
-        logger.error(f"[Billing] 扣费失败 user_id={getattr(user, 'id', None)}: {e}")
-        return cost, False
+        # 扣费失败 = 服务端问题（余额不足在这条路径上不可能发生，见 docstring）。
+        # 账单没写成，钱也没动 —— 这一次的钱收不上来，日志里要看得见。
+        logger.error(
+            f"[Billing] 扣费失败（服务端） user_id={getattr(user, 'id', None)} "
+            f"cost={cost} model={model_code}: {e}"
+        )
+        return cost, DEDUCT_ERROR
 
-    return cost, True
+    return cost, DEDUCT_OK
 
 
 # ============== OpenAI 兼容接口 ==============
@@ -445,13 +478,10 @@ class ChatCompletionsView(APIView):
                 f"[ChatCompletions] 用户 {user.username}(ID:{user.id}) 余额不足"
                 f"(余额:{user.balance})，拒绝请求"
             )
-            return Response({
-                'error': {
-                    'message': '余额不足，请充值后再试。',
-                    'type': 'billing_error',
-                    'code': 'insufficient_balance'
-                }
-            }, status=402)  # 402 Payment Required
+            # 文案 / code / 状态码都由 billing 给：这里是**真的**余额不足（按
+            # balance<=0 判的），所以可以说这四个字 —— 与扣费失败那条分支不同。
+            msg, code, http_status = precheck_failure(user.balance)
+            return Response(openai_error(msg, code), status=http_status)  # 402 Payment Required
 
         # 选择上游账号
         account = select_upstream_account(model_name)
@@ -573,20 +603,32 @@ class ChatCompletionsView(APIView):
             if response.status_code < 400 and protocol == 'anthropic':
                 response_data = anthropic_to_openai(response_data)
             
-            # 更新日志（含计费）
-            billing_success = self._update_usage_log(usage_log, response, response_data, response_time, model_name,
-                                  upstream_account=account)
+            # 更新日志（含计费）。返回值是 (状态, 金额)，状态是三档而不是布尔值 ——
+            # 布尔值把「余额不足」与「服务端出错」压成了同一句话。
+            billing_status, billing_cost = self._update_usage_log(
+                usage_log, response, response_data, response_time, model_name,
+                upstream_account=account)
             usage_log.refresh_from_db()  # 拿到计费后的最新值
-            
-            # 检查扣款是否成功，失败则返回402错误
-            if not billing_success and response.status_code < 400:
-                return Response({
-                    'error': {
-                        'message': '余额不足，请充值后再试。',
-                        'type': 'billing_error',
-                        'code': 'insufficient_balance'
-                    }
-                }, status=402)  # 402 Payment Required
+
+            # 扣费没成功**且这一笔本该收费**：上游成本已经花掉、用户也拿到了回答，
+            # 但账没记上 —— 这是**平台的问题**，不是用户余额不够（余额不足在扣费
+            # 这一步不可能发生，见 calculate_and_deduct_cost 的说明），所以必须回
+            # 5xx 且文案里不能提余额：回 402 + 「余额不足」会让人去充值（白充），
+            # 客户端看到 402 也不会重试一次平台故障。
+            #
+            # 为什么以「本该收费」为界：算不出金额时（模型查不到、连库就抛）cost 是 0，
+            # 那一笔本来就没收钱，此时把用户的请求打断成 500 是净损失 —— 日志里有
+            # 记录就够了。status_code 那道判断是防御性的：上游自己报错时不许被我们
+            # 的计费错误盖掉。
+            if (billing_status == DEDUCT_ERROR and billing_cost > 0
+                    and response.status_code < 400):
+                msg, code, http_status = deduct_failure_payload(
+                    billing_status, billing_cost, user.balance)
+                logger.error(
+                    f"[ChatCompletions] 扣费未成功，按服务端故障回 {http_status} "
+                    f"user_id={user.id} cost={billing_cost} status={billing_status}"
+                )
+                return Response(openai_error(msg, code), status=http_status)
             
             # 更新上游账号使用统计
             update_upstream_usage(account, success=response.status_code < 400)
@@ -684,15 +726,10 @@ class ChatCompletionsView(APIView):
     def _handle_streaming(self, request, api_key, user, account, model_name, start_time):
         """处理流式请求"""
         # 检查余额是否充足，余额为0或负数时拒绝请求
-        if user.balance <= 0:
+        if user.balance <= Decimal('0'):
             logger.warning(f"[ChatCompletions-Stream] 用户 {user.username}(ID:{user.id}) 余额为0，拒绝流式请求")
-            return Response({
-                'error': {
-                    'message': '余额不足，请充值后再试。',
-                    'type': 'billing_error',
-                    'code': 'insufficient_balance'
-                }
-            }, status=402)
+            msg, code, http_status = precheck_failure(user.balance)
+            return Response(openai_error(msg, code), status=http_status)
         
         protocol = protocol_of(account)
         headers = self._build_headers(request)
@@ -927,12 +964,21 @@ class ChatCompletionsView(APIView):
                     cost_value = 0
                     if (final_status and final_status < 400) and total_tokens > 0:
                         try:
-                            cost_value, _ok = calculate_and_deduct_cost(
+                            cost_value, charge_status = calculate_and_deduct_cost(
                                 user, model_name,
                                 prompt_tokens, completion_tokens, usage_log,
                                 cached_tokens=cached_tokens,
                                 upstream_account=account,
                             )
+                            if charge_status != DEDUCT_OK:
+                                # 流式响应头早就发出去了，改不了 HTTP 状态码 ——
+                                # 这里只能如实记日志（含金额，好对账）。入口那道
+                                # 前置余额校验保证透支不会扩大，所以这条路径上的
+                                # 失败同样是服务端问题，绝不是「用户没充钱」。
+                                logger.error(
+                                    f"[ChatCompletions-Stream] 扣费未成功（服务端） "
+                                    f"user_id={user.id} cost={cost_value} status={charge_status}"
+                                )
                         except Exception as e:
                             logger.error(f"[ChatCompletions-Stream] charge failed: {e}")
 
@@ -1040,20 +1086,26 @@ class ChatCompletionsView(APIView):
         log.save()
 
         # 计费扣费（仅在请求成功时）
-        billing_success = True
+        billing_status = DEDUCT_OK
+        billing_cost = 0
         if response.status_code < 400 and log.total_tokens > 0:
-            cost, success = calculate_and_deduct_cost(
+            cost, status = calculate_and_deduct_cost(
                 log.user, model_code,
                 log.input_tokens, log.output_tokens, log,
                 cached_tokens=cached_tokens,
                 upstream_account=upstream_account,
             )
-            if not success and cost > 0:
-                # 余额不足，记录警告
-                logger.warning(f"[Billing] 用户 {log.user.username}(ID:{log.user.id}) 余额不足，费用: {cost}元，余额: {log.user.balance}元")
-                billing_success = False
-        
-        return billing_success
+            billing_status, billing_cost = status, cost
+            if status != DEDUCT_OK:
+                # ⚠ 这里**不是**「余额不足」。扣费这条路径允许把余额扣成负数
+                # （已经消耗的上游成本必须记账），所以它失败只可能是服务端出错。
+                # 以前这句日志写的就是「余额不足」，把后来的人都带偏了。
+                logger.error(
+                    f"[Billing] 用户 {log.user.username}(ID:{log.user.id}) 扣费未成功（服务端），"
+                    f"费用: {cost}元，余额: {log.user.balance}元，原因: {status}"
+                )
+
+        return billing_status, billing_cost
 
 
 class CompletionsView(APIView):
