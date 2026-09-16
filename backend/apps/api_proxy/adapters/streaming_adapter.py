@@ -9,6 +9,8 @@ import re
 import time
 from typing import Any, Dict, List, Optional
 
+from .ids import convert_response_id as _convert_id
+
 
 class IncrementalUtf8Decoder:
     """跨 chunk 的 UTF-8 增量解码器。
@@ -458,15 +460,6 @@ class StreamingConverter:
         events.extend(self._finish_output_items())
         events.extend(self._finish_response())
         return events
-
-
-def _convert_id(chat_id: str) -> str:
-    """将 chatcmpl-xxx 转换为 resp-xxx"""
-    if chat_id.startswith('chatcmpl-'):
-        return chat_id.replace('chatcmpl-', 'resp-', 1)
-    if chat_id.startswith('chatcmpl'):
-        return chat_id.replace('chatcmpl', 'resp', 1)
-    return f'resp_{chat_id}' if chat_id else 'resp_unknown'
 
 
 def _build_response_stub(resp_id: str, created: int, status: str, model: str) -> Dict[str, Any]:

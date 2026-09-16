@@ -62,6 +62,8 @@ uniTokenHub/
 └── README.md
 ```
 
+上面只列了主要目录。`apps/` 下还有 `dashboard/`（数据看板、余额续航预测）、`image_gen/`（图像生成）、`tickets/`、`utils/`；各应用自己的单元测试放在 `apps/应用名/tests/` 下，统一用 `backend/run_tests.py` 跑。
+
 ## 🚀 快速开始
 
 ### 环境要求
@@ -102,7 +104,23 @@ python init_test_users.py
 python manage.py runserver
 ```
 
-### 2. 前端部署
+### 2. 单元测试
+
+```bash
+cd backend
+
+# 跑全部后端单元测试（不需要数据库，也不需要 .env）
+python run_tests.py
+```
+
+后端单元测试是**纯 Python** 的：不连数据库、不读 Django settings。计费口径、OpenAI/Anthropic 协议转换、流式状态机、图像定价规则这些最贵也最容易悄悄改坏的地方，都靠这一层锁住。相关的两条硬规则：
+
+- **定价格只允许有一个来源**：图像单张价格（含「模型没配单价时用多少」）在 `apps/image_gen/pricing.py`；`chatcmpl… → resp…` 的 id 映射在 `apps/api_proxy/adapters/ids.py`，流式与非流式共用。别在 `views.py` 里再写一遍。
+- **扣费必须是原子的**：`transaction.atomic()` + `select_for_update()`，余额在锁内重读；图片生成要**先扣费再保存图片**，否则一次「余额不足」的请求会把图留在库里，用户照样能下载。
+
+`run_tests.py` 扫的是 `apps/*/tests/`，不是写死的清单 —— 清单必然会漂移：`apps/dashboard/` 没有 `__init__.py`，`python -m unittest discover -s apps -t .` 会**不报错地**跳过整个包，曾有 21 个用例因此长期没被跑过。现在某个 `tests/` 目录缺 `__init__.py` 就会直接失败，不允许静默少跑。
+
+### 3. 前端部署
 
 ```bash
 cd frontend

@@ -1,21 +1,22 @@
 import base64
 import logging
 import uuid
-from decimal import Decimal
 from io import BytesIO
 
 import httpx
 from django.core.files.base import ContentFile
+from django.db import transaction
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 
 from apps.ai_models.models import AIModel
 from apps.ai_models.upstream_models import ModelUpstreamAccount
-from apps.users.models import Bill, UsageLog
+from apps.users.models import Bill, UsageLog, User
 from apps.api_proxy.models import APIAccessLog
 from apps.utils.response import APIResponse
 
 from .models import GeneratedImage, ImageGeneration
+from .pricing import image_cost
 from .serializers import (
     ImageGenerationCreateSerializer,
     ImageGenerationSerializer,
@@ -49,21 +50,51 @@ def _select_upstream_account(model_code):
 
 
 def _deduct_cost(user, model_code, n, generation):
-    """按张数扣费"""
+    """按张数扣费：在行锁内「重读余额 → 判断 → 扣款 → 记账」。
+
+    这段以前是裸的读-改-写：
+
+        if user.balance < cost:
+            return cost, False
+        user.balance -= cost
+        user.save(update_fields=['balance'])
+        ...
+        Bill.objects.create(...)          # 还不在同一个事务里
+
+    两个问题：
+      1. 并发下两个请求会各自读到同一个旧余额、双双通过校验、各扣一次，
+         少扣的部分平台再也收不回来（用户余额越用越多）；
+      2. 扣款与记账不在同一事务里，记账那步失败就会出现「钱扣了、账单没有」。
+
+    LLM 那条扣费路径（`views_openai.calculate_and_deduct_cost`）早就改成了
+    `select_for_update` + `transaction.atomic`，这里向它对齐 —— 同一件事
+    （扣费）两处实现，一处修好了、另一处没跟上就是活生生的漂移。
+
+    语义上保持不变：仍然要求「余额足够付本次」，不足则一分不扣、返回 False。
+    """
     model = AIModel.objects.filter(code=model_code, status='active').first()
-    unit_price = model.per_image_price if model and model.per_image_price else Decimal('0.08')
-    cost = unit_price * n
-    if user.balance < cost:
+    cost = image_cost(model, n)
+
+    try:
+        with transaction.atomic():
+            locked = User.objects.select_for_update().get(pk=user.pk)
+            if locked.balance < cost:
+                return cost, False
+            locked.balance = locked.balance - cost
+            locked.save(update_fields=['balance'])
+            generation.cost = cost
+            generation.save(update_fields=['cost'])
+            Bill.objects.create(
+                user=locked, type='consume', amount=-cost,
+                balance=locked.balance,
+                description=f'图像生成 {model_code} x{n}',
+            )
+        # 同步内存对象余额，供上层日志/展示使用
+        user.balance = locked.balance
+    except Exception as e:
+        logger.error(f'[ImageGen] 扣费失败 user_id={getattr(user, "id", None)}: {e}')
         return cost, False
-    user.balance -= cost
-    user.save(update_fields=['balance'])
-    generation.cost = cost
-    generation.save(update_fields=['cost'])
-    Bill.objects.create(
-        user=user, type='consume', amount=-cost,
-        balance=user.balance,
-        description=f'图像生成 {model_code} x{n}',
-    )
+
     return cost, True
 
 
@@ -97,10 +128,9 @@ class ImageGenerationView(APIView):
         n = data['n']
         image_file = data.get('image')
 
-        # 校验余额
+        # 校验余额（价格走 pricing.image_cost，与下面真正扣费是同一份规则）
         model_obj = AIModel.objects.filter(code=model_code, status='active').first()
-        unit_price = model_obj.per_image_price if model_obj and model_obj.per_image_price else Decimal('0.08')
-        total_cost = unit_price * n
+        total_cost = image_cost(model_obj, n)
         if request.user.balance < total_cost:
             return APIResponse.error(
                 f'余额不足，需要 ¥{total_cost}，当前余额 ¥{request.user.balance}', 400)
@@ -138,6 +168,21 @@ class ImageGenerationView(APIView):
             generation.save(update_fields=['status', 'error_message'])
             return APIResponse.error('图像生成失败，未获取到图片内容，请稍后重试', 500)
 
+        # 扣费 —— 必须排在「保存图片」之前。
+        #
+        # 原来顺序是反的（先存图、后扣费）。前置余额校验挡住的是「一开始就不够」，
+        # 挡不住并发：两个请求各自读到同一个余额、双双通过校验、都去打了上游，
+        # 其中后到的那一个会在这里因余额不足失败 —— 但它的图片**已经落库**了。
+        # 请求返回 400，可历史列表用的是 `prefetch_related('images')`，
+        # 用户照样能看到、能下载 —— 等于白拿，上游成本由平台付。
+        # 调换顺序后，余额不足时图片从未落库，不需要任何删除动作。
+        cost, success = _deduct_cost(request.user, model_code, n, generation)
+        if not success:
+            generation.status = 'failed'
+            generation.error_message = '余额不足'
+            generation.save(update_fields=['status', 'error_message'])
+            return APIResponse.error('余额不足', 400)
+
         # 保存图片
         for img_data in result_images:
             img_bytes = img_data['bytes']
@@ -145,14 +190,6 @@ class ImageGenerationView(APIView):
             cf = ContentFile(img_bytes, name=f'{uuid.uuid4().hex}.png')
             GeneratedImage.objects.create(
                 generation=generation, image=cf, revised_prompt=revised)
-
-        # 扣费
-        cost, success = _deduct_cost(request.user, model_code, n, generation)
-        if not success:
-            generation.status = 'failed'
-            generation.error_message = '余额不足'
-            generation.save(update_fields=['status', 'error_message'])
-            return APIResponse.error('余额不足', 400)
 
         generation.status = 'completed'
         generation.save(update_fields=['status'])

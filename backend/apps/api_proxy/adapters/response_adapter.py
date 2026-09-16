@@ -5,6 +5,8 @@ import json
 import time
 from typing import Any, Dict, List, Optional
 
+from .ids import convert_response_id as _convert_id
+
 
 def convert_response(chat_response: Dict[str, Any], original_request: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -122,15 +124,6 @@ def map_anthropic_stop_reason(stop_reason: Optional[str]) -> Optional[str]:
         'stop_sequence': 'stop',
         'tool_use': 'tool_calls',
     }.get(stop_reason)
-
-
-def _convert_id(chat_id: str) -> str:
-    """将 chatcmpl-xxx 转换为 resp-xxx"""
-    if chat_id.startswith('chatcmpl-'):
-        return chat_id.replace('chatcmpl-', 'resp-', 1)
-    if chat_id.startswith('chatcmpl'):
-        return chat_id.replace('chatcmpl', 'resp', 1)
-    return f'resp_{chat_id}' if chat_id else 'resp_unknown'
 
 
 def _build_output_item(message: Dict[str, Any], resp_id: str, finish_reason: Optional[str]) -> Optional[Dict[str, Any]]:
