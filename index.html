@@ -162,20 +162,20 @@ footer{border-top:1px solid var(--border);padding:34px 0 46px;margin-top:24px}
 
 <main>
   <div class="wrap hero">
-    <span class="eyebrow">●  API 中转站 / 统一网关 · v1.0.0</span>
+    <span class="eyebrow">●  API 中转站 / 统一网关 · v1.1.0</span>
     <h1>开箱即用的 API 聚合平台框架</h1>
     <p class="lead">AI API 中转、OpenAI 兼容服务、通用 API 网关 —— 密钥、计费、统计、看板、管理后台都齐了，开箱就能搭起自己的 API 售卖平台。</p>
     <div class="cta"><a class="btn btn-primary" href="https://github.com/virtualman333/aiUniTokenHub">在 GitHub 上查看 →</a><a class="btn btn-ghost" href="https://github.com/virtualman333/aiUniTokenHub/releases">Releases</a></div>
-    <div class="stats"><div class="stat"><b>176</b><span>后端单元测试</span></div><div class="stat"><b>纯 Python</b><span>测试不连库不读配置</span></div><div class="stat"><b>3 档</b><span>扣费结果</span></div></div>
+    <div class="stats"><div class="stat"><b>275</b><span>后端单元测试</span></div><div class="stat"><b>纯 Python</b><span>测试不连库不读配置</span></div><div class="stat"><b>3 档</b><span>扣费结果</span></div></div>
   </div>
 
   <section id="features"><div class="wrap">
     <div class="sec-head"><h2>核心能力</h2><p>从实际使用出发，而不是从功能清单出发</p></div>
-    <div class="grid"><div class="card"><span class="ico">🔀</span><h3>代理转发</h3><p>多种上游提供商统一入口，OpenAI 与 Anthropic 协议双向适配，流式与非流式共用一套 id 映射。</p></div><div class="card"><span class="ico">🔑</span><h3>密钥管理</h3><p>用户自助创建 / 删除 API Key，JWT 认证，越权路径统一拦截。</p></div><div class="card"><span class="ico">💰</span><h3>计费与退款</h3><p>余额在行锁内重读后原子扣费；扣费失败分三档（成功 / 余额不足 / 服务端出错），「钱扣了图没存下」自动原路退回并写退款账单。</p></div><div class="card"><span class="ico">📈</span><h3>统计与看板</h3><p>请求趋势、消费明细、余额续航预测、首屏低余额预警。</p></div><div class="card"><span class="ico">🖼️</span><h3>图像生成计费</h3><p>按张计价的图像生成，定价口径单一来源，草稿与生成记录都留痕。</p></div><div class="card"><span class="ico">🛠️</span><h3>管理后台</h3><p>用户 / 模型 / 上游账户 / 访问日志 / 卡密 / 充值渠道，一个后台管完。</p></div></div>
+    <div class="grid"><div class="card"><span class="ico">🔀</span><h3>代理转发</h3><p>多种上游提供商统一入口，OpenAI 与 Anthropic 协议双向适配，流式与非流式共用一套 id 映射。</p></div><div class="card"><span class="ico">🔑</span><h3>密钥管理</h3><p>用户自助创建 / 删除 API Key，JWT 认证，越权路径统一拦截。</p></div><div class="card"><span class="ico">💰</span><h3>计费与退款</h3><p>余额在行锁内重读后原子扣费；扣费失败分三档（成功 / 余额不足 / 服务端出错），「钱扣了图没存下」自动原路退回并写退款账单。</p></div><div class="card"><span class="ico">📈</span><h3>统计与看板</h3><p>请求趋势、消费明细、余额续航预测、首屏低余额预警。</p></div><div class="card"><span class="ico">🖼️</span><h3>图像生成计费</h3><p>按张计价的图像生成，定价口径单一来源，草稿与生成记录都留痕。</p></div><div class="card"><span class="ico">🛠️</span><h3>管理后台</h3><p>用户 / 模型 / 上游账户 / 访问日志 / 卡密 / 充值渠道，一个后台管完；上游账户的调用次数、错误数与成功率按绑定实时聚合。</p></div></div>
   </div></section>
 
   <section id="stack"><div class="wrap">
-    <div class="sec-head"><h2>技术栈</h2><p>最新版本：v1.0.0</p></div>
+    <div class="sec-head"><h2>技术栈</h2><p>最新版本：v1.1.0</p></div>
     <div class="pills"><span class="pill">Django 4.2</span><span class="pill">DRF</span><span class="pill">MySQL</span><span class="pill">Redis</span><span class="pill">JWT</span><span class="pill">Vue 3</span><span class="pill">Vite</span><span class="pill">Element Plus</span><span class="pill">ECharts</span></div>
   </div></section>
 
@@ -186,7 +186,7 @@ python -m venv venv
 .\venv\Scripts\activate        <span class="cmt"># Windows</span>
 pip install -r requirements.txt
 cp .env.example .env
-python manage.py migrate</code></pre></div><div class="step"><div class="step-head"><span class="dot"></span>跑测试（不需要数据库）<button class="copy" type="button">复制</button></div><pre><code>python run_tests.py     <span class="cmt"># 176 例：适配器 / 流式状态机 / 计费口径</span></code></pre></div><div class="step"><div class="step-head"><span class="dot"></span>启动<button class="copy" type="button">复制</button></div><pre><code>python manage.py runserver</code></pre></div></div>
+python manage.py migrate</code></pre></div><div class="step"><div class="step-head"><span class="dot"></span>跑测试（不需要数据库）<button class="copy" type="button">复制</button></div><pre><code>python run_tests.py     <span class="cmt"># 275 例：适配器 / 流式状态机 / 计费口径 / 上下游契约</span></code></pre></div><div class="step"><div class="step-head"><span class="dot"></span>启动<button class="copy" type="button">复制</button></div><pre><code>python manage.py runserver</code></pre></div></div>
   </div></section>
 </main>
 
