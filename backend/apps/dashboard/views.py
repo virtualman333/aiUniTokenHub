@@ -18,6 +18,8 @@ from apps.api_proxy.models import APIAccessLog
 from apps.api_proxy.serializers import APIAccessLogSerializer
 from apps.ai_models.models import AIModel, ModelProvider
 from apps.ai_models.upstream_models import ModelUpstreamAccount
+# 余额续航预测（纯计算，见 apps/dashboard/runway.py）
+from .runway import DEFAULT_WINDOW as RUNWAY_WINDOW, estimate_runway
 from apps.utils.response import APIResponse
 from .analytics_views import AnalyticsViewSet
 
@@ -473,6 +475,28 @@ class UserDashboardViewSet(viewsets.GenericViewSet):
             "total_tokens": total_tokens_consumed,
         }
 
+        return APIResponse.success(data, "获取成功")
+
+    @action(detail=False, methods=["get"], url_path="balance-runway")
+    def balance_runway(self, request):
+        """余额续航：按最近 7 天的消耗速度，估算余额还能撑多久。
+
+        看板此前只统计请求数与 token，用户看不到余额和花费，只能等扣费失败才知道。
+        这里把「日均消耗」和「剩余余额」合成一句能读懂的判断。
+        """
+        today = timezone.localdate()
+        since = today - timedelta(days=RUNWAY_WINDOW - 1)
+        rows = (
+            APIAccessLog.objects.filter(
+                user=request.user,
+                created_at__date__gte=since,
+                created_at__date__lte=today,
+            )
+            .values("created_at__date")
+            .annotate(cost=Sum("cost"))
+        )
+        daily = [(row["created_at__date"], row["cost"] or 0) for row in rows]
+        data = estimate_runway(daily, request.user.balance, today=today)
         return APIResponse.success(data, "获取成功")
 
     @action(detail=False, methods=["get"])

@@ -17,6 +17,34 @@
           </el-button>
         </el-card>
       </el-col>
+
+      <!-- 余额续航：按最近一段时间的消耗速度估算还能用多久 -->
+      <el-col :span="16">
+        <el-card class="runway-card" v-loading="runwayLoading">
+          <div class="runway-head">
+            <span class="runway-label">余额续航</span>
+            <el-tag v-if="runway" :type="runwayTagType" size="small" effect="light">
+              {{ runway.level_text }}
+            </el-tag>
+          </div>
+
+          <template v-if="runway">
+            <div class="runway-main">
+              <template v-if="runway.runway_days !== null">
+                <span class="runway-days">{{ runway.runway_days }}</span>
+                <span class="runway-unit">天</span>
+              </template>
+              <span v-else class="runway-none">{{ runway.level_text }}</span>
+            </div>
+            <div class="runway-advice">{{ runway.advice }}</div>
+            <div v-if="runway.exhaust_date" class="runway-meta">
+              预计 {{ runway.exhaust_date }} 见底 · 最近 {{ runway.window_days }} 天日均
+              ¥{{ Number(runway.avg_daily_cost).toFixed(4) }}
+            </div>
+          </template>
+          <div v-else class="runway-advice">暂时还没有可用的消耗数据</div>
+        </el-card>
+      </el-col>
     </el-row>
 
     <!-- 账单列表 -->
@@ -82,16 +110,29 @@ const {
   loading,
   balance,
   bills,
+  runway,
+  runwayLoading,
   pagination,
   loadBalance,
-  loadBills
+  loadBills,
+  loadRunway
 } = useBilling()
+
+/** 续航分级 → 标签配色（与后端 level 字段一一对应） */
+const runwayTagType = computed(() => {
+  const lv = runway.value?.level
+  if (lv === 'empty' || lv === 'critical') return 'danger'
+  if (lv === 'watch') return 'warning'
+  if (lv === 'safe') return 'success'
+  return 'info'
+})
 
 const showRecharge = ref(false)
 
 onMounted(() => {
   loadBalance()
   loadBills()
+  loadRunway()
 })
 
 function formatDate(date: string) {
@@ -130,6 +171,7 @@ function getAmountClass(type: string) {
 function handleRechargeSuccess() {
   loadBalance()
   loadBills()
+  loadRunway()
 }
 </script>
 
@@ -183,6 +225,61 @@ function handleRechargeSuccess() {
   background: white;
   color: #409EFF;
   border: none;
+}
+
+/* ---- 余额续航卡片 ---- */
+.runway-card {
+  height: 100%;
+  padding: 20px 24px;
+}
+
+.runway-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.runway-label {
+  font-size: 14px;
+  color: #909399;
+}
+
+.runway-main {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.runway-days {
+  font-size: 36px;
+  font-weight: 700;
+  color: #1a1a2e;
+  line-height: 1;
+}
+
+.runway-unit {
+  font-size: 16px;
+  color: #606266;
+}
+
+.runway-none {
+  font-size: 20px;
+  font-weight: 600;
+  color: #909399;
+}
+
+.runway-advice {
+  font-size: 14px;
+  color: #606266;
+  line-height: 1.6;
+}
+
+.runway-meta {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #a8abb2;
 }
 
 .card-title {

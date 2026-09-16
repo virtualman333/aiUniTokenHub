@@ -125,6 +125,11 @@ urlpatterns = [
         name="user-top-apis",
     ),
     path(
+        "user/balance-runway/",
+        UserDashboardViewSet.as_view({"get": "balance_runway"}),
+        name="user-balance-runway",
+    ),
+    path(
         "user/debug-db/",
         UserDashboardViewSet.as_view({"get": "debug_db"}),
         name="user-debug-db",
