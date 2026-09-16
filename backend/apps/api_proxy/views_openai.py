@@ -21,6 +21,8 @@ from rest_framework.views import APIView
 from django.http import StreamingHttpResponse
 from django.core.cache import cache
 from django.db import transaction
+from django.db.models import F
+from django.utils import timezone
 
 from apps.users.models import APIKey, UsageLog, Bill, User
 from apps.users.mailer import send_alert_email
@@ -39,6 +41,8 @@ from apps.utils.billing import (
     precheck_failure,
     unbilled_stream_note,
 )
+# 统计口径（成功率的分母、写回增量）只从这一处来 —— 写入侧与读取侧各写一份必然漂移。
+from apps.utils.channel_stats import usage_delta
 from .models import APIAccessLog
 from .adapters.request_adapter import openai_to_anthropic
 from .adapters.response_adapter import anthropic_to_openai
@@ -153,17 +157,22 @@ def select_upstream_account(model_code: str) -> Optional[UpstreamAccount]:
     logger.info(f"[select_account] Found {bindings.count()} upstream account bindings for model")
     
     # 收集可用账号及其权重（优先 is_available=True 的账号）
+    #
+    # 收集的是**绑定**而不是裸账号：权重与调用统计都挂在 `ModelUpstreamAccount` 上
+    # （`UpstreamAccount` 上没有 weight / usage_count / error_count 这几列）。
+    # 原先把绑定拆成 `(account, binding.weight)` 之后就把绑定对象丢了 ——
+    # 于是后面记统计时手里只剩账号，没有任何地方可写（见 update_upstream_usage）。
     available_accounts = []
     fallback_accounts = []
     for binding in bindings:
         account = binding.account
         logger.info(f"[select_account] Checking account: {account.name}, is_active={account.is_active}, is_available={account.is_available}")
         if account.is_active and account.is_available:
-            available_accounts.append((account, binding.weight))
+            available_accounts.append(binding)
             logger.info(f"[select_account] Account {account.name} is available (weight={binding.weight})")
         elif account.is_active:
             # 即使 is_available=False（健康检查失败），也作为备选
-            fallback_accounts.append((account, binding.weight))
+            fallback_accounts.append(binding)
             logger.info(f"[select_account] Account {account.name} is active but unavailable (fallback, weight={binding.weight})")
     
     if not available_accounts and not fallback_accounts:
@@ -178,21 +187,23 @@ def select_upstream_account(model_code: str) -> Optional[UpstreamAccount]:
         logger.warning(f"[select_account] No healthy accounts, falling back to unhealthy accounts")
     
     # 加权随机选择（权重越高被选中的概率越大）
-    total_weight = sum(weight for _, weight in accounts_pool)
-    if total_weight == 0:
-        selected = accounts_pool[0][0]
-    else:
+    total_weight = sum(binding.weight for binding in accounts_pool)
+    selected_binding = accounts_pool[0]
+    if total_weight > 0:
         import random
         rand_val = random.randint(1, total_weight)
         cumulative = 0
-        for account, weight in accounts_pool:
-            cumulative += weight
+        for binding in accounts_pool:
+            cumulative += binding.weight
             if cumulative >= rand_val:
-                selected = account
+                selected_binding = binding
                 break
-        else:
-            selected = accounts_pool[0][0]
     
+    selected = selected_binding.account
+    # 把选中的**绑定**挂在返回的账号上：调用方只认账号（热路径上 22 处
+    # `update_upstream_usage(account, ...)` 传的都是它），而统计只能写回绑定。
+    # 不额外查库 —— 绑定就是这次 select_related 取出来的那一个。
+    selected.selected_binding = selected_binding
     logger.info(f"[select_account] Selected account: {selected.name}, base_url: {selected.base_url}, api_key: {'***' + selected.api_key[-8:] if selected.api_key else 'None'}")
     return selected
 
@@ -220,18 +231,30 @@ def check_rate_limit(api_key: APIKey, account: UpstreamAccount) -> Optional[Resp
 
 
 def update_upstream_usage(account: UpstreamAccount, success: bool = True):
-    """更新上游账号使用统计"""
+    """记录一次上游调用的成败 —— 写回**模型-账号绑定**。
+
+    修复前这里是一句**必然的空操作**：`UpstreamAccount` 上并没有 usage_count
+    字段（它们在 `ModelUpstreamAccount` 上），`hasattr` 恒为 False，于是热路径上
+    22 个调用点每一次都直接 return —— 统计从来没有被记过一条，而上游账号管理页
+    正把「调用次数 / 成功率」摆出来，永远显示 0 / 0.0%。
+
+    现在写回绑定（`selected_binding`，由 `select_upstream_account` 挂在账号上）：
+    计数走 F() 表达式在库里自增，避免并发下「读-改-写」把计数吃掉。
+    增量口径来自 `apps.utils.channel_stats.usage_delta` —— 与读取侧同一份。
+    """
+    binding = getattr(account, 'selected_binding', None)
+    if binding is None or binding.pk is None:
+        # 调用方没经过 select_upstream_account（拿不到绑定）时无处可写。
+        # 不抛：统计记不上不该让用户的这次请求失败；但也不静默假装记上了。
+        logger.debug("[update_upstream_usage] 没有绑定可写，跳过统计")
+        return
+    delta_usage, delta_error = usage_delta(success)
     try:
-        # 先检查 UpstreamAccount 是否有统计字段
-        # （这些字段实际定义在 ModelUpstreamAccount 上，UpstreamAccount 可能没有）
-        if not hasattr(account, 'usage_count'):
-            return
-        account.usage_count += 1
-        if not success:
-            account.error_count += 1
-        from django.utils import timezone
-        account.last_used = timezone.now()
-        account.save(update_fields=['usage_count', 'error_count', 'last_used'])
+        ModelUpstreamAccount.objects.filter(pk=binding.pk).update(
+            usage_count=F('usage_count') + delta_usage,
+            error_count=F('error_count') + delta_error,
+            last_used=timezone.now(),
+        )
     except Exception as e:
         logger.error(f"[update_upstream_usage] Error updating usage: {e}")
 

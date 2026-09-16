@@ -43,8 +43,8 @@
       <el-col :span="6">
         <el-card shadow="hover">
           <div class="stat-item">
-            <div class="stat-value">{{ Number(stats.avg_success_rate || 0).toFixed(1) }}%</div>
-            <div class="stat-label">平均成功率</div>
+            <div class="stat-value">{{ rateText(stats.avg_success_rate) }}</div>
+            <div class="stat-label">整体成功率</div>
           </div>
         </el-card>
       </el-col>
@@ -84,23 +84,25 @@
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="weight" label="权重" width="80" align="center" />
-      <el-table-column prop="max_qps" label="最大QPS" width="100" align="center" />
-      <el-table-column prop="total_calls" label="调用次数" width="120" align="center">
+      <el-table-column prop="max_rpm" label="最大RPM" width="100" align="center" />
+      <el-table-column prop="total_calls" label="调用次数" width="110" align="center">
         <template #default="{ row }">
           {{ formatNumber(row.total_calls) }}
         </template>
       </el-table-column>
-      <el-table-column prop="success_rate" label="成功率" width="100" align="center">
+      <el-table-column prop="error_count" label="失败次数" width="100" align="center">
         <template #default="{ row }">
-          <span :class="getSuccessRateClass(row.success_rate)">
-            {{ Number(row.success_rate || 0).toFixed(1) }}%
-          </span>
+          {{ formatNumber(row.error_count) }}
         </template>
       </el-table-column>
-      <el-table-column prop="avg_latency" label="平均延迟" width="100" align="center">
+      <el-table-column prop="success_rate" label="成功率" width="100" align="center">
         <template #default="{ row }">
-          {{ row.avg_latency || 0 }}ms
+          <span :class="getSuccessRateClass(row.success_rate)">{{ rateText(row.success_rate) }}</span>
+        </template>
+      </el-table-column>
+      <el-table-column prop="last_used" label="最近使用" width="170" align="center">
+        <template #default="{ row }">
+          {{ formatTime(row.last_used) }}
         </template>
       </el-table-column>
       <el-table-column label="绑定模型" width="100" align="center">
@@ -311,10 +313,16 @@ const loadChannels = async () => {
     // 计算统计
     stats.value.total_channels = channels.value.length
     stats.value.active_channels = channels.value.filter(c => c.is_active).length
-    stats.value.total_calls = channels.value.reduce((sum, c) => sum + (c.total_calls || 0), 0)
-    if (channels.value.length > 0) {
-      stats.value.avg_success_rate = channels.value.reduce((sum, c) => sum + (c.success_rate || 100), 0) / channels.value.length
-    }
+    // 汇总口径与后端 apps/utils/channel_stats.py 同源：先加总**原始计数**，再算一次比率。
+    // 对每行 success_rate 求平均是另一套算法（从没调用过的行会按 100% 参与平均），
+    // 两张卡片会和下面表格里的数字对不上 —— 修复前就是那样。
+    const usage = channels.value.reduce((s, c) => s + (c.total_calls || 0), 0)
+    const errors = Math.min(
+      usage,
+      channels.value.reduce((s, c) => s + (c.error_count || 0), 0)
+    )
+    stats.value.total_calls = usage
+    stats.value.avg_success_rate = usage > 0 ? Math.round((usage - errors) * 1000 / usage) / 10 : 100
   } catch (error) {
     console.error('加载账号失败:', error)
     channels.value = []
@@ -374,7 +382,15 @@ const submitForm = async () => {
   submitting.value = true
   try {
     if (isEdit.value) {
-      await api.put(`/models/upstream-accounts/${form.value.id}/`, form.value)
+      // PATCH 而不是 PUT，并且**去掉空的 api_key**：
+      // `api_key` 是 write_only，列表接口拿不回来（这是对的，密钥不该下发），
+      // 于是编辑时表单里它是空的。整体 PUT 会把空串一起发上去 ——
+      // 后端 allow_blank=False，直接 400「该字段不能为空」，编辑按钮从来没成功过；
+      // 就算放过去，那也等于把库里的密钥覆盖成空串。
+      // 留空 = 不修改，这才是管理员的预期。
+      const payload = { ...form.value }
+      if (!payload.api_key) delete payload.api_key
+      await api.patch(`/models/upstream-accounts/${form.value.id}/`, payload)
       ElMessage.success('更新成功')
     } else {
       const res = await api.post('/models/upstream-accounts/', form.value)
@@ -489,9 +505,23 @@ async function loadModelList(accountId) {
 }
 
 const getSuccessRateClass = (rate) => {
+  // 没有数据时不涂红。旧写法 `rate >= 99` 对 undefined 取假，会让「从未统计过」
+  // 显示成红色的 0.0% —— 看着像这个账号全挂了（这正是修复前的形态）。
+  if (typeof rate !== 'number' || Number.isNaN(rate)) return ''
   if (rate >= 99) return 'text-success'
   if (rate >= 95) return 'text-warning'
   return 'text-danger'
+}
+
+/** 成功率文案。拿不到数字时显示占位符，不假装是 0.0% */
+const rateText = (rate) => (
+  typeof rate === 'number' && !Number.isNaN(rate) ? `${rate.toFixed(1)}%` : '—'
+)
+
+const formatTime = (value) => {
+  if (!value) return '—'
+  const d = new Date(value)
+  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString()
 }
 
 const formatNumber = (num) => {

@@ -2,6 +2,8 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
+from django.db.models import Max, Sum
+from django.db.models.functions import Coalesce
 from django.utils import timezone
 import random
 
@@ -19,7 +21,26 @@ class UpstreamAccountViewSet(viewsets.ModelViewSet):
     """上游账号管理"""
     queryset = UpstreamAccount.objects.all()
     permission_classes = [IsAdminUser]
-    
+
+    def get_queryset(self):
+        """列表里带上调用统计。
+
+        `usage_count` / `error_count` / `last_used` 定义在**绑定**上
+        （`ModelUpstreamAccount`），账号本身没有这几列 —— 所以在视图层聚合，
+        一次查询拿到，别让 `UpstreamAccountListSerializer` 每行再查一次库。
+
+        这里**不过滤 `is_enabled`**：统计的是「这个账号一共被调用过多少次」，
+        把不可用的绑定排除掉会让历史数字凭空缩水。
+
+        `Coalesce(..., 0)`：一个绑定都没有的账号，`Sum` 给的是 `None`，
+        而这两个字段是计数 —— 让计数器返回 `null` 等于让每个读它的人各自兜底一次。
+        """
+        return UpstreamAccount.objects.annotate(
+            total_calls=Coalesce(Sum('model_bindings__usage_count'), 0),
+            error_count=Coalesce(Sum('model_bindings__error_count'), 0),
+            last_used=Max('model_bindings__last_used'),
+        )
+
     def get_serializer_class(self):
         if self.action in ['list']:
             return UpstreamAccountListSerializer
