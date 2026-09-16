@@ -3,10 +3,36 @@
 
 在生成器内部维护状态机，逐 chunk 解析上游 SSE 事件并转换为 Response API 格式。
 """
+import codecs
 import json
 import re
 import time
 from typing import Any, Dict, List, Optional
+
+
+class IncrementalUtf8Decoder:
+    """跨 chunk 的 UTF-8 增量解码器。
+
+    为什么不能直接用 `chunk.decode('utf-8', errors='replace')`
+    --------------------------------------------------------
+    TCP/HTTP 的分片边界与字符边界无关，一个汉字（3 字节）或 emoji（4 字节）
+    完全可能被切在两个 chunk 中间。单次 decode 会把这段不完整的序列判为非法字节，
+    用 `errors='replace'` 替换成 U+FFFD —— 一个汉字变成三个 `�`，**且不可恢复**：
+    被替换的字节已经丢掉，后续 chunk 再拼也拼不回来。上游数据本身是好的。
+
+    增量解码器把不完整的尾巴留在内部，等下一个 chunk 补齐再吐字符，
+    这才是流式场景下唯一正确的解码方式（httpx 内部也是这么做的）。
+    """
+
+    def __init__(self, errors: str = 'replace') -> None:
+        self._decoder = codecs.getincrementaldecoder('utf-8')(errors)
+
+    def decode(self, chunk: bytes) -> str:
+        return self._decoder.decode(chunk, final=False)
+
+    def flush(self) -> str:
+        """流结束：吐出内部残留（若还有不完整序列，按 errors 策略处理）。"""
+        return self._decoder.decode(b'', final=True)
 
 
 class StreamingConverter:
@@ -37,6 +63,8 @@ class StreamingConverter:
         self.tool_calls: Dict[int, Dict[str, Any]] = {}
         self.sse_buffer = ''
         self.usage: Dict[str, Any] = {}
+        # 增量解码：不完整的多字节序列留到下一个 chunk（见 IncrementalUtf8Decoder）
+        self._decoder = IncrementalUtf8Decoder()
 
     def feed(self, chunk: bytes) -> List[str]:
         """
@@ -45,7 +73,7 @@ class StreamingConverter:
         events: List[str] = []
 
         try:
-            self.sse_buffer += chunk.decode('utf-8', errors='replace')
+            self.sse_buffer += self._decoder.decode(chunk)
         except Exception:
             return events
 
@@ -223,58 +251,18 @@ class StreamingConverter:
 
         return events
 
-    def _finish_text_events(self) -> List[str]:
-        events: List[str] = []
-        if self.content_part_added and not self.text_done:
-            self.text_done = True
-            events.append(_sse_event('response.output_text.done', {
-                'item_id': self.msg_id,
-                'output_index': self._message_output_index(),
-                'content_index': 0,
-                'text': self.full_text,
-            }))
-            events.append(_sse_event('response.content_part.done', {
-                'item_id': self.msg_id,
-                'output_index': self._message_output_index(),
-                'content_index': 0,
-                'part': {
-                    'type': 'output_text',
-                    'text': self.full_text,
-                    'annotations': [],
-                }
-            }))
-        return events
-
-    def _finish_tool_events(self) -> List[str]:
-        events: List[str] = []
-        for idx, tc in sorted(self.tool_calls.items()):
-            if not tc.get('added'):
-                continue
-
-            output_index = self._tool_output_index(idx)
-            events.append(_sse_event('response.function_call_arguments.done', {
-                'item_id': tc['item_id'],
-                'output_index': output_index,
-                'arguments': tc['arguments'],
-            }))
-            events.append(_sse_event('response.output_item.done', {
-                'output_index': output_index,
-                'item': {
-                    'type': 'function_call',
-                    'id': tc['item_id'],
-                    'call_id': tc['id'],
-                    'status': 'completed',
-                    'name': tc['name'],
-                    'arguments': tc['arguments'],
-                }
-            }))
-        return events
-
     def _build_output(self) -> List[Dict[str, Any]]:
-        output: List[Dict[str, Any]] = []
+        """组装 response.completed 里的 output 数组。
+
+        必须**按 output_index 排序**：工具调用先于正文出现时，function_call 拿到
+        index=0、message 拿到 index=1，而按类型固定拼接（先 message 后 tool）会让
+        数组顺序与已公布给客户端的 output_index 对不上号——客户端按 index 取条目
+        就会拿错内容。
+        """
+        items: List[tuple] = []
 
         if self.content_part_added:
-            output.append({
+            items.append((self._message_output_index(), {
                 'type': 'message',
                 'id': self.msg_id,
                 'status': 'completed',
@@ -286,21 +274,22 @@ class StreamingConverter:
                         'annotations': [],
                     }
                 ],
-            })
+            }))
 
-        for _, tc in sorted(self.tool_calls.items()):
+        for index, tc in sorted(self.tool_calls.items()):
             if not tc.get('added'):
                 continue
-            output.append({
+            items.append((self._tool_output_index(index), {
                 'type': 'function_call',
                 'id': tc['item_id'],
                 'call_id': tc['id'],
                 'status': 'completed',
                 'name': tc['name'],
                 'arguments': tc['arguments'],
-            })
+            }))
 
-        return output
+        items.sort(key=lambda pair: pair[0])
+        return [item for _, item in items]
 
     def _build_usage(self) -> Dict[str, Any]:
         prompt_tokens = int(self.usage.get('prompt_tokens') or 0)
@@ -329,30 +318,85 @@ class StreamingConverter:
         })]
 
     def _finish_output_items(self) -> List[str]:
-        events: List[str] = []
+        """收尾：按 output_index 顺序发出各 output item 的 done 事件。
 
-        if not self.output_item_done:
-            self.output_item_done = True
-            events.extend(self._finish_text_events())
-            if self.output_item_added:
-                events.append(_sse_event('response.output_item.done', {
+        两点约束：
+        1. **只能发一次**。标准流里「带 finish_reason 的 chunk」与 `[DONE]` 会
+           先后到达，本方法两次都会被调用；若只守住 message 一侧，工具调用的
+           `function_call_arguments.done` / `output_item.done` 会重复发两遍。
+        2. **顺序按 output_index**，与 `_build_output()` 的数组顺序一致。
+        """
+        if self.output_item_done:
+            return []
+        self.output_item_done = True
+
+        pending: List[tuple] = []
+
+        if self.content_part_added or self.output_item_added:
+            message_events: List[str] = []
+            if not self.text_done:
+                self.text_done = True
+                message_events.append(_sse_event('response.output_text.done', {
+                    'item_id': self.msg_id,
                     'output_index': self._message_output_index(),
-                    'item': {
-                        'type': 'message',
-                        'id': self.msg_id,
-                        'status': 'completed',
-                        'role': self.message_role,
-                        'content': [
-                            {
-                                'type': 'output_text',
-                                'text': self.full_text,
-                                'annotations': [],
-                            }
-                        ] if self.content_part_added else [],
+                    'content_index': 0,
+                    'text': self.full_text,
+                }))
+                message_events.append(_sse_event('response.content_part.done', {
+                    'item_id': self.msg_id,
+                    'output_index': self._message_output_index(),
+                    'content_index': 0,
+                    'part': {
+                        'type': 'output_text',
+                        'text': self.full_text,
+                        'annotations': [],
                     }
                 }))
+            message_events.append(_sse_event('response.output_item.done', {
+                'output_index': self._message_output_index(),
+                'item': {
+                    'type': 'message',
+                    'id': self.msg_id,
+                    'status': 'completed',
+                    'role': self.message_role,
+                    'content': [
+                        {
+                            'type': 'output_text',
+                            'text': self.full_text,
+                            'annotations': [],
+                        }
+                    ] if self.content_part_added else [],
+                }
+            }))
+            pending.append((self._message_output_index(), message_events))
 
-        events.extend(self._finish_tool_events())
+        for index, tc in sorted(self.tool_calls.items()):
+            if not tc.get('added'):
+                continue
+            output_index = self._tool_output_index(index)
+            pending.append((output_index, [
+                _sse_event('response.function_call_arguments.done', {
+                    'item_id': tc['item_id'],
+                    'output_index': output_index,
+                    'arguments': tc['arguments'],
+                }),
+                _sse_event('response.output_item.done', {
+                    'output_index': output_index,
+                    'item': {
+                        'type': 'function_call',
+                        'id': tc['item_id'],
+                        'call_id': tc['id'],
+                        'status': 'completed',
+                        'name': tc['name'],
+                        'arguments': tc['arguments'],
+                    }
+                }),
+            ]))
+
+        pending.sort(key=lambda pair: pair[0])
+        events: List[str] = []
+        for _, item_events in pending:
+            events.extend(item_events)
         return events
 
     def _process_chunk(self, data: Dict[str, Any]) -> List[str]:
@@ -477,6 +521,8 @@ class AnthropicStreamToOpenAIConverter:
         self.cache_creation_tokens = 0
         self.cache_read_tokens = 0
         self.tool_calls: Dict[int, Dict[str, Any]] = {}
+        # 增量解码：不完整的多字节序列留到下一个 chunk（见 IncrementalUtf8Decoder）
+        self._decoder = IncrementalUtf8Decoder()
 
     @property
     def usage(self) -> Dict[str, Any]:
@@ -491,7 +537,7 @@ class AnthropicStreamToOpenAIConverter:
 
     def feed(self, chunk: bytes) -> List[str]:
         events: List[str] = []
-        self.buffer += chunk.decode('utf-8', errors='replace')
+        self.buffer += self._decoder.decode(chunk)
 
         while True:
             match = re.search(r'\r?\n\r?\n', self.buffer)

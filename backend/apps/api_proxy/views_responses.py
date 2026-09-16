@@ -40,7 +40,7 @@ from .views_openai import (
 )
 from .adapters.request_adapter import convert_request as convert_req_to_chat, openai_to_anthropic
 from .adapters.response_adapter import convert_response as convert_resp_to_response, anthropic_to_openai
-from .adapters.streaming_adapter import AnthropicStreamToOpenAIConverter, StreamingConverter
+from .adapters.streaming_adapter import AnthropicStreamToOpenAIConverter, IncrementalUtf8Decoder, StreamingConverter
 from .channel_probes import ANTHROPIC_VERSION, protocol_of
 
 logger = logging.getLogger('api_proxy')
@@ -340,6 +340,10 @@ class ResponsesView(APIView):
                 final_error_msg = ''
                 final_usage = None
                 sse_buffer = ''
+                # 增量解码：网络分片会落在多字节字符（中文/emoji）中间，
+                # 直接 chunk.decode(..., errors='replace') 会把一个汉字替换成三个 �，
+                # 进而让后面的事件 JSON 解析失败、usage 丢失（漏计费）。
+                sse_decoder = IncrementalUtf8Decoder()
 
                 try:
                     with httpx.stream(
@@ -411,7 +415,7 @@ class ResponsesView(APIView):
 
                             # 解析 usage（用于结束后计费）
                             try:
-                                sse_buffer += chunk.decode('utf-8', errors='replace')
+                                sse_buffer += sse_decoder.decode(chunk)
                             except Exception:
                                 continue
                             while True:

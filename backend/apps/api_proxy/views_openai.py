@@ -29,7 +29,7 @@ from apps.ai_models.upstream_models import UpstreamAccount, ModelUpstreamAccount
 from .models import APIAccessLog
 from .adapters.request_adapter import openai_to_anthropic
 from .adapters.response_adapter import anthropic_to_openai
-from .adapters.streaming_adapter import AnthropicStreamToOpenAIConverter
+from .adapters.streaming_adapter import AnthropicStreamToOpenAIConverter, IncrementalUtf8Decoder
 from .channel_probes import ANTHROPIC_VERSION, endpoint_url, protocol_of, _anthropic_auth_headers
 
 
@@ -747,6 +747,10 @@ class ChatCompletionsView(APIView):
                 final_usage = None
                 # 累积未完成的 SSE 事件文本（用于解析 usage / [DONE]）
                 sse_buffer = ''
+                # 增量解码：网络分片会落在多字节字符（中文/emoji）中间，
+                # 直接 chunk.decode(..., errors='replace') 会把一个汉字替换成三个 �，
+                # 进而让后面的事件 JSON 解析失败、usage 丢失（漏计费）。
+                sse_decoder = IncrementalUtf8Decoder()
                 anthropic_converter = AnthropicStreamToOpenAIConverter(model_name) if protocol == 'anthropic' else None
 
                 try:
@@ -809,7 +813,7 @@ class ChatCompletionsView(APIView):
                             yield chunk
                             # 解析 SSE 事件提取 usage（最后一个 chunk 通常带 usage）
                             try:
-                                sse_buffer += chunk.decode('utf-8', errors='replace')
+                                sse_buffer += sse_decoder.decode(chunk)
                             except Exception:
                                 continue
                             while True:
