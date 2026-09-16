@@ -35,11 +35,13 @@ from apps.utils.billing import (
     deduct_failure_payload,
     openai_error,
     precheck_failure,
+    unbilled_stream_note,
 )
 from .models import APIAccessLog
 from .adapters.request_adapter import openai_to_anthropic
 from .adapters.response_adapter import anthropic_to_openai
 from .adapters.streaming_adapter import AnthropicStreamToOpenAIConverter, IncrementalUtf8Decoder
+from .adapters.upstream_body import build_stream_body
 from .channel_probes import ANTHROPIC_VERSION, endpoint_url, protocol_of, _anthropic_auth_headers
 
 
@@ -771,11 +773,10 @@ class ChatCompletionsView(APIView):
             timeout = 300  # 默认超时300秒（流式请求更长）
             logger.info(f"[ChatCompletions-Stream] Starting streaming request, timeout={timeout}s")
 
-            # 在生成器外部把 request.data 复制出来，避免在生成器执行期间访问已关闭的请求
-            body = dict(request_data_copy)
-            body['stream'] = True
-            if protocol == 'anthropic':
-                body = openai_to_anthropic(body, model_name)
+            # 在生成器外部把请求体拼好，避免在生成器执行期间访问已关闭的请求。
+            # 流式请求体的拼装只有一处（含「必须向上游索取 usage」那条规矩），
+            # 见 adapters/upstream_body.py —— 这里不再自己写 body['stream']。
+            body = build_stream_body(request_data_copy, protocol, model_name)
 
             def generate():
                 """生成器函数，按字节流式返回 SSE 数据，并解析 usage 用于结束后的统计/计费"""
@@ -947,6 +948,15 @@ class ChatCompletionsView(APIView):
                         if isinstance(ptd, dict):
                             cached_tokens = int(ptd.get('cached_tokens') or 0)
                         cached_tokens = cached_tokens or int(final_usage.get('cache_read_input_tokens') or 0)
+
+                    # 成功却一个 token 都没收到 = 这笔没收钱。以前是静默的：
+                    # 余额不动、用量全 0，与「这次真的免费」看不出区别。
+                    note = unbilled_stream_note(
+                        '/chat/completions', final_status, total_tokens,
+                        user_id=user.id, usage_log_id=getattr(usage_log, 'id', None),
+                    )
+                    if note:
+                        logger.warning(note)
 
                     # 更新 UsageLog
                     try:

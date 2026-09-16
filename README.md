@@ -113,13 +113,14 @@ cd backend
 python run_tests.py
 ```
 
-后端单元测试是**纯 Python** 的：不连数据库、不读 Django settings。计费口径、OpenAI/Anthropic 协议转换、流式状态机、图像定价规则这些最贵也最容易悄悄改坏的地方，都靠这一层锁住。相关的两条硬规则：
+后端单元测试是**纯 Python** 的：不连数据库、不读 Django settings。计费口径、OpenAI/Anthropic 协议转换、流式状态机、图像定价规则这些最贵也最容易悄悄改坏的地方，都靠这一层锁住。相关的几条硬规则：
 
 - **定价格只允许有一个来源**：图像单张价格（含「模型没配单价时用多少」）在 `apps/image_gen/pricing.py`；`chatcmpl… → resp…` 的 id 映射在 `apps/api_proxy/adapters/ids.py`，流式与非流式共用。别在 `views.py` 里再写一遍。
 - **扣费必须是原子的**：`transaction.atomic()` + `select_for_update()`，余额在锁内重读；图片生成要**先扣费再保存图片**，否则一次「余额不足」的请求会把图留在库里，用户照样能下载。
 - **扣了钱没给货必须退**：正因为是先扣费再保存图片，保存图片失败（磁盘/COS 写不进去）就得原路退回、并写一条 `type='refund'` 账单，退完把本次 `cost` 归零当幂等标记。退款和扣费要拿同一把锁、顺序也一致（先 `User` 再 `ImageGeneration`），否则并发下会互相等锁。退款本身失败时不抛异常 —— 已经是最坏的情况，该如实写进日志和返回信息说「没退成」，而不是再抛一个异常把真正的失败原因盖掉。
 - **扣费失败的原因要分档**：`_deduct_cost()` 与 `calculate_and_deduct_cost()` 都返回 `(cost, DEDUCT_OK | DEDUCT_INSUFFICIENT | DEDUCT_ERROR)` 三档结果，不再是布尔值。服务端自己出错（查库/写库异常）不能报成「余额不足」—— 那会诱导用户去充值，还把 500 伪装成 400 让人以为是请求写错了。所有面向用户的计费文案（余额不足、扣费失败、退款到账/未到账）、以及失败时的 HTTP 状态码与错误 `code`，都由 `apps/utils/billing.py` 生成，别在 `views.py` 里另写一份。
 - **两条扣费路径的「余额不足」不同源，且是有意的**：图片路径允许 `DEDUCT_INSUFFICIENT`（前置校验按 `balance < cost` 判）；LLM 路径（`/v1/chat/completions` 与 `/v1/responses`）的扣费**允许把余额扣成负数**，好让已经花掉上游成本的那一笔照样记账，透支由下一次请求入口的 `balance <= 0` 拦住 —— 所以那条路径上扣费失败**只可能是服务端出错**，报「余额不足」一定是假话。入口那道前置校验才可以说「余额不足」，因为它判的是事实。
+- **流式请求必须主动向上游索取 usage**：OpenAI 兼容协议里，流式响应**默认一个 chunk 都不带 `usage`** —— 要拿到它，请求必须带 `stream_options.include_usage = true`。请求体只由 `apps/api_proxy/adapters/upstream_body.py` 拼装（`/v1/chat/completions` 与 `/v1/responses` 两条流式端点共用它），别再自己写 `body['stream'] = True`。少了这个字段，收尾计费那句 `if total_tokens > 0` 会**整段跳过扣费**：余额不动、用量记为 0、账单里没有这一笔，而且不报错 —— 与「这次调用真的免费」完全一样。所以收尾时若「成功但一个 token 都没收到」，会由 `billing.unbilled_stream_note()` 记一条 WARNING，让「这笔没收钱」至少留下痕迹。Anthropic 的流自带 usage（`message_start` / `message_delta`），而且它不认 `stream_options`，所以这个字段只对 OpenAI 协议加。
 
 > 为什么文案模块在 `apps/utils/` 而不是 `apps/image_gen/`：它现在服务三条路径（图片、chat/completions、responses）。`apps/utils/__init__.py` 因此**不做任何 re-export** —— 一旦在里面 `from .response import ...`，`from apps.utils import billing` 就会连带把 Django/DRF 拖进来，纯 Python 测试立刻跑不起来。
 

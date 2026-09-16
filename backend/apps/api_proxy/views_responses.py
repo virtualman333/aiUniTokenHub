@@ -41,6 +41,7 @@ from .views_openai import (
 from .adapters.request_adapter import convert_request as convert_req_to_chat, openai_to_anthropic
 from .adapters.response_adapter import convert_response as convert_resp_to_response, anthropic_to_openai
 from .adapters.streaming_adapter import AnthropicStreamToOpenAIConverter, IncrementalUtf8Decoder, StreamingConverter
+from .adapters.upstream_body import build_stream_body
 from .channel_probes import ANTHROPIC_VERSION, protocol_of
 # 计费结果语义 / 文案 / 状态码只从这一处来。这个文件此前也自己写着
 # '余额不足，请充值后再试。'，并把服务端扣费出错回成同一句话。
@@ -50,6 +51,7 @@ from apps.utils.billing import (
     DEDUCT_ERROR,
     deduct_failure_payload,
     precheck_failure,
+    unbilled_stream_note,
 )
 
 logger = logging.getLogger('api_proxy')
@@ -336,10 +338,9 @@ class ResponsesView(APIView):
         logger.info(f"[Responses-Stream] Forwarding to: {target_url}")
 
         try:
-            body = dict(chat_request)
-            body['stream'] = True
-            if protocol == 'anthropic':
-                body = openai_to_anthropic(body, model_name)
+            # 同 /v1/chat/completions：流式请求体只有一处拼装逻辑，见
+            # adapters/upstream_body.py（它负责向上游索取 usage）。
+            body = build_stream_body(chat_request, protocol, model_name)
             logger.debug(f"[Responses-Stream] Request body: {body}")
 
             def generate():
@@ -666,6 +667,15 @@ class ResponsesView(APIView):
             if isinstance(ptd, dict):
                 cached_tokens = int(ptd.get('cached_tokens') or 0)
             cached_tokens = cached_tokens or int(final_usage.get('cache_read_input_tokens') or 0)
+
+        # 成功却一个 token 都没收到 = 这笔没收钱。与 /chat/completions 同一个
+        # 判据、同一句话（apps/utils/billing.py），两边不许各写一份。
+        note = unbilled_stream_note(
+            '/responses', final_status, total_tokens,
+            user_id=getattr(user, 'id', None), usage_log_id=getattr(usage_log, 'id', None),
+        )
+        if note:
+            logger.warning(note)
 
         # 更新 UsageLog
         try:

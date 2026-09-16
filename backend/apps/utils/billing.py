@@ -37,6 +37,7 @@
    > `format_amount`**。
 """
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
+from typing import Optional
 
 # ============================================================
 # 扣费结果
@@ -240,3 +241,50 @@ def refund_message(amount, reason: str = '生成失败') -> str:
     if refund_amount_of(amount) > 0:
         return f'{reason}，已退回 ¥{format_amount(amount)}，请稍后重试'
     return f'{reason}，本次未产生费用，请稍后重试'
+
+
+# ============================================================
+# 流式收尾：这笔到底收没收到钱
+# ============================================================
+
+def unbilled_stream_note(endpoint: str, upstream_status, total_tokens,
+                         user_id=None, usage_log_id=None) -> Optional[str]:
+    """成功收尾的流式请求、上游却没给 token 用量 → 返回该记 WARNING 的一句话。
+
+    这是「**这笔没收钱**」的判据，而且只有这一处：两条流式端点
+    （`views_openai` 的 `/chat/completions`、`views_responses` 的 `/responses`）
+    各自收尾，判据再各写一份必然漂移 —— 而漂移的方向恰好是「一边告警一边沉默」。
+
+    为什么要专门说一句：
+
+      收尾计费写的是 `if total_tokens > 0`。上游没给 usage 时 `total_tokens`
+      就是 0，扣费**整段被跳过**：余额一动不动、`UsageLog` 三个 token 字段全 0、
+      账单里没有这一笔。而这并不是异常，是正常收尾 —— 不报错、不重试、
+      界面上看不出任何区别，与「这次调用真的免费」一模一样。
+      唯一能留下痕迹的地方只有日志。
+
+    正常情况它不该被触发：流式请求体现在会主动带
+    `stream_options.include_usage`（见 `api_proxy/adapters/upstream_body.py`），
+    上游会把 usage 补在流末尾。这句话一旦出现在日志里，说明上游没照做，或者流
+    被中途掐断了 —— 那时要么换上游、要么补一个计费兜底，总之得有人知道。
+
+    判定用 `0 < upstream_status < 400`：4xx/5xx 本来就不计费，那是另一回事，
+    混进来会让每来一次上游报错就刷一条「没收钱」，很快没人再看它。
+    """
+    try:
+        if int(total_tokens or 0) > 0:
+            return None
+        status = int(upstream_status or 0)
+    except (TypeError, ValueError):
+        return None
+    if not 0 < status < 400:
+        return None
+
+    where = f'user_id={user_id}' if user_id is not None else 'user_id=?'
+    if usage_log_id is not None:
+        where += f' usage_log={usage_log_id}'
+    return (
+        f'[Billing] {endpoint} 流式请求已成功（HTTP {status}）但上游没返回 token 用量：'
+        f'本次未计费（余额未扣、用量记为 0）。{where}。'
+        f'确认请求带上了 stream_options.include_usage，以及上游有没有吞掉它。'
+    )

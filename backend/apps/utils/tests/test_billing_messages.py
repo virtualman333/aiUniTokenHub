@@ -12,6 +12,9 @@
 3. **同一个意思不许有两种说法。** 图片路径与两个 OpenAI 兼容端点走同一张
    翻译表；`code` 与 HTTP 状态码不能各判一次（改了状态码而漏改 code，
    就会回出「402 + billing_error」这种自相矛盾的东西）。
+4. **成功收尾但没收到 token 用量 = 这笔没收钱**，判据与那句话只有一处
+   （`unbilled_stream_note`）。扣费那句 `if total_tokens > 0` 会把整段跳过，
+   而余额、用量明细、账单三处都不会有任何痕迹 —— 沉默正是它的危险之处。
 
 跑法（在 backend/ 下）：python run_tests.py
 """
@@ -226,6 +229,47 @@ class PrecheckFailureTest(unittest.TestCase):
         pre_msg, _c, _h = billing.precheck_failure(Decimal('0'))
         err_msg, _c2, _h2 = billing.deduct_failure_payload(billing.DEDUCT_ERROR)
         self.assertNotEqual(pre_msg, err_msg)
+
+
+class UnbilledStreamNoteTest(unittest.TestCase):
+    """流式收尾：成功却没收到 usage —— 这笔没收钱，得留下痕迹"""
+
+    def test_成功但一个token都没有时给出告警文案(self):
+        note = billing.unbilled_stream_note(
+            '/chat/completions', 200, 0, user_id=7, usage_log_id=42,
+        )
+        self.assertIsNotNone(note, '成功但没收到 usage 却一声不响 —— 这次调用一分钱都没收')
+        self.assertIn('/chat/completions', note, '要知道是哪条端点')
+        self.assertIn('HTTP 200', note, '要知道上游是成功收尾的（失败本来就不计费）')
+        self.assertIn('未计费', note, '要明确说出「没收钱」，不能只说「没收到 usage」')
+        self.assertIn('user_id=7', note)
+        self.assertIn('usage_log=42', note, '带上 usage_log 才能回查这一次请求')
+
+    def test_要指出下一步查什么(self):
+        # 判据给了、动作没给，看日志的人还得自己从代码里推一遍
+        note = billing.unbilled_stream_note('/responses', 200, 0)
+        self.assertIn('stream_options.include_usage', note)
+
+    def test_拿到了token就不告警(self):
+        for total in (1, 12, 100000):
+            with self.subTest(total=total):
+                self.assertIsNone(billing.unbilled_stream_note('/chat/completions', 200, total))
+
+    def test_上游失败不告警(self):
+        """4xx/5xx 本来就不计费，那是另一回事 —— 混进来会天天刷告警，很快就没人看了。"""
+        for status in (0, 400, 429, 500, 504):
+            with self.subTest(status=status):
+                self.assertIsNone(billing.unbilled_stream_note('/chat/completions', status, 0))
+
+    def test_脏输入不抛(self):
+        for status, total in ((None, None), ('200', '0'), ('x', 'y')):
+            with self.subTest(status=status, total=total):
+                billing.unbilled_stream_note('/chat/completions', status, total)
+
+    def test_两条端点各自能定位(self):
+        a = billing.unbilled_stream_note('/chat/completions', 200, 0)
+        b = billing.unbilled_stream_note('/responses', 200, 0)
+        self.assertNotEqual(a, b)
 
 
 if __name__ == '__main__':
