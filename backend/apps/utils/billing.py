@@ -37,7 +37,7 @@
    > `format_amount`**。
 """
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
-from typing import Optional
+from typing import NamedTuple, Optional
 
 # ============================================================
 # 扣费结果
@@ -288,3 +288,99 @@ def unbilled_stream_note(endpoint: str, upstream_status, total_tokens,
         f'本次未计费（余额未扣、用量记为 0）。{where}。'
         f'确认请求带上了 stream_options.include_usage，以及上游有没有吞掉它。'
     )
+
+
+# ============================================================
+# 上游用量解析：token 三件套 + 缓存命中
+# ============================================================
+#
+# 「从上游返回体里读出用了多少 token」曾经在**三处**各写一份：
+# `views_openai._update_usage_log`、`views_responses._update_usage_log`、
+# `views_responses._finalize_stream`。三份的差异不在风格而在**认得的字段**：
+# 只有一份认 Responses API 的 `input_tokens`，只有流式那份认
+# `cache_read_input_tokens`。于是同一个上游、同一个请求，走不同端点可能
+# 算出不同的用量 —— 而这直接决定收多少钱（缓存命中的 input 按折扣单价计费）。
+#
+# 现在只有这一份：调用方拿到 `usage` 字典也好、整个返回体也好，都从这儿过。
+
+class TokenUsage(NamedTuple):
+    """一次上游调用实际消耗的用量（四个值口径统一为「非负整数」）。
+
+    `cached_tokens` 不只是展示用的统计 —— 它参与计费：命中缓存的 input token
+    按折扣单价算（见 `api_proxy.calculate_and_deduct_cost` 的 `cached_tokens`
+    参数）。漏读它 = 按全价收，用户看不见、对账时也对不出来。
+    """
+
+    input_tokens: int
+    output_tokens: int
+    total_tokens: int
+    cached_tokens: int
+
+
+def _as_int(value) -> int:
+    """上游的数值字段转非负整数 —— `null` / `'12'` / 负数 / 乱码都不抛。
+
+    为什么不抛：这些字段来自第三方响应体，一个脏值不该把整条请求打成 500
+    （调用方没有 try/except，抛出去就是 500 + 用户看到一个平台故障）。
+    负数按 0 处理 —— `-1` 是某些代理表示「用量未知」的约定，真的当负数用会
+    让 `total_tokens > 0` 这类判断出现莫名其妙的结果。
+    """
+    try:
+        n = int(value or 0)
+    except (TypeError, ValueError):
+        return 0
+    return n if n > 0 else 0
+
+
+def parse_usage_dict(raw) -> TokenUsage:
+    """解析**usage 字典本身**（不含外层 `usage` 键）。
+
+    上游有三种形态，字段名互不重叠，所以可以按指纹直接判：
+
+      - Responses API：`input_tokens` / `output_tokens` / `total_tokens`，
+        缓存明细在 `input_tokens_details.cached_tokens`
+      - OpenAI / 兼容格式：`prompt_tokens` / `completion_tokens` / `total_tokens`，
+        缓存明细在 `prompt_tokens_details.cached_tokens`
+      - Anthropic：缓存用 `cache_read_input_tokens`（没有 details 那一层）
+
+    先用 `input_tokens is not None` 判 Responses 形态：这两种形态的字段名没有
+    交集，不会互相误判；而且**不能用真值判断**（`in` 或 `or`）—— `input_tokens=0`
+    是合法值，用真值判会把一个正经的 Responses 响应当成 OpenAI 形态，于是三个
+    字段全读成 0。
+    """
+    if not isinstance(raw, dict):
+        return TokenUsage(0, 0, 0, 0)
+
+    if raw.get('input_tokens') is not None:
+        itd = raw.get('input_tokens_details') or {}
+        return TokenUsage(
+            _as_int(raw.get('input_tokens')),
+            _as_int(raw.get('output_tokens')),
+            _as_int(raw.get('total_tokens')),
+            _as_int(itd.get('cached_tokens')) if isinstance(itd, dict) else 0,
+        )
+
+    ptd = raw.get('prompt_tokens_details') or {}
+    cached = _as_int(ptd.get('cached_tokens')) if isinstance(ptd, dict) else 0
+    # Anthropic 只有 cache_read_input_tokens。两者都可能有值（代理会把 Anthropic
+    # 的字段顺手补进 OpenAI 形态），取先有值的那个。
+    if not cached:
+        cached = _as_int(raw.get('cache_read_input_tokens'))
+    return TokenUsage(
+        _as_int(raw.get('prompt_tokens')),
+        _as_int(raw.get('completion_tokens')),
+        _as_int(raw.get('total_tokens')),
+        cached,
+    )
+
+
+def parse_usage(response_data) -> TokenUsage:
+    """从**完整上游返回体**里解析用量（取 `response_data['usage']`）。
+
+    返回体不是 dict（错误分支收到字符串、None）时给全 0 —— 与「上游确实没回
+    usage」是同一个结果，调用方按同一条路走即可（该告警由
+    `unbilled_stream_note` 负责）。
+    """
+    if not isinstance(response_data, dict):
+        return TokenUsage(0, 0, 0, 0)
+    return parse_usage_dict(response_data.get('usage'))

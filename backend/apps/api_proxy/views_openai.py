@@ -34,6 +34,8 @@ from apps.utils.billing import (
     DEDUCT_ERROR,
     deduct_failure_payload,
     openai_error,
+    parse_usage,
+    parse_usage_dict,
     precheck_failure,
     unbilled_stream_note,
 )
@@ -401,6 +403,77 @@ def calculate_and_deduct_cost(user, model_code, input_tokens, output_tokens,
     return cost, DEDUCT_OK
 
 
+# ============================================================
+# 收尾记账：写用量 → 存 → 计费（**两个端点共用这一份**）
+# ============================================================
+#
+# `/chat/completions`（本文件）与 `/responses`（views_responses.py）原先各有一个
+# 逐字相同的 `_update_usage_log` —— 连注释都抄了过去。差异只剩「usage 怎么解析」
+# 那一层，而正是那一层让两边长歪了：
+#
+#   - `cached_tokens` 只有流式收尾写进 UsageLog，两个非流式端点都没写 →
+#     「按缓存折扣计了费，但用量明细里缓存命中是 0」，账单对不上；
+#   - `response_body` 一边带 `hasattr(response, 'headers')` 守卫、一边没有 ——
+#     那个守卫恒为真（response 一定是 requests.Response），留着只是让两份
+#     看起来不一样；
+#   - 脏值（上游把 cached_tokens 回成字符串）会 `int()` 抛出去 → 500。
+#
+# 同一件事写两遍必然漂移，所以只留下面这一份。
+
+def apply_usage_to_log(log, response_data):
+    """把上游用量落到 UsageLog 字段上，返回缓存命中数（供随后计费用）。"""
+    usage = parse_usage(response_data)
+    log.input_tokens = usage.input_tokens
+    log.output_tokens = usage.output_tokens
+    log.total_tokens = usage.total_tokens
+    # 这一行以前只有流式收尾写了。非流式漏记的后果是「钱按折扣收了、
+    # 明细里缓存是 0」—— 对账时看不出这笔为什么比全价便宜。
+    log.cached_tokens = usage.cached_tokens
+    if isinstance(response_data, dict):
+        log.response_body = str(response_data)[:5000]
+    return usage.cached_tokens
+
+
+def charge_usage(log, model_code, status_code, cached_tokens, upstream_account=None):
+    """成功且确实用了 token → 扣费。否则返回「成功、0 元」。
+
+    返回 `(billing_status, billing_cost)`，状态是三档而不是布尔值
+    （见 apps/utils/billing.py）。
+    """
+    if int(status_code or 0) >= 400 or int(log.total_tokens or 0) <= 0:
+        return DEDUCT_OK, 0
+
+    cost, status = calculate_and_deduct_cost(
+        log.user, model_code,
+        log.input_tokens, log.output_tokens, log,
+        cached_tokens=cached_tokens,
+        upstream_account=upstream_account,
+    )
+    if status != DEDUCT_OK:
+        # ⚠ 这里**不是**「余额不足」。扣费这条路径允许把余额扣成负数
+        # （已经消耗的上游成本必须记账），所以它失败只可能是服务端出错。
+        # 以前这句日志写的就是「余额不足」，把后来的人都带偏了。
+        logger.error(
+            f"[Billing] 用户 {log.user.username}(ID:{log.user.id}) 扣费未成功（服务端），"
+            f"费用: {cost}元，余额: {log.user.balance}元，原因: {status}"
+        )
+    return status, cost
+
+
+def update_usage_log(log, response, response_data, response_time, model_code,
+                     upstream_account=None):
+    """收尾：写时间与状态码 → 写用量 → 存盘 → 计费。
+
+    两个端点（`/chat/completions` 与 `/responses`）的非流式路径都调它，
+    这样「读用量 / 落字段 / 扣费 / 失败日志」只有一处实现。
+    """
+    log.response_time = response_time
+    log.status_code = response.status_code
+    cached_tokens = apply_usage_to_log(log, response_data)
+    log.save()
+    return charge_usage(log, model_code, response.status_code, cached_tokens, upstream_account)
+
+
 # ============== OpenAI 兼容接口 ==============
 
 class ChatCompletionsView(APIView):
@@ -607,7 +680,7 @@ class ChatCompletionsView(APIView):
             
             # 更新日志（含计费）。返回值是 (状态, 金额)，状态是三档而不是布尔值 ——
             # 布尔值把「余额不足」与「服务端出错」压成了同一句话。
-            billing_status, billing_cost = self._update_usage_log(
+            billing_status, billing_cost = update_usage_log(
                 usage_log, response, response_data, response_time, model_name,
                 upstream_account=account)
             usage_log.refresh_from_db()  # 拿到计费后的最新值
@@ -936,18 +1009,9 @@ class ChatCompletionsView(APIView):
                 finally:
                     # 流结束后：统一记录 APIAccessLog、更新 UsageLog、计费
                     response_time_ms = int((time.time() - start_time) * 1000)
-                    prompt_tokens = 0
-                    completion_tokens = 0
-                    total_tokens = 0
-                    cached_tokens = 0
-                    if isinstance(final_usage, dict):
-                        prompt_tokens = int(final_usage.get('prompt_tokens') or 0)
-                        completion_tokens = int(final_usage.get('completion_tokens') or 0)
-                        total_tokens = int(final_usage.get('total_tokens') or 0)
-                        ptd = final_usage.get('prompt_tokens_details') or {}
-                        if isinstance(ptd, dict):
-                            cached_tokens = int(ptd.get('cached_tokens') or 0)
-                        cached_tokens = cached_tokens or int(final_usage.get('cache_read_input_tokens') or 0)
+                    # 用量解析只有一处（`apps/utils/billing.parse_usage_dict`）——
+                    # 这里以前自己写了一份，只认 OpenAI 与 Anthropic 的缓存字段。
+                    prompt_tokens, completion_tokens, total_tokens, cached_tokens = parse_usage_dict(final_usage)
 
                     # 成功却一个 token 都没收到 = 这笔没收钱。以前是静默的：
                     # 余额不动、用量全 0，与「这次真的免费」看不出区别。
@@ -1068,56 +1132,6 @@ class ChatCompletionsView(APIView):
             headers['Accept'] = 'text/event-stream'
         return headers
     
-    def _update_usage_log(self, log, response, response_data, response_time, model_code='',
-                          upstream_account=None):
-        """更新使用日志并执行计费"""
-        log.response_time = response_time
-        log.status_code = response.status_code
-
-        cached_tokens = 0
-
-        # 计算token使用量（如果有）
-        if isinstance(response_data, dict):
-            usage = response_data.get('usage', {}) or {}
-            log.input_tokens = usage.get('prompt_tokens', 0) or 0
-            log.output_tokens = usage.get('completion_tokens', 0) or 0
-            log.total_tokens = usage.get('total_tokens', 0) or 0
-
-            # 兼容多家上游的缓存命中字段
-            ptd = usage.get('prompt_tokens_details') or {}
-            if isinstance(ptd, dict):
-                cached_tokens = int(ptd.get('cached_tokens') or 0)
-            # Anthropic: cache_read_input_tokens
-            cached_tokens = cached_tokens or int(usage.get('cache_read_input_tokens') or 0)
-
-            if hasattr(response, 'headers'):
-                log.response_body = str(response_data)[:5000]
-
-        log.save()
-
-        # 计费扣费（仅在请求成功时）
-        billing_status = DEDUCT_OK
-        billing_cost = 0
-        if response.status_code < 400 and log.total_tokens > 0:
-            cost, status = calculate_and_deduct_cost(
-                log.user, model_code,
-                log.input_tokens, log.output_tokens, log,
-                cached_tokens=cached_tokens,
-                upstream_account=upstream_account,
-            )
-            billing_status, billing_cost = status, cost
-            if status != DEDUCT_OK:
-                # ⚠ 这里**不是**「余额不足」。扣费这条路径允许把余额扣成负数
-                # （已经消耗的上游成本必须记账），所以它失败只可能是服务端出错。
-                # 以前这句日志写的就是「余额不足」，把后来的人都带偏了。
-                logger.error(
-                    f"[Billing] 用户 {log.user.username}(ID:{log.user.id}) 扣费未成功（服务端），"
-                    f"费用: {cost}元，余额: {log.user.balance}元，原因: {status}"
-                )
-
-        return billing_status, billing_cost
-
-
 class CompletionsView(APIView):
     """
     OpenAI Completions API (Legacy)

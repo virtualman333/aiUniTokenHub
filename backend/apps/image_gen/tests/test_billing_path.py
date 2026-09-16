@@ -563,18 +563,38 @@ class ChatBillingCopyIsSharedTest(unittest.TestCase):
     def test_扣费失败按三档判_不是布尔值(self):
         # 旧写法：`if not billing_success`。布尔值只剩「成/败」，败的那一支
         # 只能挑一种说法 —— 挑中的就是「余额不足」。
+        #
+        # 第 9 轮把两个端点各自那份 `_update_usage_log` 并成了
+        # `views_openai.update_usage_log` 一份（usage 解析同时并到
+        # `apps/utils/billing.parse_usage*`），所以这条锁跟着改成锁**那一份**：
+        # 收尾必须把扣费交给 `charge_usage`，而 `charge_usage` 必须回 (三档, 金额)。
+        openai_src = _read(OPENAI_VIEWS)
+        code = _strip_strings(_func_body(openai_src, 'update_usage_log'))
+        self.assertIn(
+            'charge_usage(', code,
+            '唯一的收尾实现里不再有 charge_usage —— 扣费逻辑被内联回去了，'
+            '两个端点很快又会各长一份',
+        )
+
+        charge = _strip_strings(_func_body(openai_src, 'charge_usage'))
+        self.assertIn('calculate_and_deduct_cost(', charge, 'charge_usage 没真的去扣费')
+        self.assertNotRegex(
+            charge, r'return (?:cost|0), (?:True|False)\b',
+            '计费结果又退回布尔值了 —— 「余额不足」与「服务端出错」就只剩一种说法',
+        )
+        self.assertRegex(
+            charge, r'return status, cost',
+            '应回 (状态, 金额)：调用方要靠金额判断这一笔是不是本该收费',
+        )
+
+        # 两个端点都必须调那一份。各留一份复制品的话，上面全绿也拦不住漂移 ——
+        # 而漂移的后果是「同一个上游、不同的端点、算出不同的用量」，直接决定收多少钱。
         for name, src in self.files.items():
             with self.subTest(file=name):
-                body = _func_body(src, '_update_usage_log')
-                code = _strip_strings(body)
-                self.assertIn('calculate_and_deduct_cost(', code, '_update_usage_log 没真的去扣费')
-                self.assertNotRegex(
-                    code, r'return billing_success\b',
-                    '计费结果又退回布尔值了 —— 「余额不足」与「服务端出错」就只剩一种说法',
-                )
-                self.assertRegex(
-                    code, r'return billing_status, billing_cost',
-                    '应回 (状态, 金额)：调用方要靠金额判断这一笔是不是本该收费',
+                self.assertIn(
+                    'update_usage_log', _called_names(src),
+                    f'{name} 没走共用的收尾实现（views_openai.update_usage_log）—— '
+                    f'两个端点各写一份，usage 解析与 cached_tokens 迟早再漂移一次',
                 )
 
     def test_calculate_and_deduct_cost不再返回布尔值(self):

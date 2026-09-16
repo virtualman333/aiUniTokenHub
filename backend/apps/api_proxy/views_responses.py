@@ -31,6 +31,7 @@ from .views_openai import (
     select_upstream_account,
     check_rate_limit,
     update_upstream_usage,
+    update_usage_log,
     log_api_access,
     calculate_and_deduct_cost,
     get_client_ip,
@@ -50,6 +51,7 @@ from apps.utils.billing import (
     DEDUCT_OK,
     DEDUCT_ERROR,
     deduct_failure_payload,
+    parse_usage_dict,
     precheck_failure,
     unbilled_stream_note,
 )
@@ -246,7 +248,7 @@ class ResponsesView(APIView):
 
             # 更新日志与计费。返回值是 (状态, 金额)：状态是三档而不是布尔值 ——
             # 布尔值会把「余额不足」与「服务端出错」压成同一句话。
-            billing_status, billing_cost = self._update_usage_log(
+            billing_status, billing_cost = update_usage_log(
                 usage_log, response, response_data, response_time, model_name,
                 upstream_account=account)
             usage_log.refresh_from_db()
@@ -588,85 +590,16 @@ class ResponsesView(APIView):
     # 日志 & 计费
     # ------------------------------------------------------------------
 
-    def _update_usage_log(self, log, response, response_data, response_time, model_code,
-                          upstream_account=None):
-        """更新使用日志并执行计费（非流式）"""
-        log.response_time = response_time
-        log.status_code = response.status_code
-
-        cached_tokens = 0
-        usage = {}
-
-        if isinstance(response_data, dict):
-            # 优先从 Response API 格式提取
-            resp_usage = response_data.get('usage', {}) or {}
-            if resp_usage.get('input_tokens') is not None:
-                # Response API 格式：缓存明细在 input_tokens_details 中，需一并保留
-                itd = resp_usage.get('input_tokens_details') or {}
-                usage = {
-                    'prompt_tokens': resp_usage.get('input_tokens', 0),
-                    'completion_tokens': resp_usage.get('output_tokens', 0),
-                    'total_tokens': resp_usage.get('total_tokens', 0),
-                    'prompt_tokens_details': {
-                        'cached_tokens': int(itd.get('cached_tokens') or 0) if isinstance(itd, dict) else 0,
-                    },
-                }
-            else:
-                usage = response_data.get('usage', {}) or {}
-
-            log.input_tokens = usage.get('prompt_tokens', 0) or 0
-            log.output_tokens = usage.get('completion_tokens', 0) or 0
-            log.total_tokens = usage.get('total_tokens', 0) or 0
-
-            ptd = usage.get('prompt_tokens_details') or {}
-            if isinstance(ptd, dict):
-                cached_tokens = int(ptd.get('cached_tokens') or 0)
-            cached_tokens = cached_tokens or int(usage.get('cache_read_input_tokens') or 0)
-
-            log.response_body = str(response_data)[:5000]
-
-        log.save()
-
-        # 计费扣费（仅在请求成功时）
-        billing_status = DEDUCT_OK
-        billing_cost = 0
-        if response.status_code < 400 and log.total_tokens > 0:
-            cost, status = calculate_and_deduct_cost(
-                log.user, model_code,
-                log.input_tokens, log.output_tokens, log,
-                cached_tokens=cached_tokens,
-                upstream_account=upstream_account,
-            )
-            billing_status, billing_cost = status, cost
-            if status != DEDUCT_OK:
-                # 同 views_openai：扣费这条路径上失败只可能是服务端出错，
-                # 余额不足在扣费这一步不可能发生（余额允许被扣成负数）。
-                logger.error(
-                    f"[Billing] 用户 {log.user.username}(ID:{log.user.id}) 扣费未成功（服务端），"
-                    f"费用: {cost}元，余额: {log.user.balance}元，原因: {status}"
-                )
-
-        return billing_status, billing_cost
-
     def _finalize_stream(self, usage_log, user, api_key, model_name,
                          original_request, final_status, final_error_msg,
                          final_usage, start_time, client_ip, model_obj, account):
         """流式结束后统一记录日志和计费"""
         response_time_ms = int((time.time() - start_time) * 1000)
 
-        prompt_tokens = 0
-        completion_tokens = 0
-        total_tokens = 0
-        cached_tokens = 0
-
-        if isinstance(final_usage, dict):
-            prompt_tokens = int(final_usage.get('prompt_tokens') or 0)
-            completion_tokens = int(final_usage.get('completion_tokens') or 0)
-            total_tokens = int(final_usage.get('total_tokens') or 0)
-            ptd = final_usage.get('prompt_tokens_details') or {}
-            if isinstance(ptd, dict):
-                cached_tokens = int(ptd.get('cached_tokens') or 0)
-            cached_tokens = cached_tokens or int(final_usage.get('cache_read_input_tokens') or 0)
+        # 用量解析只有一处（`apps/utils/billing.parse_usage_dict`），这里以前
+        # 自己写了一份 —— 而它不认 Responses 形态的 `input_tokens` 与
+        # `input_tokens_details`。同一个上游换个端点算出不同用量，收的钱就不同。
+        prompt_tokens, completion_tokens, total_tokens, cached_tokens = parse_usage_dict(final_usage)
 
         # 成功却一个 token 都没收到 = 这笔没收钱。与 /chat/completions 同一个
         # 判据、同一句话（apps/utils/billing.py），两边不许各写一份。
