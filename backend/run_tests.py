@@ -50,10 +50,16 @@ BACKEND = Path(__file__).resolve().parent
 #: 没测试又不在这里 → 失败；在这里却已经有 `tests/` → 也失败。
 #: 后一条是为了防止它慢慢变成一块记着陈年旧事的墓碑。
 NO_TESTS_YET = {
-    'tickets': '工单，models/serializers/views 共 468 行，逻辑基本是 ORM 读写 —— '
-               '能测的部分都要 DB（Django test runner + MySQL），纯函数侧暂时没有，待补。',
-    'users': '用户 / 认证 / 邮件 / 邀请奖励，2511 行；其中 utils.py 的 '
-             'process_invite_reward 就在发钱那条线上。目前能测的都会碰 DB，待补。',
+    'tickets': '工单，models/serializers/views 共 468 行，逻辑基本是 ORM 读写。'
+               '不碰库的只有 models.py 的 ticket_image_upload_path（文件名去重 + 路径拼接），'
+               '但它在 models.py 里 —— 纯 unittest import 不到（那个模块顶层 import Django）。'
+               '要测它得先抽成无 Django 依赖的模块（照 apps/utils/api_errors.py 的做法），待补。',
+    'users': '用户 / 认证 / 邮件 / 邀请奖励，2511 行。发钱那条线是 '
+             'utils.py::process_invite_reward —— 返利比例 / 审核阈值 / 升级门槛三个配置都在里面，'
+             '却和三次 ORM 查询揉成一个函数，于是「只有连库才测得了」。'
+             '判定本身（该不该发 / 发多少 / pending 还是 approved）可以整体抽成纯函数、'
+             '把查询当惰性取值函数传进去（照 apps/utils/api_errors.py 的做法），'
+             '这是下一轮的第一件事，待补。',
 }
 
 

@@ -25,6 +25,7 @@ from .serializers import (
 from .authentication import generate_token
 from .mailer import send_email, render_verify_code_email, EmailNotConfigured
 from apps.utils.response import APIResponse
+from apps.utils.api_errors import first_error_message
 
 
 class AuthViewSet(viewsets.GenericViewSet):
@@ -138,9 +139,7 @@ class AuthViewSet(viewsets.GenericViewSet):
         data = {**request.data, 'email': email}
         serializer = UserRegisterSerializer(data=data)
         if not serializer.is_valid():
-            errors = serializer.errors
-            first_error = list(errors.values())[0][0] if errors else '参数错误'
-            return APIResponse.error(str(first_error), 400)
+            return APIResponse.error(first_error_message(serializer.errors), 400)
         user = serializer.save()
 
         # 标记验证码已使用
@@ -158,9 +157,7 @@ class AuthViewSet(viewsets.GenericViewSet):
         """用户登录"""
         serializer = UserLoginSerializer(data=request.data)
         if not serializer.is_valid():
-            errors = serializer.errors
-            first_error = list(errors.values())[0][0] if errors else '参数错误'
-            return APIResponse.error(str(first_error), 400)
+            return APIResponse.error(first_error_message(serializer.errors), 400)
         
         user = authenticate(
             username=serializer.validated_data['username'],
@@ -189,9 +186,7 @@ class AuthViewSet(viewsets.GenericViewSet):
         """修改密码"""
         serializer = ChangePasswordSerializer(data=request.data, context={'request': request})
         if not serializer.is_valid():
-            errors = serializer.errors
-            first_error = list(errors.values())[0][0] if errors else '参数错误'
-            return APIResponse.error(str(first_error), 400)
+            return APIResponse.error(first_error_message(serializer.errors), 400)
         request.user.set_password(serializer.validated_data['new_password'])
         request.user.save()
         return APIResponse.success(None, '密码修改成功')
@@ -213,9 +208,7 @@ class APIKeyViewSet(viewsets.ModelViewSet):
     def create(self, request):
         serializer = self.get_serializer(data=request.data)
         if not serializer.is_valid():
-            errors = serializer.errors
-            first_error = list(errors.values())[0][0] if errors else '参数错误'
-            return APIResponse.error(str(first_error), 400)
+            return APIResponse.error(first_error_message(serializer.errors), 400)
         self.perform_create(serializer)
         return APIResponse.created(serializer.data, '创建成功')
     
@@ -346,9 +339,7 @@ class BillingViewSet(viewsets.GenericViewSet):
         """卡密兑换"""
         serializer = CardRedeemSerializer(data=request.data)
         if not serializer.is_valid():
-            errors = serializer.errors
-            first_error = list(errors.values())[0][0] if errors else '参数错误'
-            return APIResponse.error(str(first_error), 400)
+            return APIResponse.error(first_error_message(serializer.errors), 400)
         code = serializer.validated_data['code'].strip()
         try:
             card = CardPassword.objects.get(code=code)
@@ -510,9 +501,7 @@ class RechargeViewSet(viewsets.GenericViewSet):
         """提交充值请求 - 生成第三方网站跳转URL"""
         serializer = RechargeSerializer(data=request.data)
         if not serializer.is_valid():
-            errors = serializer.errors
-            first_error = list(errors.values())[0][0] if errors else '参数错误'
-            return APIResponse.error(str(first_error), 400)
+            return APIResponse.error(first_error_message(serializer.errors), 400)
         
         user = request.user
         channel_id = serializer.validated_data.get('channel_id')

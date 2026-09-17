@@ -10,6 +10,7 @@ from .serializers import (
 )
 from .upstream_models import ModelUpstreamAccount
 from apps.utils.response import APIResponse
+from apps.utils.api_errors import first_error_message
 
 
 class ModelProviderViewSet(viewsets.ModelViewSet):
@@ -64,9 +65,7 @@ class ModelProviderViewSet(viewsets.ModelViewSet):
     def create(self, request):
         serializer = self.get_serializer(data=request.data)
         if not serializer.is_valid():
-            errors = serializer.errors
-            first_error = list(errors.values())[0][0] if errors else '参数错误'
-            return APIResponse.error(str(first_error), 400)
+            return APIResponse.error(first_error_message(serializer.errors), 400)
         self.perform_create(serializer)
         return APIResponse.created(serializer.data, '创建成功')
     
@@ -74,9 +73,7 @@ class ModelProviderViewSet(viewsets.ModelViewSet):
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data, partial=True)
         if not serializer.is_valid():
-            errors = serializer.errors
-            first_error = list(errors.values())[0][0] if errors else '参数错误'
-            return APIResponse.error(str(first_error), 400)
+            return APIResponse.error(first_error_message(serializer.errors), 400)
         self.perform_update(serializer)
         return APIResponse.success(serializer.data, '更新成功')
     

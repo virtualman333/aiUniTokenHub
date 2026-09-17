@@ -9,6 +9,7 @@ from .serializers import (
     TicketImageSerializer
 )
 from apps.utils.response import APIResponse
+from apps.utils.api_errors import first_error_message
 
 
 class TicketCategoryViewSet(viewsets.ModelViewSet):
@@ -31,9 +32,7 @@ class TicketCategoryViewSet(viewsets.ModelViewSet):
             return APIResponse.error('无权限', 403)
         serializer = self.get_serializer(data=request.data)
         if not serializer.is_valid():
-            errors = serializer.errors
-            first_error = list(errors.values())[0][0] if errors else '参数错误'
-            return APIResponse.error(str(first_error), 400)
+            return APIResponse.error(first_error_message(serializer.errors), 400)
         serializer.save()
         return APIResponse.created(serializer.data, '创建成功')
 
@@ -43,9 +42,7 @@ class TicketCategoryViewSet(viewsets.ModelViewSet):
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data, partial=True)
         if not serializer.is_valid():
-            errors = serializer.errors
-            first_error = list(errors.values())[0][0] if errors else '参数错误'
-            return APIResponse.error(str(first_error), 400)
+            return APIResponse.error(first_error_message(serializer.errors), 400)
         serializer.save()
         return APIResponse.success(serializer.data, '更新成功')
 
@@ -100,9 +97,7 @@ class TicketViewSet(viewsets.ModelViewSet):
     def create(self, request):
         serializer = self.get_serializer(data=request.data)
         if not serializer.is_valid():
-            errors = serializer.errors
-            first_error = list(errors.values())[0][0] if errors else '参数错误'
-            return APIResponse.error(str(first_error), 400)
+            return APIResponse.error(first_error_message(serializer.errors), 400)
         ticket = serializer.save(user=request.user)
         # 处理图片ID关联
         image_ids = request.data.get('image_ids', [])
@@ -127,9 +122,7 @@ class TicketViewSet(viewsets.ModelViewSet):
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data, partial=True)
         if not serializer.is_valid():
-            errors = serializer.errors
-            first_error = list(errors.values())[0][0] if errors else '参数错误'
-            return APIResponse.error(str(first_error), 400)
+            return APIResponse.error(first_error_message(serializer.errors), 400)
         validated_data = serializer.validated_data
         if 'status' in validated_data and validated_data['status'] == 'resolved':
             instance.resolved_at = timezone.now()
@@ -143,9 +136,7 @@ class TicketViewSet(viewsets.ModelViewSet):
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data, partial=True)
         if not serializer.is_valid():
-            errors = serializer.errors
-            first_error = list(errors.values())[0][0] if errors else '参数错误'
-            return APIResponse.error(str(first_error), 400)
+            return APIResponse.error(first_error_message(serializer.errors), 400)
         validated_data = serializer.validated_data
         if 'status' in validated_data and validated_data['status'] == 'resolved':
             instance.resolved_at = timezone.now()
