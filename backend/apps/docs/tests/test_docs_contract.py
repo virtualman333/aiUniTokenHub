@@ -32,8 +32,15 @@
 ----------------
 只锁「可执行的承诺有没有落点」，不锁措辞：
 
-  - `npm run <script>` —— 必须存在于 `frontend/package.json` 的 `scripts`
+  - `npm run <script>` / `pnpm <script>` —— 必须存在于 `frontend/package.json` 的
+    `scripts`（`pnpm install` 这种**内置子命令**不是 script，见 `PNPM_BUILTINS`）
   - `python <x>.py`    —— 文件必须存在（相对 `backend/` 或仓库根）
+  - `node <x>.js`      —— 文件必须存在（相对 `frontend/` 或仓库根：文档里的
+    `node scripts/zip-dist.js` 是在 `frontend/` 下敲的，只按仓库根找会假红）
+  - **命令形态本身的覆盖面** —— `bash` 围栏里出现的每个工具名，要么落在上面某条判据里，
+    要么在 `UNCHECKED_COMMANDS` 里登记过（并写明为什么它不需要落点）。形态清单是**枚举**
+    出来的：下一个工具（`docker` / `yarn` / `bun`）本来不会有东西提醒，这条对齐判据是为它
+    准备的 —— 与本仓库栽过的「手抄清单错起来是安静的」是同一族
   - 数据库口径 —— 全仓 md 里的数据库**产品名**只允许一种，且与 `settings.py`
     的 `ENGINE` 一致；出现的**最低版本要求**不得高于 `settings.py` 里
     `REQUIRED_DATABASE` 声明的那个（`5.7` 与 `5.7+` 都算 5.7，不苛求写法一致）
@@ -61,6 +68,11 @@
     同样因为 AGENTS.md 整篇是列表项：它记下的那条历史命令
     （`discover -s apps -t .` 不报错地跳过了整个包）本身就是这个形状，
     列表项收窄挡不住它 —— 只能按「是不是被要求照着敲的」收窄。
+  - **命令形态的对齐**：只算**带 shell 语言标注的围栏**（`bash` / `sh` / `shell` /
+    `console` / `zsh`）里的行。别的围栏装的是 Vue / JS 代码片段
+    （`title:`、`useSeoMeta(...)`、`import ...`），把它们的首个 token 也算成命令名会把
+    真正的命令淹掉；散文与列表项同样不算（理由同上一条）。代价说清楚：**没标注语言的
+    围栏**里的命令不会被对账到 —— 所以写命令时顺手标上 `bash`。
 
 代价说清楚：写成「需要 PostgreSQL」而不带版本的要求不会被抓到；把收窄的测试命令
 写成列表项或散文的文档也不会被抓到。这是刻意接受的 —— 一条会误伤「记录历史」的
@@ -72,6 +84,11 @@
 末尾的 `TestScanSurface` 是**扫描面自证**：断言真的扫到了文档、真的从 README 里
 扫出了 `npm run`、真的扫到了带版本号的数据库要求、真的能从围栏块里抓到一条收窄的
 测试命令，**并且断言散文确实被排除在命令扫描之外**（可执行上下文比全文短）。
+另外：真的从 `bash` 围栏里提出了一批工具名（提出来的个数不许为零），并且喂一条
+没登记过的形态（合成样例，刻意**不用**现实里的工具名 —— 免得哪天有人真登记了它，
+这条自证反而莫名其妙地红）**必须报**；`pnpm install` 这种内置子命令
+**不该**被当成 script 误红（误红一次就会被关掉）；`node scripts/…` 的相对基准
+真的试过 `frontend/` 与仓库根两处。
 树的解析器与「少一个 app」的判据也各喂一份合成输入验一遍。没有这一段，
 一个写坏的正则、或者一次「顺手把 executable_lines 去掉」的改动，会让整套断言恒真
 —— 本仓库栽过一次「断言恒真所以挡不住任何回归」。
@@ -86,7 +103,8 @@ from pathlib import Path
 BACKEND = Path(__file__).resolve().parents[3]
 ROOT = BACKEND.parent
 
-FRONTEND_PKG = ROOT / 'frontend' / 'package.json'
+FRONTEND = ROOT / 'frontend'
+FRONTEND_PKG = FRONTEND / 'package.json'
 SETTINGS_PY = BACKEND / 'config' / 'settings.py'
 
 #: 扫描 md 时跳过的目录（依赖 / 虚拟环境 / 产物 —— 那些 md 不是我们的文档）
@@ -95,6 +113,23 @@ SKIP_DIRS = {'node_modules', 'venv', '.venv', 'dist', 'dist-srv', 'dist.zip',
 
 NPM_RUN_RE = re.compile(r'npm run ([A-Za-z0-9:_.-]+)')
 PY_SCRIPT_RE = re.compile(r'python3?\s+([A-Za-z0-9_./-]+\.py)')
+#: **命令位置**：行首（可有缩进 / 列表项符号 / 行内代码的反引号）、`$ ` 提示符，
+#: 或 shell 分隔符（`&&` / `;` / `|`）之后。
+COMMAND_POS = r'(?:^[ \t]*(?:[-*+]\s+|\d+[.)]\s+)?`?|\$\s+|[;&|]\s+)'
+#: `pnpm <script>` / `pnpm run <script>` —— 与 `npm run` 是同一件事的两种写法，
+#: 而 `frontend/SEO-OPTIMIZATION.md` 用的正是 pnpm（本仓唯一入库的锁文件也是 pnpm 的）。
+#:
+#: ⚠ 比 `npm run` 多一层**命令位置**的要求，理由是实测撞出来的：`pnpm` 这个词在散文里
+#: 就是个普通名词（"checked (pnpm against `package.json`…"），宽松的 `\bpnpm\s+(\w+)`
+#: 会把紧跟的那个词当成 script 名 —— 本轮新判据第一次跑，就把自己刚写下的 AGENTS.md
+#: 判红了。`npm run` / `python <x>.py` / `node <x>.js` 自带足够强的字形判据（`run` 之后
+#: 必须是名字、必须带 `.py` / `.js`），不需要这一层。
+PNPM_SCRIPT_RE = re.compile(
+    COMMAND_POS + r'pnpm\s+(?:run\s+)?([A-Za-z0-9:_.-]+)', re.M
+)
+#: `node <文件>.js` —— 文档里的 `node scripts/zip-dist.js` 是在 `frontend/` 下敲的，
+#: 只按仓库根去找会把它判成「文件不存在」（实测）。
+NODE_SCRIPT_RE = re.compile(r'\bnode\s+([A-Za-z0-9_./-]+\.js)')
 #: `MySQL 5.7+` / `PostgreSQL 14+` / `MariaDB 10.6` —— 产品 + 可选版本
 DB_RE = re.compile(r'\b(MySQL|MariaDB|PostgreSQL|SQLite)\s*([0-9][0-9.]*\+?)?', re.I)
 
@@ -103,6 +138,49 @@ DB_RE = re.compile(r'\b(MySQL|MariaDB|PostgreSQL|SQLite)\s*([0-9][0-9.]*\+?)?', 
 UNITTEST_DISCOVER_RE = re.compile(r'\bpython3?\s+-m\s+unittest\s+discover\b')
 #: 围栏代码块（``` 之间的内容）
 FENCED_BLOCK_RE = re.compile(r'^```[^\n]*\n(.*?)^```', re.M | re.S)
+#: **带 shell 语言标注**的围栏。为什么按标注收窄见文件头「命令形态的对齐」：
+#: 别的围栏装的是 Vue / JS 片段，首个 token 是 `title:` / `useSeoMeta(` 那种。
+SHELL_FENCE_RE = re.compile(
+    r'^```(?:bash|sh|shell|console|zsh)[^\n]*\n(.*?)^```', re.M | re.S
+)
+
+#: 已检查的命令形态：工具名 → `(合成样例, 认它的正则, 落点判据在哪)`。
+#:
+#: 三样为什么要放在一起：光有一张「工具名清单」，往里面写一个**根本没在检查**的名字
+#: 也不会有人发现（对账会把它当「已覆盖」放行）—— 那就成了「看着在管、其实没管」。
+#: 带上样例与正则之后，`test_every_checked_command_has_a_live_regex` 会逐条问：
+#: 「你说它被检查，拿什么认它？」
+CHECKED_COMMANDS = {
+    'npm': ('npm run build', NPM_RUN_RE,
+            '`npm run <script>` 的脚本必须在 frontend/package.json 里'),
+    'pnpm': ('pnpm build', PNPM_SCRIPT_RE,
+             '`pnpm <script>` 同上（内置子命令见 PNPM_BUILTINS）'),
+    'python': ('python run_tests.py', PY_SCRIPT_RE,
+               '`python <x>.py` 的文件必须在（相对 backend/ 或仓库根）'),
+    'python3': ('python3 run_tests.py', PY_SCRIPT_RE, '同上'),
+    'node': ('node scripts/zip-dist.js', NODE_SCRIPT_RE,
+             '`node <文件>.js` 的文件必须在（相对 frontend/ 或仓库根）'),
+}
+
+#: shell 围栏里会出现的、**没有落点可查**的命令 —— 登记一条要写清「为什么不需要落点」。
+#: 与文档**双向对齐**：冒出新工具名必须登记（否则红），表里用不到的条目必须删掉。
+UNCHECKED_COMMANDS = {
+    'cd': '切目录本身不是可执行承诺，落点由路径表达',
+    'cp': '准备 .env —— 落点是 .env.example，由 test_env_contract.py 管',
+    'pip': '装依赖 —— 落点是 requirements.txt',
+    'source': '激活 venv —— 脚本由 venv 生成，仓库里没有',
+    '.\\venv\\Scripts\\activate': 'Windows 侧的同一个激活脚本（同样由 venv 生成）',
+}
+
+#: pnpm 自带的子命令（不是 package.json 里的 script）。
+#: 刻意按**常见子命令**列全，而不是只登记文档里出现过的那两个：漏一个就会误红，
+#: 而误红一次之后这张检查就会被绕开（`pnpm add` 是本仓下一步最可能写进文档的写法）。
+PNPM_BUILTINS = {
+    'install', 'i', 'add', 'remove', 'rm', 'update', 'up', 'run', 'exec', 'dlx',
+    'list', 'ls', 'why', 'outdated', 'audit', 'init', 'link', 'unlink', 'publish',
+    'pack', 'prune', 'store', 'config', 'patch', 'rebuild', 'approve-builds',
+    'licenses', 'import', 'deploy', 'start', 'test',
+}
 #: README 的「项目结构」小节 + 紧跟其后的围栏块
 #: （标题里可能带 emoji —— `## 📁 项目结构`，所以标题部分用 `[^\n]*?` 而不是 `\s*`）
 STRUCTURE_BLOCK_RE = re.compile(
@@ -161,6 +239,47 @@ def fenced_lines(text):
     `executable_lines` 的扫描面里，那条记录就会被判成缺陷。详见文件头「代价」。
     """
     return '\n'.join(m.group(1) for m in FENCED_BLOCK_RE.finditer(text))
+
+
+def shell_command_tokens(text):
+    """带 shell 标注的围栏里，每一行命令的**首个 token**（空行与注释行不算）。
+
+    判据只到「工具名」这一层：`python manage.py migrate` 与 `python run_tests.py`
+    的首 token 都是 `python`。细到参数级别的对齐做不到（参数形形色色），也不必要 ——
+    这一层要挡的是「换了个工具/命令行家什，没人知道该不该管它」。
+    """
+    out = []
+    for block in SHELL_FENCE_RE.findall(text):
+        for raw in block.split('\n'):
+            s = raw.strip()
+            if not s or s.startswith('#'):
+                continue                      # 空行、注释
+            s = re.sub(r'^\$\s+', '', s)      # `$ ` 提示符
+            m = re.match(r'^(\S+)', s)
+            if m:
+                out.append(m.group(1))
+    return out
+
+
+def doc_command_tokens():
+    """全仓文档里出现过的 shell 命令工具名 → `{token: [文档…]}`。"""
+    found = {}
+    for doc in markdown_files():
+        for tok in shell_command_tokens(read(doc)):
+            found.setdefault(tok, set()).add(doc.relative_to(ROOT).as_posix())
+    return {k: sorted(v) for k, v in found.items()}
+
+
+def unregistered_in(tokens):
+    """给定一批工具名，挑出**既没有判据也没登记**的那些（纯函数，便于喂合成输入验判据）。"""
+    return sorted(set(tokens) - set(CHECKED_COMMANDS) - set(UNCHECKED_COMMANDS))
+
+
+def unregistered_commands():
+    """`(没判据也没登记的工具名, 登记了但文档里已经用不到的工具名)` —— 两个方向都要空。"""
+    seen = set(doc_command_tokens())
+    stale = sorted(set(UNCHECKED_COMMANDS) - seen)
+    return unregistered_in(seen), stale
 
 
 def structure_tree():
@@ -295,6 +414,73 @@ class TestCommandsHaveLandingPoints(unittest.TestCase):
             missing, [],
             '这些脚本在文档里被要求执行，但文件不存在（相对 backend/ 与仓库根都找不到）：\n  '
             + '\n  '.join(missing),
+        )
+
+
+class TestCommandFormsAreCovered(unittest.TestCase):
+    """命令形态自己也要有落点。
+
+    `npm run` 与 `python *.py` 之外，文档里真实还写着 `pnpm dev`、`node scripts/zip-dist.js`
+    这些形态 —— 而它们在上一版里**没有任何判据**：把 `pnpm build:zip`（不存在的 script）
+    写进文档，整套检查一声不响。这与 `npm run build:zip` 那个真缺陷是同一个形状，
+    只是换了个包管理器。
+    """
+
+    def test_pnpm_scripts_exist(self):
+        scripts = frontend_scripts()
+        missing = []
+        seen = 0
+        for doc in markdown_files():
+            for name in set(PNPM_SCRIPT_RE.findall(executable_lines(read(doc)))):
+                if name in PNPM_BUILTINS:
+                    continue          # `pnpm install` 是内置子命令，不是 script
+                seen += 1
+                if name not in scripts:
+                    missing.append(f'{doc.relative_to(ROOT).as_posix()} → pnpm {name}')
+        self.assertTrue(seen, '一份文档里都没扫到 pnpm 的 script 调用 —— 正则或扫描面坏了')
+        self.assertEqual(
+            missing, [],
+            '这些命令在文档里被要求执行，但 frontend/package.json 里没有：\n  '
+            + '\n  '.join(missing)
+            + f'\n实际可用的脚本只有：{sorted(scripts)}',
+        )
+
+    def test_node_scripts_exist(self):
+        missing = []
+        seen = 0
+        for doc in markdown_files():
+            for name in set(NODE_SCRIPT_RE.findall(executable_lines(read(doc)))):
+                seen += 1
+                # 三个基准都试：文档里的 `node scripts/zip-dist.js` 是站在 frontend/ 下敲的，
+                # 而 AGENTS.md 那句说的也是 frontend 的构建流程。
+                candidates = [FRONTEND / name, ROOT / name, BACKEND / name]
+                if not any(c.exists() for c in candidates):
+                    missing.append(f'{doc.relative_to(ROOT).as_posix()} → node {name}')
+        self.assertTrue(seen, '一份文档里都没扫到 `node *.js` —— 正则或扫描面坏了')
+        self.assertEqual(
+            missing, [],
+            '这些脚本在文档里被要求执行，但文件不存在（相对 frontend/、仓库根、backend/ '
+            '都找不到）：\n  ' + '\n  '.join(missing),
+        )
+
+    def test_every_shell_command_is_checked_or_registered(self):
+        """★ 命令形态的对齐：没判据的工具名必须登记，登记了的必须还用得到。"""
+        unknown, stale = unregistered_commands()
+        self.assertTrue(doc_command_tokens(), '一份文档里都没提出命令工具名 —— 扫描面塌了')
+        self.assertEqual(
+            unknown, [],
+            '这些工具名既没有落点判据、也没在 UNCHECKED_COMMANDS 里登记：\n  '
+            + '\n  '.join(unknown)
+            + '\n要么给它加一条判据（文件/脚本必须存在，像 npm/pnpm/node 那样），'
+              '要么登记它并写清「为什么它不需要落点」。'
+              '\n别默认跳过：形态清单是枚举出来的，下一个工具不会有东西提醒 ——'
+              '这条对账就是那个提醒。',
+        )
+        self.assertEqual(
+            stale, [],
+            'UNCHECKED_COMMANDS 里这些条目文档里已经用不到了，该删掉：\n  '
+            + '\n  '.join(stale)
+            + '\n留着只会让这张表越来越不可信（与 run_tests.py 的 NO_TESTS_YET 同一个道理）。',
         )
 
 
@@ -488,6 +674,84 @@ class TestScanSurface(unittest.TestCase):
             'AGENTS.md 的列表项被算成了「照着敲的命令」—— 这条检查会开始误伤历史记录，'
             '写一次复盘就得绕过它一次，最后被关掉',
         )
+
+    def test_shell_command_census_really_sees_and_really_reports(self):
+        """命令形态的对账必须真的在做：提得出工具名，且没登记的形态必须被报出来。"""
+        census = doc_command_tokens()
+        self.assertGreaterEqual(
+            len(census), 5,
+            f'只从 shell 围栏里提出 {sorted(census)} 个工具名 —— 扫描面塌了',
+        )
+        for must in ('python', 'npm', 'pnpm'):
+            self.assertIn(must, census, f'{must} 没被提出来 —— 那几条判据的扫描面就没了')
+
+        # 反向对照：喂一条没登记过的形态，必须**报**出来。没有这一条，上面那条对账
+        # 可能只是「两张表碰巧都空」。
+        # ⚠ 样例刻意用一个**不会出现在任何登记表里**的名字（而不是现实里的 `docker`）：
+        # 用真名字的话，哪天有人真的登记了 `docker`，这里会莫名其妙地红 ——
+        # 自证的样例与待验的表耦合起来，就是下一个「假锁」。
+        sample = '```bash\nsome-brand-new-tool --up\n```\n'
+        self.assertEqual(shell_command_tokens(sample), ['some-brand-new-tool'])
+        self.assertEqual(
+            unregistered_in(shell_command_tokens(sample)), ['some-brand-new-tool'],
+            '新工具名没被对账报出来 —— 这条对账挡不住任何形态漂移',
+        )
+        # 已判据 / 已登记的工具名都不该被当成「没登记」
+        self.assertEqual(unregistered_in(['npm', 'python', 'cd']), [])
+        # 注释行与 `$ ` 提示符、以及**没标注语言的围栏**都不算（后者是刻意的取舍）
+        self.assertEqual(shell_command_tokens('```bash\n# 注释\n$ ls\n```\n'), ['ls'])
+        self.assertEqual(shell_command_tokens('```\nls\n```\n'), [])
+
+    def test_every_checked_command_has_a_live_regex(self):
+        """★「已检查」这四个字必须是真的：每个工具名都要有一条认得出它的正则。
+
+        没有这一条，`CHECKED_COMMANDS` 就是一张可以随便写的表 —— 往里加一个根本没在
+        检查的工具名，上面的对账会把它当「已覆盖」而放行，于是「新形态没人管」这件事
+        从另一边又回来了。
+        """
+        for tool, (sample, regex, _where) in sorted(CHECKED_COMMANDS.items()):
+            with self.subTest(tool=tool):
+                self.assertTrue(
+                    regex.search(sample),
+                    f'{tool} 声称「已检查」，但 {sample!r} 没被它的正则认出来 —— 这张表在说谎',
+                )
+
+    def test_pnpm_builtins_are_not_treated_as_scripts(self):
+        """`pnpm install` 不是 script —— 把它判红一次，这条检查就会被绕开。"""
+        self.assertEqual(PNPM_SCRIPT_RE.findall('pnpm install'), ['install'])
+        self.assertIn('install', PNPM_BUILTINS)
+        self.assertIn('approve-builds', PNPM_BUILTINS,
+                      '文档里真写着 `pnpm approve-builds`，漏了它就会误红')
+        self.assertEqual(PNPM_SCRIPT_RE.findall('pnpm run dev'), ['dev'])
+        self.assertNotIn('dev', PNPM_BUILTINS, '`dev` 是 package.json 里的 script，不是内置子命令')
+
+    def test_pnpm_must_be_in_command_position(self):
+        """散文里的 `pnpm` 不是命令 —— 这一层是本轮实测撞出来的。
+
+        新判据第一次跑就把刚写下的 AGENTS.md 判红了：那句散文里
+        `checked (pnpm against package.json …)` 的 `against` 被宽松正则抓成了 script 名。
+        误红一次，这条检查就会被绕开 —— 所以命令位置必须显式判。
+        """
+        self.assertEqual(PNPM_SCRIPT_RE.findall('装依赖之前先用 pnpm 装一下'), [],
+                         '散文里的 `pnpm` 被当成了命令')
+        self.assertEqual(PNPM_SCRIPT_RE.findall('checked (pnpm against package.json)'), [],
+                         '紧跟 `pnpm` 的散文用词被当成了 script 名 —— 这正是 AGENTS.md 那次误红')
+        # 正向：该抓的四种位置都要抓到
+        self.assertEqual(PNPM_SCRIPT_RE.findall('pnpm build'), ['build'])
+        self.assertEqual(PNPM_SCRIPT_RE.findall('- `pnpm build`'), ['build'])
+        self.assertEqual(PNPM_SCRIPT_RE.findall('cd frontend && pnpm build'), ['build'])
+        self.assertEqual(PNPM_SCRIPT_RE.findall('   pnpm approve-builds @parcel/watcher'), ['approve-builds'])
+
+    def test_node_script_path_base_includes_frontend(self):
+        """`node scripts/zip-dist.js` 的基准是 `frontend/` —— 只按仓库根找会假红。"""
+        self.assertTrue((FRONTEND / 'scripts' / 'zip-dist.js').is_file())
+        self.assertFalse((ROOT / 'scripts' / 'zip-dist.js').exists())
+        self.assertEqual(
+            NODE_SCRIPT_RE.findall('npm run build 里跑的是 node scripts/zip-dist.js'),
+            ['scripts/zip-dist.js'],
+        )
+        # `Node.js 18` 这种写法不该被当成命令
+        self.assertEqual(NODE_SCRIPT_RE.findall('需要 Node.js 18 及以上'), [])
 
     def test_the_tree_parser_is_not_vacuous(self):
         """树的解析器按层级收；app 清单的比较两个方向都报得出来。"""
