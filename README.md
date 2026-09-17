@@ -42,10 +42,15 @@ uniTokenHub 是一个功能完整、开箱即用的 API 中转站/网关服务�
 ```
 uniTokenHub/
 ├── backend/              # Django 后端服务
-│   ├── apps/
+│   ├── apps/             # 每个 app 都在这里；下面这份清单由 test_docs_contract.py 与磁盘逐一对齐
 │   │   ├── users/        # 用户认证、账户、密钥管理
 │   │   ├── api_proxy/    # API 代理、请求转发、日志记录
-│   │   └── ai_models/    # 模型管理、上游账户配置
+│   │   ├── ai_models/    # 模型管理、上游账户配置
+│   │   ├── dashboard/    # 数据看板、余额续航预测
+│   │   ├── image_gen/    # 图像生成与计费
+│   │   ├── tickets/      # 工单
+│   │   ├── utils/        # 计费文案、用量解析等纯 Python 工具
+│   │   └── docs/         # 文档契约测试：命令落点、环境变量、测试入口
 │   ├── config/           # 配置文件
 │   ├── manage.py
 │   └── requirements.txt
@@ -62,7 +67,7 @@ uniTokenHub/
 └── README.md
 ```
 
-上面只列了主要目录。`apps/` 下还有 `dashboard/`（数据看板、余额续航预测）、`image_gen/`（图像生成）、`tickets/`、`utils/`；各应用自己的单元测试放在 `apps/应用名/tests/` 下，统一用 `backend/run_tests.py` 跑。
+各应用自己的单元测试放在 `apps/应用名/tests/` 下，统一用 `backend/run_tests.py` 跑 —— 它是**测试包清单的唯一来源**（会打印每个包与用例数），所以这里不抄那份清单。
 
 ## 🚀 快速开始
 
@@ -126,7 +131,7 @@ python run_tests.py
 
 > 为什么文案模块在 `apps/utils/` 而不是 `apps/image_gen/`：它现在服务三条路径（图片、chat/completions、responses）。`apps/utils/__init__.py` 因此**不做任何 re-export** —— 一旦在里面 `from .response import ...`，`from apps.utils import billing` 就会连带把 Django/DRF 拖进来，纯 Python 测试立刻跑不起来。
 
-`run_tests.py` 扫的是 `apps/*/tests/`，不是写死的清单 —— 清单必然会漂移：`apps/dashboard/` 没有 `__init__.py`，`python -m unittest discover -s apps -t .` 会**不报错地**跳过整个包，曾有 21 个用例因此长期没被跑过。现在某个 `tests/` 目录缺 `__init__.py` 就会直接失败，不允许静默少跑。另外，有 `test_*.py` 掉在收集范围之外、或某个包一条用例都没收到，也会直接失败；这两道自证写在 `run_tests.py` 自己里，不能只放在 `apps/docs/tests/` —— 那里的用例本身就在被扫的范围内，扫描面一收窄它们跟着一起消失（实测：把收集清单换成写死的单包，全仓从 296 例悄悄变成 116 例，输出仍是 `OK`）。
+`run_tests.py` 扫的是 `apps/*/tests/`，不是写死的清单 —— 清单必然会漂移：`apps/dashboard/` 没有 `__init__.py`，`python -m unittest discover -s apps -t .` 会**不报错地**跳过整个包，曾有 21 个用例因此长期没被跑过。现在某个 `tests/` 目录缺 `__init__.py` 就会直接失败，不允许静默少跑。另外，有 `test_*.py` 掉在收集范围之外、或某个包一条用例都没收到，也会直接失败；这两道自证写在 `run_tests.py` 自己里，不能只放在 `apps/docs/tests/` —— 那里的用例本身就在被扫的范围内，扫描面一收窄它们跟着一起消失（实测：把收集清单换成写死的单包，全仓从 295 例悄悄变成 116 例，输出仍是 `OK`）。
 
 还有第三种「静默」：**一个 app 连 `tests/` 目录都没有**。glob 只会告诉你「哪些包有测试」，永远不会告诉你「少了哪个包」—— 本轮之前 `apps/tickets/`（468 行）与 `apps/users/`（2511 行，`utils.py` 的 `process_invite_reward` 就在发钱那条线上）就是零覆盖的，而输出始终是 `OK —— N 例全部通过`、总数只增不减，谁都看不出来。现在没有测试的 app 必须在 `run_tests.py` 的 `NO_TESTS_YET` 里声明并写清原因，否则直接失败；声明过的也会被打印到输出里，免得那一行 `OK` 被读成「都覆盖到了」。补上测试之后要记得把那行声明删掉 —— 表里留着已经有测试的 app 同样会失败，不然这张表迟早烂成一块没人看的墓碑。
 

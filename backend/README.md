@@ -33,25 +33,25 @@ python manage.py runserver
 
 ## 测试
 
-`apps/api_proxy/tests/` 是协议适配层（OpenAI ↔ Anthropic 转换）与流式转换状态机的单元测试。
-纯 Python，**不需要数据库、不需要 Django settings**，秒级跑完：
+后端单测是**纯 Python** 的：不连数据库、不读 Django settings，秒级跑完。照着敲的命令**只有一条**（在 `backend/` 下）：
 
 ```bash
-cd backend
-python -m unittest discover -s apps/api_proxy/tests -t . -v
+python run_tests.py
 ```
 
-三组重点：
+它自己扫 `apps/*/tests/`、打印每个包的用例数、跑完全部用例，最后还会点名「哪些 app 一条测试都没有」。扫描面为什么必须是它而不是一串包名，见文件头。
 
-- **计费口径**：`anthropic_to_openai` 必须把 `cache_creation_input_tokens` 与
-  `cache_read_input_tokens` 一并计入 `prompt_tokens`，否则缓存命中会漏计费。
-- **流式正确性**：`streaming_adapter.py` 的两个状态机（Chat Completions → Response API、
-  Anthropic → Chat Completions）。这里锁住三条容易回归的约束：多字节字符跨 chunk 不得被切坏
-  （所以必须用 `IncrementalUtf8Decoder`，不能 `chunk.decode(..., errors='replace')`）、
-  `response.completed.output` 的顺序必须与公布的 `output_index` 一致、标准流下收尾事件只能发一次。
+**这里刻意不写「只跑某一个包」的命令。** 按包写命令就是把扫描面悄悄收窄（`AGENTS.md` 的规矩原话是 Never enumerate test packages by hand in docs or scripts），而收窄之后输出仍然是 `OK` —— 本仓库栽过这件事：`apps/dashboard/` 没有 `__init__.py`，`python -m unittest discover -s apps -t .` 不报错地跳过整个包，21 个用例因此长期没被跑过，文档却写着跑了。想单独看某个包，自己在本地敲即可，别把包名写进文档；`apps/docs/tests/test_docs_contract.py` 会盯着这件事（文档里再出现收窄到单个包的 `unittest discover` 命令就红）。
 
-改动 `apps/api_proxy/adapters/` 或 `views_openai.py` / `views_responses.py` 的流式分支后都应跑通这组测试。
+各组测试在测什么：
 
+- **协议适配与流式状态机**（`apps/api_proxy/tests/`）：`anthropic_to_openai` 必须把
+  `cache_creation_input_tokens` 与 `cache_read_input_tokens` 一并计入 `prompt_tokens`，否则缓存命中会漏计费。
+  `streaming_adapter.py` 的两个状态机（Chat Completions → Response API、Anthropic → Chat Completions）锁住三条
+  容易回归的约束：多字节字符跨 chunk 不得被切坏（所以必须用 `IncrementalUtf8Decoder`，不能
+  `chunk.decode(..., errors='replace')`）、`response.completed.output` 的顺序必须与公布的 `output_index` 一致、
+  标准流下收尾事件只能发一次。改动 `apps/api_proxy/adapters/` 或 `views_openai.py` / `views_responses.py`
+  的流式分支后都要跑一遍。
 - **用量解析只有一处**：`parse_usage_dict` / `parse_usage`（`apps/utils/billing.py`）是唯一认识三种上游形态
   （OpenAI 的 `prompt_tokens`、Responses API 的 `input_tokens`、Anthropic 的 `cache_read_input_tokens`）
   与缓存命中字段的地方，两个端点的收尾都走 `views_openai.update_usage_log`。这段解析此前有**四份**副本，
@@ -59,15 +59,12 @@ python -m unittest discover -s apps/api_proxy/tests -t . -v
   （`cached_tokens`）漏读则等于按全价收费，用户看不见、对账时也对不出来。
   行为由 `apps/utils/tests/test_billing_usage.py` 覆盖，结构由
   `apps/api_proxy/tests/test_usage_single_source.py` 读源码钉住。
-
-`apps/dashboard/tests/` 是余额续航预测（`apps/dashboard/runway.py`）的单元测试，同样纯 Python、无需数据库：
-
-```bash
-cd backend
-python -m unittest discover -s apps/dashboard/tests -t . -v
-```
-
-它算的是一句「你的钱还能用几天」，用户会直接照着它决定要不要充值，所以边界钉得很死：余额为 0（**包括一条消耗记录都还没有的新用户**）、窗口内没消耗、账号刚用两天（窗口被摊薄会让续航虚高）、分级临界值。改 `runway.py` 的窗口或分级逻辑前先看这组测试。
+- **余额续航预测**（`apps/dashboard/tests/`）：算的是一句「你的钱还能用几天」，用户会直接照着它决定要不要充值，
+  所以边界钉得很死：余额为 0（**包括一条消耗记录都还没有的新用户**）、窗口内没消耗、账号刚用两天
+  （窗口被摊薄会让续航虚高）、分级临界值。改 `runway.py` 的窗口或分级逻辑前先看这组测试。
+- **文档契约**（`apps/docs/tests/`）：文档是唯一没人验证过的产物 —— 这三个文件分别锁住「文档里写的命令必须真的存在、
+  数据库只能有一种说法」「环境变量的声明与读取必须对得上」「测试入口自己不许回归」。改动 `README.md` /
+  `AGENTS.md` / `.env.example` / `frontend/.env.*` 之后都会走到它们。
 
 ## API文档
 启动服务后访问: http://localhost:8000/admin/
