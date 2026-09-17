@@ -162,8 +162,10 @@ npm run build
 | DB_PASSWORD | 数据库密码 | ********* |
 | DB_HOST | 数据库主机 | 127.0.0.1 |
 | DB_PORT | 数据库端口 | 3306 |
-| REDIS_URL | Redis 连接 | (可选) |
+| REDIS_URL | Redis 连接（URL 形式，密码写在 URL 里） | redis://127.0.0.1:6379/1 |
 | ALLOWED_HOSTS | 允许的主机 | * |
+
+环境变量清单以 `backend/.env.example` 为准 —— 表里出现的变量必须在模板里真的存在。反向不查：模板才是照抄对象，这里只是速查。**模板里声明了、代码却不读的变量**由 `backend/apps/docs/tests/test_env_contract.py` 报红 —— 此前模板声明的是 `REDIS_HOST` / `REDIS_PORT` / `REDIS_PASSWORD`，而代码只读 `REDIS_URL`：照着模板配的那三行一行都不生效（实际连的是本机那台 Redis，也不带密码），而且不报错。
 
 ### 管理后台
 
