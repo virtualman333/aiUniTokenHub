@@ -5,7 +5,6 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
 from django.db import models
 from django.db.models import Count, Sum, Avg, Q, Exists, OuterRef
-from django.db.models.functions import TruncDate
 from django.utils import timezone
 from datetime import timedelta
 from apps.users.models import User, APIKey, UsageLog, InviteConfig, InviteReward, Bill
@@ -20,6 +19,11 @@ from apps.ai_models.models import AIModel, ModelProvider
 from apps.ai_models.upstream_models import ModelUpstreamAccount
 # 余额续航预测（纯计算，见 apps/dashboard/runway.py）
 from .runway import DEFAULT_WINDOW as RUNWAY_WINDOW, estimate_runway
+# 「本地某一天」→ 带时区瞬间。**不要用 `created_at__date=...`** ——
+# 它在 MySQL 上编译成 `DATE(CONVERT_TZ(col, 'UTC', 'Asia/Shanghai'))`，
+# 而 MySQL 默认没装时区表，`CONVERT_TZ` 返回 NULL，谓词恒假、统计恒 0 且不报错。
+# 详见 apps/utils/timerange.py 的模块 docstring。
+from apps.utils.timerange import dates_back, local_day_bounds, local_day_start
 from apps.utils.response import APIResponse
 from .analytics_views import AnalyticsViewSet
 
@@ -37,12 +41,10 @@ class AdminDashboardViewSet(viewsets.GenericViewSet, AnalyticsViewSet):
     @action(detail=False, methods=["get"])
     def overview(self, request):
         """总览数据"""
-        today = timezone.now().date()
-        month_start = timezone.make_aware(
-            timezone.datetime.combine(
-                today.replace(day=1), timezone.datetime.min.time()
-            )
-        )
+        # 用 localdate() 而不是 now().date()：now() 是 UTC，它的 .date() 在北京时间
+        # 0 点到 8 点之间仍停在昨天 —— 跨月首日会让「本月」整整错一个月。
+        today = timezone.localdate()
+        month_start = local_day_start(today.replace(day=1))
 
         # 本月利润统计
         monthly_revenue = abs(float(
@@ -84,17 +86,10 @@ class AdminDashboardViewSet(viewsets.GenericViewSet, AnalyticsViewSet):
         days = int(request.query_params.get("days", 7))
 
         stats = []
-        for i in range(days - 1, -1, -1):
-            date = timezone.now().date() - timedelta(days=i)
-            start = timezone.make_aware(
-                timezone.datetime.combine(date, timezone.datetime.min.time())
-            )
-            end = timezone.make_aware(
-                timezone.datetime.combine(date, timezone.datetime.max.time())
-            )
-
+        for date in dates_back(days, timezone.localdate()):
+            start, end = local_day_bounds(date)
             count = APIAccessLog.objects.filter(
-                created_at__gte=start, created_at__lte=end
+                created_at__gte=start, created_at__lt=end
             ).count()
             stats.append({"date": date.strftime("%m-%d"), "count": count})
 
@@ -125,16 +120,13 @@ class AdminDashboardViewSet(viewsets.GenericViewSet, AnalyticsViewSet):
     @action(detail=False, methods=["get"])
     def token_stats(self, request):
         """Token消耗统计"""
-        today = timezone.now().date()
-        month_start = timezone.make_aware(
-            timezone.datetime.combine(
-                today.replace(day=1), timezone.datetime.min.time()
-            )
-        )
+        today = timezone.localdate()
+        month_start = local_day_start(today.replace(day=1))
         
-        # 今日Token消耗
+        # 今日Token消耗（半开区间 [起, 止) —— 见 apps/utils/timerange.py）
+        today_start, today_end = local_day_bounds(today)
         today_tokens = APIAccessLog.objects.filter(
-            created_at__date=today
+            created_at__gte=today_start, created_at__lt=today_end
         ).aggregate(
             total_input=Sum("input_tokens"),
             total_output=Sum("output_tokens"),
@@ -192,25 +184,29 @@ class AdminDashboardViewSet(viewsets.GenericViewSet, AnalyticsViewSet):
     @action(detail=False, methods=["get"])
     def active_users(self, request):
         """活跃用户统计"""
-        today = timezone.now().date()
-        seven_days_ago = today - timedelta(days=7)
+        today = timezone.localdate()
+        # 「近 7 天」含今天共 7 个日历日，起点是 6 天前 —— 原来写 today - 7 却用
+        # >= 比较，实际覆盖 8 个日历日，名字与口径对不上。
+        seven_days_ago = today - timedelta(days=6)
+        week_start = local_day_start(seven_days_ago)
         
         # 今日活跃用户
+        today_start, today_end = local_day_bounds(today)
         today_active = APIAccessLog.objects.filter(
-            created_at__date=today,
+            created_at__gte=today_start, created_at__lt=today_end,
             user__isnull=False
         ).values("user").distinct().count()
         
         # 7天活跃用户
         week_active = APIAccessLog.objects.filter(
-            created_at__date__gte=seven_days_ago,
+            created_at__gte=week_start,
             user__isnull=False
         ).values("user").distinct().count()
         
         # 活跃用户排行（近7天）
         top_active_users = (
             APIAccessLog.objects.filter(
-                created_at__date__gte=seven_days_ago,
+                created_at__gte=week_start,
                 user__isnull=False
             )
             .values("user__username", "user__id")
@@ -239,27 +235,22 @@ class AdminDashboardViewSet(viewsets.GenericViewSet, AnalyticsViewSet):
     def error_analysis(self, request):
         """错误分析"""
         days = int(request.query_params.get("days", 7))
-        start_date = timezone.now().date() - timedelta(days=days-1)
-        
+        today = timezone.localdate()
+        start_date = today - timedelta(days=days-1)
+
         # 按日期和状态码统计错误
         error_stats = []
-        for i in range(days):
-            date = start_date + timedelta(days=i)
-            date_start = timezone.make_aware(
-                timezone.datetime.combine(date, timezone.datetime.min.time())
-            )
-            date_end = timezone.make_aware(
-                timezone.datetime.combine(date, timezone.datetime.max.time())
-            )
-            
+        for date in dates_back(days, today):
+            date_start, date_end = local_day_bounds(date)
+
             total = APIAccessLog.objects.filter(
                 created_at__gte=date_start,
-                created_at__lte=date_end
+                created_at__lt=date_end
             ).count()
-            
+
             errors = APIAccessLog.objects.filter(
                 created_at__gte=date_start,
-                created_at__lte=date_end,
+                created_at__lt=date_end,
                 response_status__gte=400
             ).count()
             
@@ -275,7 +266,7 @@ class AdminDashboardViewSet(viewsets.GenericViewSet, AnalyticsViewSet):
         # 常见错误状态码分布
         error_codes = (
             APIAccessLog.objects.filter(
-                created_at__date__gte=start_date,
+                created_at__gte=local_day_start(start_date),
                 response_status__gte=400
             )
             .values("response_status")
@@ -433,10 +424,8 @@ class UserDashboardViewSet(viewsets.GenericViewSet):
     @action(detail=False, methods=["get"])
     def overview(self, request):
         """用户概览数据"""
-        today = timezone.now().date()
-        today_start = timezone.make_aware(
-            timezone.datetime.combine(today, timezone.datetime.min.time())
-        )
+        today = timezone.localdate()
+        today_start = local_day_start(today)
 
         # 获取当前用户的请求日志
         user_logs = APIAccessLog.objects.filter(user=request.user)
@@ -486,16 +475,25 @@ class UserDashboardViewSet(viewsets.GenericViewSet):
         """
         today = timezone.localdate()
         since = today - timedelta(days=RUNWAY_WINDOW - 1)
-        rows = (
-            APIAccessLog.objects.filter(
-                user=request.user,
-                created_at__date__gte=since,
-                created_at__date__lte=today,
-            )
-            .values("created_at__date")
-            .annotate(cost=Sum("cost"))
-        )
-        daily = [(row["created_at__date"], row["cost"] or 0) for row in rows]
+        # 原来这里是 `created_at__date__gte=since` + `.values("created_at__date")`，
+        # 也就是让 SQL 按本地日分组 —— 在没装时区表的 MySQL 上恒为空，于是
+        # estimate_runway([]) 永远回「暂无消耗记录」：这个功能从上线起就是死的。
+        #
+        # 改成逐日聚合：SQL 里只剩 `created_at >= ? AND created_at < ?`，
+        # 与行数无关（每天一次带索引的范围聚合，而不是把整窗口的行拉回 Python）。
+        #
+        # 只把「当天有请求记录」的日子喂进去，与原查询的分组结果逐行等价 ——
+        # estimate_runway 拿 min(日期) 推「账户活了几天」以免摊薄日均，
+        # 无脑补满 7 天的零，会把刚用两天的用户日均摊成七分之一、续航虚高。
+        daily = []
+        for offset in range(RUNWAY_WINDOW):
+            day = since + timedelta(days=offset)
+            start, end = local_day_bounds(day)
+            bucket = APIAccessLog.objects.filter(
+                user=request.user, created_at__gte=start, created_at__lt=end
+            ).aggregate(rows=Count("id"), cost=Sum("cost"))
+            if bucket["rows"]:
+                daily.append((day, bucket["cost"] or 0))
         data = estimate_runway(daily, request.user.balance, today=today)
         return APIResponse.success(data, "获取成功")
 
@@ -620,21 +618,13 @@ class UserDashboardViewSet(viewsets.GenericViewSet):
         days = int(request.query_params.get("days", 7))
         days = min(days, 30)  # 最多30天
 
-        today = timezone.now().date()
-
         # 按日期分组统计
         stats = []
-        for i in range(days - 1, -1, -1):
-            date = today - timedelta(days=i)
-            date_start = timezone.make_aware(
-                timezone.datetime.combine(date, timezone.datetime.min.time())
-            )
-            date_end = timezone.make_aware(
-                timezone.datetime.combine(date, timezone.datetime.max.time())
-            )
+        for date in dates_back(days, timezone.localdate()):
+            date_start, date_end = local_day_bounds(date)
 
             day_logs = APIAccessLog.objects.filter(
-                user=request.user, created_at__gte=date_start, created_at__lte=date_end
+                user=request.user, created_at__gte=date_start, created_at__lt=date_end
             )
 
             stats.append(

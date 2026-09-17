@@ -26,6 +26,9 @@ from .authentication import generate_token
 from .mailer import send_email, render_verify_code_email, EmailNotConfigured
 from apps.utils.response import APIResponse
 from apps.utils.api_errors import first_error_message
+# 「本地某一天」→ 带时区瞬间（**不要**在 SQL 里用 `__date` / `TruncDate`，
+# 也不要拿 `timezone.now()` 去 replace 出「今天零点」—— 那是 UTC 日界）。
+from apps.utils.timerange import local_day_start, parse_day_bound
 
 
 class AuthViewSet(viewsets.GenericViewSet):
@@ -70,8 +73,12 @@ class AuthViewSet(viewsets.GenericViewSet):
             wait = int(resend_seconds - (now - last.created_at).total_seconds())
             return APIResponse.error(f'请 {wait} 秒后再试', 429)
 
-        # 频控：当日上限
-        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        # 频控：当日上限。
+        # `now` 是带时区的 **UTC** 瞬间，`now.replace(hour=0, ...)` 得到的是
+        # **UTC 当日零点** —— 在 +08:00 下等于北京时间早上 8 点，于是这条「当日
+        # 发送上限」实际统计的是 [北京 08:00, 次日 08:00) 这个窗口：北京时间
+        # 0 点到 8 点之间发的验证码会被算进前一天，配额在凌晨会莫名「重置」。
+        today_start = local_day_start(timezone.localdate())
         sent_today = EmailVerifyCode.objects.filter(
             email=email, purpose=purpose, created_at__gte=today_start
         ).count()
@@ -266,9 +273,18 @@ class BillingViewSet(viewsets.GenericViewSet):
         if bill_type:
             queryset = queryset.filter(type=bill_type)
         if start_date:
-            queryset = queryset.filter(created_at__gte=start_date)
+            start_bound = parse_day_bound(start_date)
+            if start_bound is None:
+                return APIResponse.error('start_date 格式应为 YYYY-MM-DD', 400)
+            queryset = queryset.filter(created_at__gte=start_bound)
         if end_date:
-            queryset = queryset.filter(created_at__lte=end_date)
+            # `YYYY-MM-DD` 的结束日要塞**次日零点**：直接 `__lte='2026-09-18'` 会被
+            # Django 解释成「当天 00:00」，结束日一整天的账单一条都查不出来 ——
+            # 而前端（Element Plus，value-format="YYYY-MM-DD"）传的就是这个形态。
+            end_bound = parse_day_bound(end_date, end=True)
+            if end_bound is None:
+                return APIResponse.error('end_date 格式应为 YYYY-MM-DD', 400)
+            queryset = queryset.filter(created_at__lt=end_bound)
 
         # 分页
         page = int(request.query_params.get('page', 1))

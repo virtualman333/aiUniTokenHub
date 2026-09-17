@@ -14,6 +14,9 @@ from .models import APIAccessLog
 from .serializers import ProxyRequestSerializer, APIAccessLogSerializer, AccessLogStatSerializer
 from apps.users.models import APIKey, UsageLog
 from apps.utils.response import APIResponse
+# 「本地某一天」→ 带时区瞬间。**不要在这里用 `TruncDate` / `__date`** ——
+# 见 apps/utils/timerange.py 的模块 docstring（MySQL 没装时区表时恒 NULL）。
+from apps.utils.timerange import dates_between, local_day_bounds
 
 
 class ProxyAccessViewSet(viewsets.GenericViewSet):
@@ -103,7 +106,15 @@ class ProxyAccessViewSet(viewsets.GenericViewSet):
         if ip_address:
             queryset = queryset.filter(ip_address__icontains=ip_address)
         
-        # 按时间范围筛选
+        # 按时间范围筛选。
+        #
+        # 这两个参数**刻意**不走 `apps/utils/timerange.parse_day_bound`，也不做
+        # 「整天」展开：调用方 `frontend/src/views/admin/AccessLogs.vue` 传的是
+        # `dayjs(...).startOf('day')` / `.endOf('day')` 的 `toISOString()`，
+        # 也就是两端都是精确到毫秒的**瞬间**，且上界本身是**闭**的
+        # （`...T15:59:59.999Z`）。当成整天展开会把窗口放宽小半天，改成 `<` 又会
+        # 把最后一毫秒切掉。账单那个接口（`apps/users/views.py::admin-bills`）的
+        # 前端传的是 `YYYY-MM-DD`，形态不同，那边才需要半开区间。
         start_date = request.query_params.get('start_date')
         end_date = request.query_params.get('end_date')
         if start_date:
@@ -133,19 +144,46 @@ class ProxyAccessViewSet(viewsets.GenericViewSet):
         end_date = timezone.now()
         start_date = end_date - timedelta(days=days)
         
-        # 按日期分组统计
-        from django.db.models.functions import TruncDate
-        stats = APIAccessLog.objects.filter(
-            created_at__gte=start_date,
-            created_at__lte=end_date
-        ).annotate(
-            date=TruncDate('created_at')
-        ).values('date').annotate(
-            total_count=Count('id'),
-            success_count=Count('id', filter=Q(response_status__gte=200, response_status__lt=400)),
-            error_count=Count('id', filter=Q(response_status__gte=400)),
-            avg_response_time=Avg('response_time')
-        ).order_by('date')
+        # 按日期分组统计。
+        #
+        # 原来这里是 `.annotate(date=TruncDate('created_at'))`：Django 在 MySQL 上
+        # 会把它编译成 `DATE(CONVERT_TZ(created_at, 'UTC', 'Asia/Shanghai'))`，
+        # 而 MySQL 默认没装时区表（`mysql.time_zone_name` 不存在）→ `CONVERT_TZ`
+        # 返回 **NULL**。于是分组键全是 NULL：所有行塌进同一个 `{'date': None}` 的组，
+        # 而 `AccessLogStatSerializer.date` 是 `DateField()`（不允许 None）——
+        # 这个接口当时是直接 500 的，不是「少几行数据」。
+        #
+        # 改成按本地日逐天聚合：SQL 里只剩 `created_at >= ? AND created_at < ?`，
+        # 不依赖数据库时区表。首尾两天各只覆盖半天，所以与窗口取交集 ——
+        # 这样与「按本地日分组」的结果逐行等价（不重不漏）。
+        stats = []
+        local_tz = timezone.get_current_timezone()
+        for day in dates_between(start_date.astimezone(local_tz).date(),
+                                 end_date.astimezone(local_tz).date()):
+            day_start, day_end = local_day_bounds(day)
+            bucket_start = max(day_start, start_date)
+            bucket_end = min(day_end, end_date)
+            if bucket_start >= bucket_end:
+                continue
+            bucket = APIAccessLog.objects.filter(
+                created_at__gte=bucket_start,
+                created_at__lt=bucket_end,
+            ).aggregate(
+                total_count=Count('id'),
+                success_count=Count('id', filter=Q(response_status__gte=200, response_status__lt=400)),
+                error_count=Count('id', filter=Q(response_status__gte=400)),
+                avg_response_time=Avg('response_time'),
+            )
+            if not bucket['total_count']:
+                continue
+            stats.append({
+                'date': day,
+                'total_count': bucket['total_count'],
+                'success_count': bucket['success_count'],
+                'error_count': bucket['error_count'],
+                # `Avg` 在全为 NULL 时给 None，而序列化器是 FloatField —— 兜 0
+                'avg_response_time': bucket['avg_response_time'] or 0,
+            })
         
         serializer = AccessLogStatSerializer(stats, many=True)
         
