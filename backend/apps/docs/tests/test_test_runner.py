@@ -8,6 +8,10 @@
   1. 「扫的是 `apps/*/tests/`，**不是写死的清单** —— 清单必然会漂移」
   2. 「某个 `tests/` 目录缺 `__init__.py` 就会**直接失败**，不允许静默少跑」
 
+加上本轮补的第三条（原本没有任何东西管它）：
+
+  3. 「**一个 app 连 `tests/` 目录都没有**就直接失败，除非它在 `NO_TESTS_YET` 里声明过」
+
 而在此之前，全仓没有一条用例测过这个脚本本身。它一旦回归，**症状是"全绿"**：
 
   - `apps/*/tests` 换成写死的清单 → 新加的包静默不参与，`OK —— N 例全部通过`，
@@ -31,6 +35,11 @@
   它们跟着消失（实测：glob 换成写死的单包清单，全仓从 295 例悄悄变成 116 例，
   输出仍是 `OK`、退出码仍是 0）。这里只验证那道守卫还活着。
 - **失败时退出码非 0**——CI 只认这一个数字；返回 0 的失败是最彻底的假绿。
+- **零覆盖的 app 必须喊出来**（见 `TestUncoveredAppsAreLoud`）：凭空造一个只有
+  `models.py` 的 app（**刻意不写 `__init__.py`**，因为真仓库的 `apps/users/`
+  就是 namespace package）→ 未声明就得失败并点名；声明过就跑得过、但输出里
+  必须点名它，免得那一行 `OK` 被读成「都覆盖到了」；声明过的 app 补上测试之后
+  同样要失败（那张表不许烂在那里）。四个方向各一条。
 - **扫描面自证**：空的临时根必须失败、名字不匹配的文件不得算作用例、
   `find_test_packages` 缺哪几个 `__init__.py` 就点名哪几个。没有这几条，
   上面的断言可能只是恒真。
@@ -78,6 +87,19 @@ def real_test_packages():
         (p / 'tests').relative_to(BACKEND).as_posix()
         for p in apps.iterdir()
         if p.is_dir() and (p / 'tests').is_dir()
+    )
+
+
+def real_app_names():
+    """独立重算一遍「apps/ 下有哪些 app」—— 不用被测实现自己算。
+
+    刻意**不**按有没有 `__init__.py` 来筛：`apps/dashboard/` 与 `apps/users/`
+    都是 namespace package，而 `apps/users/` 恰好就是那个零覆盖的 app。
+    """
+    apps = BACKEND / 'apps'
+    return sorted(
+        p.name for p in apps.iterdir()
+        if p.is_dir() and not p.name.startswith('_') and not p.name.startswith('.')
     )
 
 
@@ -245,6 +267,121 @@ class TestRunnerOnAFreshBackendRoot(unittest.TestCase):
         out = r.stdout + r.stderr
         for app in ('alpha', 'beta'):
             self.assertIn(f'apps/{app}/tests', out, f'{app} 没被点名')
+
+
+class TestUncoveredAppsAreLoud(unittest.TestCase):
+    """**整个 app 没有测试**这件事必须有人喊出来。
+
+    为什么要有它：`apps/*/tests` 是 glob，它只会告诉你「哪些包有测试」，
+    永远不会告诉你「少了哪个包」。在 `check_app_coverage` 之前，
+    给一个 app 一行测试都不写，`run_tests.py` 照样输出
+    `OK —— N 例全部通过`，而 N 只增不减 —— 谁都看不出来。
+    """
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix='unitokenhub-cover-'))
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        shutil.copy(RUNNER, self.tmp / 'run_tests.py')
+        self.add_package('alpha', 'test_alpha.py')
+
+    def add_package(self, app, filename):
+        d = self.tmp / 'apps' / app / 'tests'
+        d.mkdir(parents=True, exist_ok=True)
+        (d / '__init__.py').write_text('', encoding='utf-8')
+        (d / filename).write_text(MINIMAL_TEST, encoding='utf-8')
+        return d
+
+    def add_bare_app(self, app):
+        """造一个**没有任何测试**的 app —— 刻意不写 `__init__.py`，
+        因为真仓库里的 `apps/users/` 就是这样（namespace package）。"""
+        d = self.tmp / 'apps' / app
+        d.mkdir(parents=True, exist_ok=True)
+        (d / 'models.py').write_text('X = 1\n', encoding='utf-8')
+        return d
+
+    def run_runner(self):
+        return subprocess.run(
+            [sys.executable, 'run_tests.py'],
+            cwd=str(self.tmp), capture_output=True, text=True,
+            encoding='utf-8', errors='replace',
+        )
+
+    def test_an_undeclared_bare_app_is_fatal(self):
+        """凭空多一个零覆盖的 app、又没声明 → 必须失败并点名它。"""
+        self.add_bare_app('orphan')
+        r = self.run_runner()
+        self.assertNotEqual(
+            r.returncode, 0,
+            '整个 app 一条测试都没有，脚本却返回 0、还输出 OK —— '
+            '这就是 glob 看不见的那一半：\n' + r.stdout,
+        )
+        out = r.stdout + r.stderr
+        self.assertIn('apps/orphan/', out, '报错必须点名是哪个 app')
+        self.assertIn('NO_TESTS_YET', out, '要说清「要么加测试，要么声明」')
+
+    def test_naming_it_by_hand_does_not_hide_it_from_the_check(self):
+        """反向对照：**补上测试**之后同样的 app 不该再报错（不是「只要目录名不在表里就报」）。"""
+        self.add_package('orphan', 'test_orphan.py')
+        r = self.run_runner()
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn('2 例全部通过', r.stdout)
+
+    def test_a_declared_bare_app_passes_and_is_printed(self):
+        """声明过的零覆盖 app：跑得过，但**必须在输出里点名** ——
+        否则那一行 `OK` 会被读成「都覆盖到了」。"""
+        self.add_bare_app('tickets')          # 真仓库的 NO_TESTS_YET 里就声明了它
+        r = self.run_runner()
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn('没有任何测试的 app 1 个', r.stdout)
+        self.assertIn('apps/tickets/', r.stdout, '声明过的零覆盖 app 也要打印出来')
+        self.assertIn('一条用例都没有', r.stdout,
+                      'OK 那一行附近要提醒「它只覆盖了有测试的包」')
+
+    def test_a_declared_app_that_now_has_tests_is_fatal(self):
+        """声明表会腐烂：补了测试却忘了删声明，也必须失败。"""
+        self.add_package('tickets', 'test_tickets.py')   # 表里还挂着 tickets
+        r = self.run_runner()
+        self.assertNotEqual(
+            r.returncode, 0,
+            'tickets 已经有测试了、却还挂在 NO_TESTS_YET 里，脚本却没吭声：\n' + r.stdout,
+        )
+        out = r.stdout + r.stderr
+        self.assertIn('apps/tickets/', out)
+        self.assertIn('已经有测试了', out, '要说清是「表里的那条该删了」')
+
+    def test_collect_itself_refuses_a_bare_app(self):
+        """`collect()` 自己也得拦住它，不能只靠 `main()` 那条路径。
+
+        理由和上面那节同源：判据要待在**无条件执行**的地方。程序化调用
+        （测试、CI、以后别的入口）走的是 `collect()`，只把检查挂在 `main()` 里
+        等于给它们开了一条绕道。
+        """
+        self.add_bare_app('orphan')
+        with self.assertRaises(SystemExit) as ctx:
+            run_tests.collect(self.tmp)
+        self.assertIn('apps/orphan/', str(ctx.exception))
+
+    def test_check_app_coverage_reports_the_real_repo(self):
+        """真仓库：返回的「零覆盖 app」必须等于独立重算出来的集合。"""
+        bare = run_tests.check_app_coverage()
+        covered = {p.split('/')[1] for p in real_test_packages()}
+        expected = sorted(set(real_app_names()) - covered)
+        self.assertEqual(bare, expected, '零覆盖 app 的名单和实际情况对不上')
+
+    def test_every_app_is_covered_or_declared(self):
+        """真仓库：每个 app 都在「有测试」或「已声明」里 —— 一个都不许漏。"""
+        covered = {p.split('/')[1] for p in real_test_packages()}
+        declared = set(run_tests.NO_TESTS_YET)
+        missed = sorted(set(real_app_names()) - covered - declared)
+        self.assertEqual(missed, [], f'这些 app 既没有测试也没声明：{missed}')
+        # 反方向：声明表里不该留着已经有测试的 app
+        self.assertEqual(sorted(covered & declared), [],
+                         '这些 app 已经有测试了，NO_TESTS_YET 里那几行该删了')
+
+    def test_declared_apps_actually_exist(self):
+        """声明表里不该留着早就删掉的 app —— 那种条目只会让这张表越来越不可信。"""
+        gone = sorted(set(run_tests.NO_TESTS_YET) - set(real_app_names()))
+        self.assertEqual(gone, [], f'NO_TESTS_YET 里的这些 app 已经不存在了：{gone}')
 
 
 class TestScanSurfaceOfTheRunnerContract(unittest.TestCase):
