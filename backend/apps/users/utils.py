@@ -1,8 +1,8 @@
 import random
 import string
-from decimal import Decimal
 from django.db import transaction
 from .models import User, InviteConfig, InviteReward, Bill
+from .invite_reward import APPROVED, COUNTED_STATUSES, decide_reward
 
 # 常见的匿名/临时邮箱域名黑名单
 DISPOSABLE_EMAIL_DOMAINS = {
@@ -297,59 +297,81 @@ def generate_invite_code():
 
 
 def process_invite_reward(user, recharge_amount):
-    """处理邀请返利逻辑
-    
+    """处理邀请返利逻辑 —— **判定在 `apps/users/invite_reward.py`，这里只负责落库**
+
+    两件事从原来的写法里改掉了（都是钱的事）：
+
+    1. **判定不再有第二份。** 原来这里自己写了一遍「哪种返利方式 × 有没有记录 ×
+       满没满人」，与 `invite_reward.decide_reward` 是同一件事的两个副本 ——
+       副本必然漂移（发多少、要不要审核都得说两遍）。现在这里只有一个调用点。
+    2. **查询与写入在同一把锁里。** 原来 `filter(...).exists()` 在事务外、
+       `inviter.balance += ...` 在事务内，中间那个窗口足够两次充值都判成「首次」，
+       于是同一对（邀请人, 被邀请人）拿到两笔返利。现在先 `select_for_update`
+       锁住邀请人（**被加钱的那一方**），判定用的两个查询也在锁里发起。
+
+    被邀请人没有加锁：它在这条路上只是记录里的一个外键，没有任何一行数据被它影响。
+
     Args:
         user: 充值用户
         recharge_amount: 充值金额
     """
-    if not user.invited_by:
+    if not user.invited_by_id:
         return
-    inviter = user.invited_by
+    inviter_id = user.invited_by_id
+    # 惰性取值函数：判定用不到就不查（`every` 一次都不查，金额为 0 时也不查）
     config = InviteConfig.get_config()
-    rebate_type = config.rebate_type
-    rebate_ratio = Decimal(str(config.rebate_ratio))
-    reward_amount = Decimal(str(recharge_amount)) * rebate_ratio
-    if reward_amount <= 0:
-        return
-    should_reward = False
-    if rebate_type == 'first':
-        if not InviteReward.objects.filter(inviter=inviter, invitee=user, status__in=['approved', 'pending']).exists():
-            should_reward = True
-    elif rebate_type == 'every':
-        should_reward = True
-    elif rebate_type == 'upgrade':
-        approved_count = InviteReward.objects.filter(inviter=inviter, status='approved').values('invitee').distinct().count()
-        if approved_count >= config.upgrade_threshold:
-            should_reward = True
-        elif not InviteReward.objects.filter(inviter=inviter, invitee=user, status__in=['approved', 'pending']).exists():
-            should_reward = True
-    if not should_reward:
-        return
-    reward_threshold = Decimal(str(config.reward_threshold))
-    if reward_amount >= reward_threshold:
+
+    def already_rewarded():
+        """这对（邀请人, 被邀请人）是否已有 pending/approved 记录。
+
+        `rejected` 不算 —— 被人工拒绝过的，下次充值还能重新触发一次。
+        """
+        return InviteReward.objects.filter(
+            inviter_id=inviter_id,
+            invitee_id=user.pk,
+            status__in=COUNTED_STATUSES,
+        ).exists()
+
+    def approved_invitees():
+        """该邀请人**已审核通过**的去重被邀请人数（`upgrade` 方式的门槛判据）。"""
+        return (
+            InviteReward.objects
+            .filter(inviter_id=inviter_id, status=APPROVED)
+            .values('invitee_id')
+            .distinct()
+            .count()
+        )
+
+    with transaction.atomic():
+        # 加锁顺序：**先锁邀请人**。`apps/dashboard/views.py::approve_reward` 那条
+        # 加钱的路也从这个用户行开始，两条路同序就不会各持一把锁互相等。
+        inviter = User.objects.select_for_update().get(pk=inviter_id)
+        decision = decide_reward(
+            rebate_type=config.rebate_type,
+            rebate_ratio=config.rebate_ratio,
+            reward_threshold=config.reward_threshold,
+            upgrade_threshold=config.upgrade_threshold,
+            recharge_amount=recharge_amount,
+            already_rewarded=already_rewarded,
+            approved_invitees=approved_invitees,
+        )
+        if not decision.should_reward:
+            return
         InviteReward.objects.create(
             inviter=inviter,
             invitee=user,
-            recharge_amount=recharge_amount,
-            reward_amount=reward_amount,
-            status='pending'
+            recharge_amount=decision.recharge_amount,
+            reward_amount=decision.amount,
+            status=decision.status,
         )
-    else:
-        with transaction.atomic():
-            InviteReward.objects.create(
-                inviter=inviter,
-                invitee=user,
-                recharge_amount=recharge_amount,
-                reward_amount=reward_amount,
-                status='approved'
-            )
-            inviter.balance += reward_amount
-            inviter.save()
-            Bill.objects.create(
-                user=inviter,
-                type='bonus',
-                amount=reward_amount,
-                balance=inviter.balance,
-                description=f'邀请返利（来自{user.username}充值）'
-            )
+        if decision.status != APPROVED:
+            return
+        inviter.balance += decision.amount
+        inviter.save(update_fields=['balance'])
+        Bill.objects.create(
+            user=inviter,
+            type='bonus',
+            amount=decision.amount,
+            balance=inviter.balance,
+            description=f'邀请返利（来自{user.username}充值）'
+        )

@@ -678,18 +678,34 @@ class InviteAdminViewSet(viewsets.GenericViewSet):
 
     @action(detail=True, methods=["post"], url_path="approve")
     def approve_reward(self, request, pk=None):
-        """审核通过返利"""
-        try:
-            reward = InviteReward.objects.get(pk=pk, status="pending")
-        except InviteReward.DoesNotExist:
-            return APIResponse.error("返利记录不存在或已处理", 404)
+        """审核通过返利 —— 加钱那条路，一次只能有一个人走通。
+
+        原来「查出 pending」在事务外、「改成 approved 并加钱」在事务内：两个管理员
+        同时点通过，两边都在事务外读到 pending，两边都往邀请人账上加一次钱 ——
+        记录只有一条，钱发了两份。现在查询带着 `select_for_update` 进事务，
+        第二次进来读到的是「状态已经不是 pending」，原地被挡回去。
+        """
         with models.transaction.atomic():
+            # 先锁邀请人：与 apps/users/utils.py::process_invite_reward 的加锁顺序
+            # 一致（两条加钱的路都从这个用户行开始），不会各持一把锁互相等。
+            inviter_id = (InviteReward.objects
+                          .filter(pk=pk)
+                          .values_list("inviter_id", flat=True)
+                          .first())
+            if inviter_id is None:
+                return APIResponse.error("返利记录不存在或已处理", 404)
+            inviter = User.objects.select_for_update().get(pk=inviter_id)
+            try:
+                reward = (InviteReward.objects
+                          .select_for_update()
+                          .get(pk=pk, status="pending"))
+            except InviteReward.DoesNotExist:
+                return APIResponse.error("返利记录不存在或已处理", 404)
             reward.status = "approved"
             reward.reviewed_at = timezone.now()
             reward.save()
-            inviter = reward.inviter
             inviter.balance += reward.reward_amount
-            inviter.save()
+            inviter.save(update_fields=["balance"])
             Bill.objects.create(
                 user=inviter,
                 type="bonus",

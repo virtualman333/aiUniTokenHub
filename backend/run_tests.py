@@ -22,9 +22,11 @@ AGENTS.md 里原来的命令是 `python -m unittest discover -s apps/api_proxy/t
     全仓从 295 例悄悄变成 116 例，退出码还是 0）；
   - **一个 app 连 `tests/` 目录都没有** → 也直接失败，除非它出现在下面的
     `NO_TESTS_YET` 里。这是 glob 看不见的那一半：`apps/*/tests` 只会告诉你
-    「哪些包有测试」，永远不会告诉你「少了哪个包」。`apps/tickets/`（468 行）与
-    `apps/users/`（2511 行，`utils.py::process_invite_reward` 就在管钱那条线上）
-    至今零覆盖，而全仓一直输出 `OK —— N 例全部通过`、总数只增不减，谁都看不出来。
+    「哪些包有测试」，永远不会告诉你「少了哪个包」。`apps/tickets/`（468 行）至今零覆盖；
+    `apps/users/`（2511 行，`utils.py::process_invite_reward` 就在管钱那条线上）也长期
+    零覆盖，直到 2026-09-18 把那件事做完（判定抽成 `apps/users/invite_reward.py`，
+    第一套用例落在 `apps/users/tests/`）—— 它就是被这张表顶出来的：补上之前，
+    全仓一直输出 `OK —— N 例全部通过`、总数只增不减，谁都看不出来少了一个 app.
     实测：这条检查加上之前，`run_tests.py` 对这两个 app 的存在与覆盖率一无所知；
   - 每个包打一行用例数，哪些包参与了、各多少条，一眼可查；
   - 打完结果再点一句「哪几个 app 一条测试都没有」—— 免得「OK」被读成「都覆盖到了」。
@@ -54,12 +56,6 @@ NO_TESTS_YET = {
                '不碰库的只有 models.py 的 ticket_image_upload_path（文件名去重 + 路径拼接），'
                '但它在 models.py 里 —— 纯 unittest import 不到（那个模块顶层 import Django）。'
                '要测它得先抽成无 Django 依赖的模块（照 apps/utils/api_errors.py 的做法），待补。',
-    'users': '用户 / 认证 / 邮件 / 邀请奖励，2511 行。发钱那条线是 '
-             'utils.py::process_invite_reward —— 返利比例 / 审核阈值 / 升级门槛三个配置都在里面，'
-             '却和三次 ORM 查询揉成一个函数，于是「只有连库才测得了」。'
-             '判定本身（该不该发 / 发多少 / pending 还是 approved）可以整体抽成纯函数、'
-             '把查询当惰性取值函数传进去（照 apps/utils/api_errors.py 的做法），'
-             '这是下一轮的第一件事，待补。',
 }
 
 
