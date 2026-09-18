@@ -240,6 +240,7 @@ class SingleSourceTests(unittest.TestCase):
     #: 代码里有、这里没登记 → 也红（新加的分页点必须当场被看见）。
     PAGINATING_MODULES = {
         'apps/ai_models/views.py',
+        'apps/ai_models/upstream_views.py',
         'apps/api_proxy/views.py',
         'apps/dashboard/analytics_views.py',
         'apps/dashboard/views.py',

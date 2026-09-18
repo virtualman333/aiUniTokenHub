@@ -482,6 +482,7 @@ import { ref, onMounted, computed, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search } from '@element-plus/icons-vue'
 import api from '@/stores'
+import { fetchAllPages } from '@/utils/pagination'
 
 const activeTab = ref('models')
 const loading = ref(false)
@@ -593,8 +594,13 @@ async function fetchModels() {
 
 async function fetchProviders() {
   try {
-    const res = await api.get('/models/providers/')
-    providers.value = res.results || res || []
+    const { items, truncated } = await fetchAllPages<any>((page, pageSize) =>
+      api.get('/models/providers/', { params: { page, page_size: pageSize } })
+    )
+    providers.value = items
+    if (truncated) {
+      ElMessage.warning('供应商数量超过单次加载上限，下拉可能不全')
+    }
   } catch (e) {
     console.error('获取供应商失败:', e)
   }
@@ -645,8 +651,12 @@ async function fetchBoundAccounts() {
 async function fetchAvailableAccounts() {
   availableLoading.value = true
   try {
-    const res = await api.get('/models/upstream-accounts/', { params: { page_size: 1000 } })
-    const allAccounts = res.results || res || []
+    const { items: allAccounts, truncated } = await fetchAllPages<any>((page, pageSize) =>
+      api.get('/models/upstream-accounts/', { params: { page, page_size: pageSize } })
+    )
+    if (truncated) {
+      ElMessage.warning('账号数量超过单次加载上限，可选账号可能不全')
+    }
     // 过滤掉已关联的账号
     const boundIds = new Set(boundAccounts.value.map(a => a.account_id))
     availableAccounts.value = allAccounts.filter(a => !boundIds.has(a.id))

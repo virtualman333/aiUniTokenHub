@@ -223,6 +223,7 @@ import {
   type ConversationItem,
 } from './composables/useConversations'
 import { copyToClipboard } from '@/utils/clipboard'
+import { fetchAllPages } from '@/utils/pagination'
 
 const route = useRoute()
 const router = useRouter()
@@ -259,7 +260,9 @@ const hasMessages = computed(() => messages.value.length > 0)
 
 const availableKeys = computed(() => keys.value)
 
-// 拉取全部模型（不限制 page_size），用于下拉选择
+// 拉取全部模型，用于下拉选择。
+// 后端把 page_size 夹到 100，所以「全部」只能靠翻页表达，
+// 写一个更大的数字会被静默夹紧 —— 下拉里就少几项。
 const chatModels = ref<any[]>([])
 
 const modelOptions = computed(() =>
@@ -283,8 +286,13 @@ const canSend = computed(
 
 async function fetchAllModels() {
   try {
-    const res: any = await api.get('/models/models/', { params: { page: '1', page_size: '9999', category: 'llm' } })
-    chatModels.value = res.results || res || []
+    const { items, truncated } = await fetchAllPages<any>((page, pageSize) =>
+      api.get('/models/models/', { params: { page, page_size: pageSize, category: 'llm' } })
+    )
+    chatModels.value = items
+    if (truncated) {
+      ElMessage.warning('模型数量超过单次加载上限，下拉里可能不全')
+    }
   } catch (e) {
     // 降级：使用共享的 fetchModels（默认 20 条）
     await fetchModels()

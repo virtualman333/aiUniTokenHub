@@ -339,6 +339,7 @@ import axios from 'axios'
 import Cookies from 'js-cookie'
 import { useUserStore } from '@/stores'
 import { copyToClipboard } from '@/utils/clipboard'
+import { fetchAllPages } from '@/utils/pagination'
 
 const apiBaseUrl = ref(window.location.origin + '/api/proxy/v1')
 
@@ -567,15 +568,15 @@ async function selectKey(key) {
 
 async function refreshModels(apiKey = null) {
   try {
-    const response = await api.get('/models/models/', { params: { page: '1', page_size: '9999', category: 'llm' } })
-    const results = response.results || response || []
-    if (results.length > 0) {
-      availableModels.value = results.map(m => ({
-        code: m.code,
-        name: m.name
-      }))
-    } else {
-      availableModels.value = []
+    const { items, truncated } = await fetchAllPages((page, pageSize) =>
+      api.get('/models/models/', { params: { page, page_size: pageSize, category: 'llm' } })
+    )
+    availableModels.value = items.map(m => ({
+      code: m.code,
+      name: m.name
+    }))
+    if (truncated) {
+      ElMessage.warning('模型数量超过单次加载上限，列表可能不全')
     }
   } catch (e) {
     console.warn('获取模型列表失败')

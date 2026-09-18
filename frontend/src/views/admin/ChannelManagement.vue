@@ -254,6 +254,7 @@ import { computed, ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Connection, Refresh } from '@element-plus/icons-vue'
 import api from '@/stores'
+import { fetchAllPages } from '@/utils/pagination'
 
 const channels = ref([])
 const providers = ref([])
@@ -307,8 +308,15 @@ const stats = ref({
 const loadChannels = async () => {
   loading.value = true
   try {
-    const res = await api.get('/models/upstream-accounts/')
-    channels.value = res.results || res || []
+    // 下面两张卡片是按 channels 全量算的（total_channels / active_channels），
+    // 所以这里要的是全部，不能只拿第一页。
+    const { items, truncated } = await fetchAllPages<any>((page, pageSize) =>
+      api.get('/models/upstream-accounts/', { params: { page, page_size: pageSize } })
+    )
+    channels.value = items
+    if (truncated) {
+      ElMessage.warning('账号数量超过单次加载上限，下方列表与统计可能不全')
+    }
     
     // 计算统计
     stats.value.total_channels = channels.value.length
@@ -333,8 +341,13 @@ const loadChannels = async () => {
 
 const loadProviders = async () => {
   try {
-    const res = await api.get('/models/providers/')
-    providers.value = res.results || res || []
+    const { items, truncated } = await fetchAllPages<any>((page, pageSize) =>
+      api.get('/models/providers/', { params: { page, page_size: pageSize } })
+    )
+    providers.value = items
+    if (truncated) {
+      ElMessage.warning('供应商数量超过单次加载上限，下拉可能不全')
+    }
   } catch (error) {
     console.error('加载供应商失败:', error)
   }

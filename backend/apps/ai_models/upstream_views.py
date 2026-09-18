@@ -14,6 +14,7 @@ from .upstream_serializers import (
     ModelUpstreamAccountSerializer, ModelUpstreamAccountCreateSerializer
 )
 from apps.utils.response import APIResponse
+from apps.utils.pagination import paginate
 from apps.api_proxy.channel_probes import fetch_models, probe_status
 
 
@@ -40,6 +41,20 @@ class UpstreamAccountViewSet(viewsets.ModelViewSet):
             error_count=Coalesce(Sum('model_bindings__error_count'), 0),
             last_used=Max('model_bindings__last_used'),
         )
+
+    def list(self, request):
+        """分页列表。
+
+        以前没有这个方法，于是继承了 DRF 默认实现：原样丢回一个裸数组，
+        `page` / `page_size` 一个都不解析，也没有任何上限 —— 前端写
+        `page_size: 1000` 在这里是**完全无效**的（不报错、不生效、也没夹紧）。
+
+        这个查询还带 `Sum` 聚合，无上限地整表吐出去代价最难看，所以走
+        `apps.utils.pagination` 这条路：分页参数只有一处解析。
+        """
+        queryset = self.filter_queryset(self.get_queryset())
+
+        return paginate(request, queryset, self.get_serializer, '获取成功')
 
     def get_serializer_class(self):
         if self.action in ['list']:

@@ -279,6 +279,7 @@ import { Search, RefreshLeft, Download } from '@element-plus/icons-vue'
 import CodeBlock from '@/components/CodeBlock.vue'
 import api from '@/stores'
 import dayjs from 'dayjs'
+import { fetchAllPages } from '@/utils/pagination'
 
 const logs = ref([])
 const loading = ref(false)
@@ -374,9 +375,15 @@ const exportLogs = async () => {
       params.end_date = dayjs(dateRange.value[1]).endOf('day').toISOString()
     }
     
-    const res = await api.get('/proxy/access_logs/', { params: { ...params, page_size: 1000 } })
-    const data = res.results || res
-    
+    // 导出要的是「全部匹配的日志」，所以必须翻页拿全 ——
+    // page_size 写多大都会被后端夹到 100，那样导出会静默少几千行。
+    const { items: data, truncated } = await fetchAllPages((page, pageSize) =>
+      api.get('/proxy/access_logs/', { params: { ...params, page, page_size: pageSize } })
+    )
+    if (truncated) {
+      ElMessage.warning(`日志超过单次导出上限，已导出前 ${data.length} 条，请缩小时间范围`)
+    }
+
     if (!data.length) {
       ElMessage.warning('没有数据可导出')
       return
