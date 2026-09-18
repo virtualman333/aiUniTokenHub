@@ -14,6 +14,7 @@ from .models import APIAccessLog
 from .serializers import ProxyRequestSerializer, APIAccessLogSerializer, AccessLogStatSerializer
 from apps.users.models import APIKey, UsageLog
 from apps.utils.response import APIResponse
+from apps.utils.pagination import paginate
 # 「本地某一天」→ 带时区瞬间。**不要在这里用 `TruncDate` / `__date`** ——
 # 见 apps/utils/timerange.py 的模块 docstring（MySQL 没装时区表时恒 NULL）。
 from apps.utils.timerange import dates_between, local_day_bounds
@@ -124,16 +125,7 @@ class ProxyAccessViewSet(viewsets.GenericViewSet):
         
         queryset = queryset.order_by('-created_at')
         
-        page = int(request.query_params.get('page', 1))
-        page_size = int(request.query_params.get('page_size', 20))
-        start = (page - 1) * page_size
-        end = start + page_size
-        
-        total = queryset.count()
-        logs = queryset[start:end]
-        
-        serializer = APIAccessLogSerializer(logs, many=True)
-        return APIResponse.paginated(serializer.data, total, page, page_size, '获取成功')
+        return paginate(request, queryset, APIAccessLogSerializer, '获取成功')
     
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated, IsAdminUser])
     def access_stats(self, request):

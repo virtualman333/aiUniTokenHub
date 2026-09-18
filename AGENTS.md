@@ -39,7 +39,7 @@
 
 ## Backend Notes
 - `AUTH_USER_MODEL` is `users.User`; authentication uses `apps.users.authentication.JWTAuthentication` and the `EmailOrUsernameBackend`.
-- API responses commonly use the repo's unified `{code, msg, data}` shape from `apps.utils.response.APIResponse`; frontend Axios unwraps that format in `frontend/src/stores/index.js`.
+- API responses use the repo's unified `{code, msg, data}` shape from `apps.utils.response.APIResponse`; frontend Axios unwraps that format in `frontend/src/stores/index.js`. This used to read "commonly use", and that hedge was load-bearing: `apps/users/views_usage_log.py::APIAccessLogViewSet` never overrode `list()`, so `/api/users/usage-logs/` served a bare array with no `total` and no `page_size` cap while the frontend guessed with `res.results || res || []`. The only deliberate exception is the OpenAI/Anthropic-compatible surface under `/api/proxy/v1/...`, which must return the upstream protocol shape verbatim. Everything else — list endpoints included — goes through the envelope, and **paginated lists go through `apps.utils.pagination.paginate()`** (one shape: `{results, total, page, page_size}`); `apps/utils/tests/test_pagination.py` checks both directions, so a module that hands pagination back to a hand-rolled copy fails the suite.
 - OpenAI-compatible proxy routes live under `/api/proxy/v1/...`; unsupported `/v1/*` paths fall through to `ModelsView`.
 - The proxy supports OpenAI and Anthropic protocol adaptation in `backend/apps/api_proxy/adapters/`; preserve request/stream/response conversion behavior when touching proxy code.
 - Image generation stores generated files under Django `MEDIA_ROOT` and has a cleanup command: `python manage.py cleanup_images`.

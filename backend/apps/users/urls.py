@@ -2,7 +2,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import AuthViewSet, APIKeyViewSet, BillingViewSet, CardPasswordViewSet, InviteViewSet
 from .views import RechargeViewSet, AdminRechargeViewSet
-from .views_api_key import APIAccessLogViewSet
+from .views_usage_log import APIAccessLogViewSet
 from .views_system import SystemSettingsViewSet
 
 router = DefaultRouter()

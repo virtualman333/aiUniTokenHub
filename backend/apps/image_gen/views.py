@@ -15,6 +15,7 @@ from apps.ai_models.upstream_models import ModelUpstreamAccount
 from apps.users.models import Bill, UsageLog, User
 from apps.api_proxy.models import APIAccessLog
 from apps.utils.response import APIResponse
+from apps.utils.pagination import paginate
 
 from apps.utils.billing import DEDUCT_OK, deduct_failure, insufficient_message, refund_amount_of, refund_message
 from .models import GeneratedImage, ImageGeneration
@@ -162,13 +163,7 @@ class ImageGenerationView(APIView):
     def get(self, request):
         """获取当前用户的图像生成历史"""
         qs = ImageGeneration.objects.filter(user=request.user).prefetch_related('images')
-        page = int(request.query_params.get('page', 1))
-        page_size = int(request.query_params.get('page_size', 20))
-        total = qs.count()
-        start = (page - 1) * page_size
-        records = qs[start:start + page_size]
-        serializer = ImageGenerationSerializer(records, many=True, context={'request': request})
-        return APIResponse.paginated(serializer.data, total, page, page_size)
+        return paginate(request, qs, ImageGenerationSerializer, context={'request': request})
 
     def post(self, request):
         """创建图像生成任务"""

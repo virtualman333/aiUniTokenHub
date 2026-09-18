@@ -26,6 +26,7 @@ from .authentication import generate_token
 from .mailer import send_email, render_verify_code_email, EmailNotConfigured
 from apps.utils.response import APIResponse
 from apps.utils.api_errors import first_error_message
+from apps.utils.pagination import page_params, paginate, slice_page
 # 「本地某一天」→ 带时区瞬间（**不要**在 SQL 里用 `__date` / `TruncDate`，
 # 也不要拿 `timezone.now()` 去 replace 出「今天零点」—— 那是 UTC 日界）。
 from apps.utils.timerange import local_day_start, parse_day_bound
@@ -244,14 +245,7 @@ class BillingViewSet(viewsets.GenericViewSet):
     def bills(self, request):
         """获取账单列表"""
         queryset = Bill.objects.filter(user=request.user)
-        page = int(request.query_params.get('page', 1))
-        page_size = int(request.query_params.get('page_size', 20))
-        total = queryset.count()
-        start = (page - 1) * page_size
-        end = start + page_size
-        bills = queryset[start:end]
-        serializer = BillSerializer(bills, many=True)
-        return APIResponse.paginated(serializer.data, total, page, page_size)
+        return paginate(request, queryset, BillSerializer)
 
     @action(detail=False, methods=['get'], url_path='admin-bills')
     def admin_bills(self, request):
@@ -286,13 +280,12 @@ class BillingViewSet(viewsets.GenericViewSet):
                 return APIResponse.error('end_date 格式应为 YYYY-MM-DD', 400)
             queryset = queryset.filter(created_at__lt=end_bound)
 
-        # 分页
-        page = int(request.query_params.get('page', 1))
-        page_size = int(request.query_params.get('page_size', 20))
+        page, page_size, error = page_params(request)
+        if error:
+            return APIResponse.error(error, 400)
+
         total = queryset.count()
-        start = (page - 1) * page_size
-        end = start + page_size
-        bills = queryset[start:end]
+        bills = slice_page(queryset, page, page_size)
 
         serializer = BillSerializer(bills, many=True)
 
@@ -400,14 +393,7 @@ class CardPasswordViewSet(viewsets.GenericViewSet):
         batch_no = request.query_params.get('batch_no')
         if batch_no:
             queryset = queryset.filter(batch_no=batch_no)
-        page = int(request.query_params.get('page', 1))
-        page_size = int(request.query_params.get('page_size', 20))
-        total = queryset.count()
-        start = (page - 1) * page_size
-        end = start + page_size
-        cards = queryset[start:end]
-        serializer = CardPasswordSerializer(cards, many=True)
-        return APIResponse.paginated(serializer.data, total, page, page_size)
+        return paginate(request, queryset, CardPasswordSerializer)
 
     @action(detail=False, methods=['post'], url_path='generate')
     def generate_cards(self, request):

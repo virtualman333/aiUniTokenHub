@@ -25,6 +25,7 @@ from .runway import DEFAULT_WINDOW as RUNWAY_WINDOW, estimate_runway
 # 详见 apps/utils/timerange.py 的模块 docstring。
 from apps.utils.timerange import dates_back, local_day_bounds, local_day_start
 from apps.utils.response import APIResponse
+from apps.utils.pagination import paginate
 from .analytics_views import AnalyticsViewSet
 
 
@@ -309,19 +310,7 @@ class AdminDashboardViewSet(viewsets.GenericViewSet, AnalyticsViewSet):
         if is_active is not None:
             queryset = queryset.filter(is_active=is_active.lower() == "true")
 
-        # 分页
-        page = int(request.query_params.get("page", 1))
-        page_size = int(request.query_params.get("page_size", 20))
-        start = (page - 1) * page_size
-        end = start + page_size
-
-        total = queryset.count()
-        users = queryset[start:end]
-        serializer = AdminUserSerializer(users, many=True)
-
-        return APIResponse.paginated(
-            serializer.data, total, page, page_size, "获取成功"
-        )
+        return paginate(request, queryset, AdminUserSerializer, "获取成功")
 
     def retrieve_user(self, request, pk=None):
         """获取单个用户"""
@@ -667,14 +656,7 @@ class InviteAdminViewSet(viewsets.GenericViewSet):
         status_filter = request.query_params.get("status")
         if status_filter:
             queryset = queryset.filter(status=status_filter)
-        page = int(request.query_params.get("page", 1))
-        page_size = int(request.query_params.get("page_size", 20))
-        total = queryset.count()
-        start = (page - 1) * page_size
-        end = start + page_size
-        rewards = queryset[start:end]
-        serializer = InviteRewardSerializer(rewards, many=True)
-        return APIResponse.paginated(serializer.data, total, page, page_size)
+        return paginate(request, queryset, InviteRewardSerializer)
 
     @action(detail=True, methods=["post"], url_path="approve")
     def approve_reward(self, request, pk=None):

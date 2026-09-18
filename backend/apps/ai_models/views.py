@@ -11,6 +11,7 @@ from .serializers import (
 from .upstream_models import ModelUpstreamAccount
 from apps.utils.response import APIResponse
 from apps.utils.api_errors import first_error_message
+from apps.utils.pagination import paginate
 
 
 class ModelProviderViewSet(viewsets.ModelViewSet):
@@ -45,17 +46,7 @@ class ModelProviderViewSet(viewsets.ModelViewSet):
     def list(self, request):
         queryset = self.get_queryset()
         
-        # 分页
-        page = int(request.query_params.get('page', 1))
-        page_size = int(request.query_params.get('page_size', 20))
-        start = (page - 1) * page_size
-        end = start + page_size
-        
-        total = queryset.count()
-        items = queryset[start:end]
-        
-        serializer = self.get_serializer(items, many=True)
-        return APIResponse.paginated(serializer.data, total, page, page_size, '获取成功')
+        return paginate(request, queryset, self.get_serializer, '获取成功')
     
     def retrieve(self, request, pk=None):
         instance = self.get_object()
@@ -198,17 +189,7 @@ class AIModelViewSet(viewsets.ModelViewSet):
         """获取模型列表"""
         queryset = self.get_queryset()
         
-        # 分页
-        page = int(request.query_params.get('page', 1))
-        page_size = int(request.query_params.get('page_size', 20))
-        start = (page - 1) * page_size
-        end = start + page_size
-        
-        total = queryset.count()
-        items = queryset[start:end]
-        
-        serializer = self.get_serializer(items, many=True)
-        return APIResponse.paginated(serializer.data, total, page, page_size, '获取成功')
+        return paginate(request, queryset, self.get_serializer, '获取成功')
     
     def retrieve(self, request, pk=None):
         """获取模型详情"""

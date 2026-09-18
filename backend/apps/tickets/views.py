@@ -15,6 +15,7 @@ from .attachments import (
 )
 from apps.utils.response import APIResponse
 from apps.utils.api_errors import first_error_message
+from apps.utils.pagination import paginate
 
 
 def _bind_images(image_ids, *, ticket=None, reply=None):
@@ -112,14 +113,7 @@ class TicketViewSet(viewsets.ModelViewSet):
 
     def list(self, request):
         queryset = self.get_queryset()
-        page = int(request.query_params.get('page', 1))
-        page_size = int(request.query_params.get('page_size', 20))
-        total = queryset.count()
-        start = (page - 1) * page_size
-        end = start + page_size
-        tickets = queryset[start:end]
-        serializer = self.get_serializer(tickets, many=True)
-        return APIResponse.paginated(serializer.data, total, page, page_size)
+        return paginate(request, queryset, self.get_serializer)
 
     def create(self, request):
         # 图片 id 先收先判 —— 从前这一步排在 serializer.save() 的后面，

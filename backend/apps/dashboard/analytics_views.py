@@ -13,6 +13,7 @@ from apps.utils.analytics import (
     _get_redis,
 )
 from apps.utils.response import APIResponse
+from apps.utils.pagination import page_params, slice_page
 
 
 class AnalyticsViewSet:
@@ -116,8 +117,9 @@ class AnalyticsViewSet:
         """
         start_date_str = request.query_params.get('start_date', '')
         end_date_str = request.query_params.get('end_date', '')
-        page = int(request.query_params.get('page', 1))
-        page_size = int(request.query_params.get('page_size', 20))
+        page, page_size, error = page_params(request)
+        if error:
+            return APIResponse.error(error, 400)
 
         today = date.today()
 
@@ -153,9 +155,7 @@ class AnalyticsViewSet:
 
         # 分页（按日期倒序）
         all_records.reverse()  # 最新在前
-        start = (page - 1) * page_size
-        end = start + page_size
-        paged = all_records[start:end]
+        paged = slice_page(all_records, page, page_size)
 
         return APIResponse.success({
             'total_pv': total_pv,
