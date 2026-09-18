@@ -281,11 +281,36 @@ class TestUncoveredAppsAreLoud(unittest.TestCase):
     `OK —— N 例全部通过`，而 N 只增不减 —— 谁都看不出来。
     """
 
+    #: 临时环境里那个「已声明、但一条测试都没有」的 app。
+    #:
+    #: 从前这两条用例借的是真仓库 `NO_TESTS_YET` 里的 `'tickets'`（当时它确实
+    #: 长期零覆盖）。2026-09-18 把工单的测试补上、真表清空之后，它们跟着红了 ——
+    #: 而它们要验的是**脚本的判据**，不是真仓库当下声明了谁。声明由这里自己造。
+    DECLARED = 'legacy'
+
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp(prefix='unitokenhub-cover-'))
         self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
         shutil.copy(RUNNER, self.tmp / 'run_tests.py')
+        self.declare(self.DECLARED)
         self.add_package('alpha', 'test_alpha.py')
+
+    def declare(self, app):
+        """往复制过来的 runner 里补一条 `NO_TESTS_YET` 声明。
+
+        真仓库的那张表现在是空的（8 个 app 全都有测试），所以「已声明的零覆盖
+        app」这种局面只能在这里现造 —— 顺带也让这两条用例不再依赖另一个文件的
+        内容（那正是它们今天坏掉的原因）。
+        """
+        runner = self.tmp / 'run_tests.py'
+        before = runner.read_text(encoding='utf-8')
+        after = before.replace(
+            'NO_TESTS_YET = {\n}',
+            "NO_TESTS_YET = {\n    '%s': '造出来的，用来验证声明表的两个方向。',\n}" % app,
+            1,
+        )
+        self.assertNotEqual(before, after, '没能在临时 runner 里补上声明 —— 锚点失效了')
+        runner.write_text(after, encoding='utf-8')
 
     def add_package(self, app, filename):
         d = self.tmp / 'apps' / app / 'tests'
@@ -332,24 +357,25 @@ class TestUncoveredAppsAreLoud(unittest.TestCase):
     def test_a_declared_bare_app_passes_and_is_printed(self):
         """声明过的零覆盖 app：跑得过，但**必须在输出里点名** ——
         否则那一行 `OK` 会被读成「都覆盖到了」。"""
-        self.add_bare_app('tickets')          # 真仓库的 NO_TESTS_YET 里就声明了它
+        self.add_bare_app(self.DECLARED)
         r = self.run_runner()
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertIn('没有任何测试的 app 1 个', r.stdout)
-        self.assertIn('apps/tickets/', r.stdout, '声明过的零覆盖 app 也要打印出来')
+        self.assertIn(f'apps/{self.DECLARED}/', r.stdout, '声明过的零覆盖 app 也要打印出来')
         self.assertIn('一条用例都没有', r.stdout,
                       'OK 那一行附近要提醒「它只覆盖了有测试的包」')
 
     def test_a_declared_app_that_now_has_tests_is_fatal(self):
         """声明表会腐烂：补了测试却忘了删声明，也必须失败。"""
-        self.add_package('tickets', 'test_tickets.py')   # 表里还挂着 tickets
+        self.add_package(self.DECLARED, 'test_legacy.py')   # 表里还挂着它
         r = self.run_runner()
         self.assertNotEqual(
             r.returncode, 0,
-            'tickets 已经有测试了、却还挂在 NO_TESTS_YET 里，脚本却没吭声：\n' + r.stdout,
+            f'{self.DECLARED} 已经有测试了、却还挂在 NO_TESTS_YET 里，脚本却没吭声：\n'
+            + r.stdout,
         )
         out = r.stdout + r.stderr
-        self.assertIn('apps/tickets/', out)
+        self.assertIn(f'apps/{self.DECLARED}/', out)
         self.assertIn('已经有测试了', out, '要说清是「表里的那条该删了」')
 
     def test_collect_itself_refuses_a_bare_app(self):

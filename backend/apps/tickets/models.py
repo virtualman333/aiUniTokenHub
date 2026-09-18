@@ -1,14 +1,18 @@
-import os
 import uuid
 from django.db import models
 from django.conf import settings
 
+from .attachments import upload_path
+
 
 def ticket_image_upload_path(instance, filename):
-    """生成工单图片上传路径"""
-    ext = os.path.splitext(filename)[1]
-    filename = f"{uuid.uuid4().hex}{ext}"
-    return f"tickets/{instance.ticket_id}/{filename}"
+    """生成工单图片上传路径。
+
+    规矩（目录怎么定、原名怎么丢）在 `apps/tickets/attachments.py` —— 那是唯一
+    来源，也是它唯一能被测到的地方：`upload_to` 只在保存那一刻求值，而此刻工单
+    还不存在，所以目录是 `tickets/unassigned/`，不是 `tickets/None/`。
+    """
+    return upload_path(instance.ticket_id, filename, uuid.uuid4().hex)
 
 
 class TicketCategory(models.Model):

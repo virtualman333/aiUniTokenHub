@@ -69,7 +69,15 @@ python run_tests.py
   `99.999` 会既绕过审核、又写下与到账不一致的数。落库那两条入口（`apps/users/utils.py::process_invite_reward`、
   `apps/dashboard/views.py::approve_reward`）的加锁由这组测试**读源码**钉住：判定的查询必须在
   `select_for_update()` 之内，否则两次充值会各拿一笔返利、两个管理员能点出两份钱。
-- **文档契约**（`apps/docs/tests/`）：文档是唯一没人验证过的产物 —— 这三个文件分别锁住「文档里写的命令必须真的存在、
+- **工单附件**（`apps/tickets/tests/`）：一次能带几张、什么样的 id 才算 id、上传落在哪个目录，三件事都收在
+  `apps/tickets/attachments.py`（纯 Python、不 import Django）；这也是 `apps/tickets/` 的第一份用例。从前它们散在
+  `views.py` 里，于是：`image_ids` 传成字符串 `"12"` 会被 `id__in` **按字符拆开**、绑到第 1、2 张图上（`len("12")` 只有
+  2，连 5 张的上限都碰不到）；「最多关联 5 张」判在 `serializer.save()` **之后**，那句 400 里夹着一条已经落库的工单；
+  绑定用 `update()`，影响 0 行不报错 —— 用户看到「提交成功」，而工单里一张图都没有。现在 id 清单先收先判，建单/回复
+  与绑图在同一个事务里（绑不满整笔回滚，差额由 `partial_binding_error` 说出来），上传目录是 `tickets/unassigned/`
+  而不是 `tickets/None/`（`upload_to` 只在保存那一刻求值，那时工单还不存在，老路径一直在谎报一个工单号）。
+  上传白名单与大小上限在前端 `ImageUpload.vue` 里还有一份，两边的对账由这组测试**从 .vue 源码里读出来**比。
+- **文档契约**（`apps/docs/tests/`）：文档是唯一没人验证过的产物 —— 这几个文件分别锁住「文档里写的命令必须真的存在、
   数据库只能有一种说法」「环境变量的声明与读取必须对得上」「测试入口自己不许回归」。改动 `README.md` /
   `AGENTS.md` / `.env.example` / `frontend/.env.*` 之后都会走到它们。
 
