@@ -608,8 +608,12 @@ async function fetchProviders() {
 
 async function fetchCategories() {
   try {
+    // 后端走统一信封：`/models/categories/` 的 list 已经重写过（走 paginate），
+    // 拦截器拆掉信封后拿到的就是 `{results, total, page, page_size}`。
+    // 以前那行 `res.results || res || []` 是在给「后端返回裸数组」兜底 —— 那是
+    // `ModelCategoryViewSet` 没重写 list、走 DRF 默认实现留下的洞，已经堵上了。
     const res = await api.get('/models/categories/')
-    categories.value = res.results || res || []
+    categories.value = res.results
   } catch (e) {
     console.error('获取分类失败:', e)
   }

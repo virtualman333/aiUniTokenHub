@@ -85,7 +85,22 @@ class ModelProviderViewSet(viewsets.ModelViewSet):
 
 
 class ModelCategoryViewSet(viewsets.ModelViewSet):
-    """分类管理"""
+    """分类管理
+
+    这里把七个动作**全部**写出来，一个都不留给 DRF 默认实现 —— 理由不是风格。
+    这个类原本只写了 `get_permissions` 与 `active`，于是 `list` / `retrieve` /
+    `create` / `update` / `partial_update` / `destroy` 六个动作全部继承了
+    `ModelViewSet` 的默认实现，其中 `list` 返回的是**裸数组**：没有 `total`、
+    没有 `page_size` 上限、也没有统一信封。公开接口（`list` 是 `AllowAny`）的
+    契约因此与 AGENTS.md 写的那句「走 `{code, msg, data}`」不符，而前端只能写
+    `res.results || res || []` 去猜这一次拿到的是哪种形状。
+
+    同一个形状本仓已经修过两次（`APIAccessLogViewSet`、`UpstreamAccountViewSet`），
+    两次都是**手工发现**的。现在这件事由
+    `apps/docs/tests/test_response_envelope.py` 扛：它会枚举所有 `router.register`
+    过的视图、现算「哪些标准动作是继承来的」，有一处没本地定义就要么修掉、要么
+    在登记表里写明理由。参照实现在同文件上面的 `ModelProviderViewSet`。
+    """
     queryset = ModelCategory.objects.all()
     serializer_class = ModelCategorySerializer
     
@@ -94,12 +109,45 @@ class ModelCategoryViewSet(viewsets.ModelViewSet):
             return [AllowAny()]
         return [IsAdminUser()]
     
+    def list(self, request):
+        """获取分类列表"""
+        return paginate(request, self.get_queryset(), self.get_serializer, '获取成功')
+    
+    def retrieve(self, request, pk=None):
+        """获取分类详情"""
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return APIResponse.success(serializer.data, '获取成功')
+    
+    def create(self, request):
+        serializer = self.get_serializer(data=request.data)
+        if not serializer.is_valid():
+            return APIResponse.error(first_error_message(serializer.errors), 400)
+        self.perform_create(serializer)
+        return APIResponse.created(serializer.data, '创建成功')
+    
+    def update(self, request, pk=None):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        if not serializer.is_valid():
+            return APIResponse.error(first_error_message(serializer.errors), 400)
+        self.perform_update(serializer)
+        return APIResponse.success(serializer.data, '更新成功')
+    
+    def partial_update(self, request, pk=None):
+        return self.update(request, pk)
+    
+    def destroy(self, request, pk=None):
+        instance = self.get_object()
+        instance.delete()
+        return APIResponse.success(None, '删除成功')
+    
     @action(detail=False, methods=['get'])
     def active(self, request):
         """获取启用的分类"""
         categories = self.get_queryset().filter(is_active=True)
         serializer = self.get_serializer(categories, many=True)
-        return Response(serializer.data)
+        return APIResponse.success(serializer.data, '获取成功')
 
 
 class AIModelViewSet(viewsets.ModelViewSet):
