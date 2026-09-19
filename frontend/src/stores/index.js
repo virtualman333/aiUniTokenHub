@@ -132,44 +132,24 @@ export const useUserStore = defineStore('user', {
     },
     
     async sendResetCode(email) {
-      return await api.post('/users/auth/send_reset_code/', { email })
+      // 后端只有一个发码端点 `send_email_code`，按 `purpose` 分流（注册 / 重置密码）。
+      // 这里此前打的是 `/users/auth/send_reset_code/` —— 那个路径从来没有存在过，
+      // 于是「忘记密码」第一步必然 404，而 ForgotPassword.vue 还把它当成功流程在走。
+      return await api.post('/users/auth/send_email_code/', { email, purpose: 'reset_password' })
     },
     
     async resetPassword(email, code, password) {
       return await api.post('/users/auth/reset_password/', {
         email,
-        code,
+        // 字段名跟后端 serializer 走（与 register 同一套：email_code）。
+        // 原来这里写的是 `code` —— 就算端点补上了，也会被 serializer 判成缺字段而 400。
+        email_code: code,
         password
       })
     },
     
     async fetchApiKeys() {
       return await api.get('/users/keys/')
-    },
-  }
-})
-
-export const useDashboardStore = defineStore('dashboard', {
-  state: () => ({
-    overview: {},
-    requestStats: [],
-    topAPIs: [],
-  }),
-  
-  actions: {
-    async fetchOverview() {
-      this.overview = await api.get('/dashboard/overview/')
-      return this.overview
-    },
-    
-    async fetchRequestStats(days = 7) {
-      this.requestStats = await api.get('/dashboard/trend/', { params: { days } })
-      return this.requestStats
-    },
-    
-    async fetchTopAPIs(limit = 10) {
-      this.topAPIs = await api.get('/dashboard/distribution/', { params: { limit } })
-      return this.topAPIs
     },
   }
 })

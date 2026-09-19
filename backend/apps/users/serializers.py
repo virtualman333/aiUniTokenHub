@@ -1,6 +1,11 @@
 from rest_framework import serializers
 from .models import User, APIKey, Bill, CardPassword, InviteConfig, InviteReward, RechargeChannel, RechargePackage
 
+#: 密码最小长度 —— 注册、改密码、忘记密码重设**三个入口共用这一个数**。
+#: 此前它是手抄在两个 serializer 里的字面量 `6`；加上忘记密码就会有第三份，
+#: 而「同一个口令规则写在三个地方」正是本仓反复栽的形状（改一处、另两处静默不变）。
+PASSWORD_MIN_LENGTH = 6
+
 
 class AdminUserSerializer(serializers.ModelSerializer):
     """管理员用户序列化器"""
@@ -19,7 +24,7 @@ class AdminUserSerializer(serializers.ModelSerializer):
 
 class UserRegisterSerializer(serializers.ModelSerializer):
     """用户注册"""
-    password = serializers.CharField(write_only=True, min_length=6)
+    password = serializers.CharField(write_only=True, min_length=PASSWORD_MIN_LENGTH)
     password_confirm = serializers.CharField(write_only=True)
     email = serializers.EmailField(required=True, allow_blank=False)
     phone = serializers.CharField(required=False, allow_blank=True, max_length=20)
@@ -103,13 +108,26 @@ class APIKeySerializer(serializers.ModelSerializer):
 class ChangePasswordSerializer(serializers.Serializer):
     """修改密码"""
     old_password = serializers.CharField()
-    new_password = serializers.CharField(min_length=6)
+    new_password = serializers.CharField(min_length=PASSWORD_MIN_LENGTH)
     
     def validate_old_password(self, value):
         user = self.context['request'].user
         if not user.check_password(value):
             raise serializers.ValidationError('原密码错误')
         return value
+
+
+class ResetPasswordSerializer(serializers.Serializer):
+    """忘记密码 —— 凭邮箱验证码重设密码（未登录，所以没有 old_password 可校验）。
+
+    校验顺序刻意是「**先验码、再查人**」：`send_email_code` 对 `purpose='reset_password'`
+    不查邮箱是否已注册（那是注册那条路径的判据），所以如果这里先查人、再验码，
+    就会白送一个「这个邮箱注册过没有」的探测接口。先把码验过，请求方就必须先能收到
+    该邮箱的信 —— 那时他本来就知道了。
+    """
+    email = serializers.EmailField(required=True, allow_blank=False)
+    email_code = serializers.CharField(required=True, allow_blank=False)
+    password = serializers.CharField(write_only=True, min_length=PASSWORD_MIN_LENGTH)
 
 
 class BillSerializer(serializers.ModelSerializer):

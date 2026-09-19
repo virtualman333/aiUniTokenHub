@@ -17,13 +17,14 @@ from .models import (
 )
 from .serializers import (
     UserRegisterSerializer, UserLoginSerializer, UserSerializer,
-    APIKeySerializer, ChangePasswordSerializer, BillSerializer,
+    APIKeySerializer, ChangePasswordSerializer, ResetPasswordSerializer, BillSerializer,
     CardPasswordSerializer, CardRedeemSerializer,
     InviteConfigSerializer, InviteRewardSerializer,
     RechargeChannelSerializer, RechargePackageSerializer, RechargeSerializer
 )
 from .authentication import generate_token
 from .mailer import send_email, render_verify_code_email, EmailNotConfigured
+from .verify_code import code_problem
 from apps.utils.response import APIResponse
 from apps.utils.api_errors import first_error_message
 from apps.utils.pagination import page_params, paginate, slice_page
@@ -129,19 +130,16 @@ class AuthViewSet(viewsets.GenericViewSet):
         if is_disposable_email(email):
             return APIResponse.error('不支持该邮箱域名注册，请使用正规邮箱', 400)
 
-        # 校验验证码
+        # 校验验证码（三步判定与那三句话的唯一来源是 `apps/users/verify_code.py`）
         record = (
             EmailVerifyCode.objects
             .filter(email=email, purpose='register', is_used=False)
             .order_by('-created_at')
             .first()
         )
-        if not record:
-            return APIResponse.error('请先获取邮箱验证码', 400)
-        if record.is_expired:
-            return APIResponse.error('验证码已过期，请重新获取', 400)
-        if record.code != code:
-            return APIResponse.error('验证码不正确', 400)
+        problem = code_problem(record, code)
+        if problem:
+            return APIResponse.error(problem, 400)
 
         # 序列化注册（注意把 email 标准化）
         data = {**request.data, 'email': email}
@@ -198,6 +196,53 @@ class AuthViewSet(viewsets.GenericViewSet):
         request.user.set_password(serializer.validated_data['new_password'])
         request.user.save()
         return APIResponse.success(None, '密码修改成功')
+
+    @action(detail=False, methods=['post'])
+    def reset_password(self, request):
+        """忘记密码：凭邮箱验证码重设密码（未登录可调）
+
+        ★ 这个端点此前**不存在**，而前端从 `4888032` 起就一直在调它 —— `ForgotPassword.vue`
+        的「发送验证码」与「重设密码」两步分别打向 `/users/auth/send_reset_code/` 与
+        `/users/auth/reset_password/`，两个路径在后端都没有落点。也就是说整个「忘记密码」
+        链路是断的：用户点下去拿到的是 404，而 `/forgot-password` 还是 sitemap 里的公开页。
+        后端这边其实早就准备了一半 —— `EmailVerifyCode` 的 `purpose` 有 `reset_password`
+        这一档，`send_email_code` 也已经按 `purpose` 分支 —— 缺的只有「消费这个码」这一步。
+
+        发码那一步**不新开端点**：复用已有的 `send_email_code`（`purpose='reset_password'`）。
+        给同一件事开第二个入口，就是又开了一份会漂移的事实。
+        """
+        serializer = ResetPasswordSerializer(data=request.data)
+        if not serializer.is_valid():
+            return APIResponse.error(first_error_message(serializer.errors), 400)
+
+        email = serializer.validated_data['email'].strip().lower()
+        code = serializer.validated_data['email_code'].strip()
+
+        # 校验顺序与 `register` 一致：码 → 过期 → 内容，**且判定本身与它共用同一份实现**
+        # （`verify_code.code_problem`）。**先验码再查人**的理由见
+        # `ResetPasswordSerializer` 的 docstring：否则这里就成了邮箱注册状态的探测口。
+        record = (
+            EmailVerifyCode.objects
+            .filter(email=email, purpose='reset_password', is_used=False)
+            .order_by('-created_at')
+            .first()
+        )
+        problem = code_problem(record, code)
+        if problem:
+            return APIResponse.error(problem, 400)
+
+        user = User.objects.filter(email=email).first()
+        if not user:
+            return APIResponse.error('该邮箱尚未注册', 400)
+
+        user.set_password(serializer.validated_data['password'])
+        user.save(update_fields=['password'])
+
+        # 验证码一次性（与 register 同样的收尾）：用掉的码不能再用来改一次密码。
+        record.is_used = True
+        record.save(update_fields=['is_used'])
+
+        return APIResponse.success(None, '密码已重置，请使用新密码登录')
 
 
 class APIKeyViewSet(viewsets.ModelViewSet):
