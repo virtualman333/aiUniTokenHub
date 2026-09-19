@@ -46,6 +46,10 @@
     <link rel="dns-prefetch" href="//unitokenhub.m3it.cn" />
     
     <!-- 结构化数据 (JSON-LD) - 用于富媒体搜索结果 -->
+    <!-- ⚠ 这里不放 potentialAction / SearchAction：它要求站点真的有一个可被搜索引擎调用的
+         站内搜索 URL，而路由表里没有 /search（旧版写的是 /search?q={search_term_string}，
+         爬虫会落到 NotFound）。要加回来，先真的做出那个页面 —— scripts/check-seo.js
+         会核对 JSON-LD 里每个本站 URL 是否对应真实路由。 -->
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -54,12 +58,7 @@
         "alternateName": "统一API中转服务",
         "url": "https://unitokenhub.m3it.cn/",
         "description": "开箱即用的API中转站框架，支持AI API聚合、OpenAI兼容接口、多模型管理。快速搭建自己的API聚合平台。",
-        "inLanguage": "zh-CN",
-        "potentialAction": {
-          "@type": "SearchAction",
-          "target": "https://unitokenhub.m3it.cn/search?q={search_term_string}",
-          "query-input": "required name=search_term_string"
-        }
+        "inLanguage": "zh-CN"
       }
     </script>
     

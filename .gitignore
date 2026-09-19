@@ -48,6 +48,10 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
+# vite 加载 ESM 配置时写的临时文件（正常会被自己删掉，Windows 上偶尔留下一个）
+# 不挡的话工作区会长期非空，容易被误判成「有人正在改东西」
+frontend/*.timestamp-*.mjs
+
 # Auto-generated TypeScript declarations
 frontend/src/auto-imports.d.ts
 frontend/src/components.d.ts

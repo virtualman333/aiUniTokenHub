@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && node scripts/zip-dist.js",
+    "build": "npm run check:seo && vite build && node scripts/zip-dist.js",
+    "check:seo": "node scripts/check-seo.js",
+    "gen:seo": "node scripts/gen-seo.js",
     "preview": "vite preview"
   },
   "dependencies": {

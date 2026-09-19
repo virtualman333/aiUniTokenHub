@@ -70,7 +70,7 @@
     列表项收窄挡不住它 —— 只能按「是不是被要求照着敲的」收窄。
   - **命令形态的对齐**：只算**带 shell 语言标注的围栏**（`bash` / `sh` / `shell` /
     `console` / `zsh`）里的行。别的围栏装的是 Vue / JS 代码片段
-    （`title:`、`useSeoMeta(...)`、`import ...`），把它们的首个 token 也算成命令名会把
+    （`title:`、`import ...`、`const`），把它们的首个 token 也算成命令名会把
     真正的命令淹掉；散文与列表项同样不算（理由同上一条）。代价说清楚：**没标注语言的
     围栏**里的命令不会被对账到 —— 所以写命令时顺手标上 `bash`。
 
@@ -139,7 +139,7 @@ UNITTEST_DISCOVER_RE = re.compile(r'\bpython3?\s+-m\s+unittest\s+discover\b')
 #: 围栏代码块（``` 之间的内容）
 FENCED_BLOCK_RE = re.compile(r'^```[^\n]*\n(.*?)^```', re.M | re.S)
 #: **带 shell 语言标注**的围栏。为什么按标注收窄见文件头「命令形态的对齐」：
-#: 别的围栏装的是 Vue / JS 片段，首个 token 是 `title:` / `useSeoMeta(` 那种。
+#: 别的围栏装的是 Vue / JS 片段，首个 token 是 `title:` / `import ...` 那种。
 SHELL_FENCE_RE = re.compile(
     r'^```(?:bash|sh|shell|console|zsh)[^\n]*\n(.*?)^```', re.M | re.S
 )
